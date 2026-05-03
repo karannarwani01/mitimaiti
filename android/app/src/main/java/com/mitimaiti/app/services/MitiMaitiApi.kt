@@ -8,6 +8,7 @@ import retrofit2.http.*
  * Retrofit interface mapping to all MitiMaiti backend endpoints.
  * Mirrors: backend/src/routes/
  */
+@JvmSuppressWildcards
 interface MitiMaitiApi {
 
     // ──────────────────── AUTH (/v1/auth) ────────────────────

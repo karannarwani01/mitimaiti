@@ -144,12 +144,8 @@ fun EditProfileScreen(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         uri?.let { picked ->
-            if (com.mitimaiti.app.services.ApiConfig.useMockData) {
-                viewModel.addPhoto(picked)
-            } else {
-                val bytes = com.mitimaiti.app.utils.ImageCompression.compressForUpload(context, picked)
-                if (bytes != null) viewModel.uploadPhotoBytes(bytes)
-            }
+            val bytes = com.mitimaiti.app.utils.ImageCompression.compressForUpload(context, picked)
+            if (bytes != null) viewModel.uploadPhotoBytes(bytes)
         }
     }
 

@@ -3,9 +3,10 @@ import SwiftUI
 @MainActor
 class ProfileViewModel: ObservableObject {
     @Published var user: User = {
-        var u = MockData.currentUser
-        // If the user set their name during onboarding, use it as the
-        // profile name instead of the mock default.
+        // Start with an empty user; real profile is loaded via loadProfile().
+        // If the user set their name during onboarding, surface it immediately
+        // so the UI doesn't flash an empty name before the network call returns.
+        var u = User()
         let storedName = UserProfileStore.shared.firstName
         if !storedName.isEmpty { u.displayName = storedName }
         return u

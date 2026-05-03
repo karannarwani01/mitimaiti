@@ -512,7 +512,7 @@ struct EditProfileView: View {
     private var personalityChipFields: some View {
         VStack(spacing: AppTheme.spacingSM) {
             editField(label: "Interests", icon: "heart.fill") {
-                multiSelectChips(selected: $editInterests, options: MockData.allInterests)
+                multiSelectChips(selected: $editInterests, options: interestOptions)
             }
             editField(label: "Music Preferences", icon: "music.note") {
                 multiSelectChips(selected: $editMusic, options: musicOptions)
@@ -756,20 +756,11 @@ struct EditProfileView: View {
                         let compressed = uiImage.compressedForUpload() ?? data
                         UserImageStore.shared.save(uiImage, at: sortOrder)
 
-                        if AppConfig.useMockData {
-                            let newPhoto = UserPhoto(
-                                url: "local_photo_\(UUID().uuidString)",
-                                isPrimary: profileVM.user.photos.isEmpty,
-                                sortOrder: sortOrder
-                            )
-                            profileVM.user.photos.append(newPhoto)
-                        } else {
-                            do {
-                                let uploaded = try await APIService.shared.uploadPhoto(imageData: compressed)
-                                profileVM.user.photos.append(uploaded)
-                            } catch {
-                                ToastManager.shared.show("Upload failed: \(error.localizedDescription)")
-                            }
+                        do {
+                            let uploaded = try await APIService.shared.uploadPhoto(imageData: compressed)
+                            profileVM.user.photos.append(uploaded)
+                        } catch {
+                            ToastManager.shared.show("Upload failed: \(error.localizedDescription)")
                         }
                     }
                 }
@@ -1014,6 +1005,16 @@ struct EditProfileView: View {
         [
             "Garba", "Bhajan", "Community Service", "Theatre",
             "Folk Dance", "Sindhi Literature", "Yoga", "Meditation"
+        ]
+    }
+
+    private var interestOptions: [String] {
+        [
+            "Travel", "Cooking", "Cricket", "Music", "Fitness", "Reading",
+            "Photography", "Dancing", "Art", "Movies", "Yoga", "Hiking",
+            "Coffee", "Food", "Gaming", "Bollywood", "Meditation",
+            "Volunteering", "Fashion", "Tech", "Writing", "Tennis",
+            "Swimming", "Cycling", "Theatre"
         ]
     }
 

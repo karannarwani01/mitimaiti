@@ -49,7 +49,12 @@ class AuthViewModel : ViewModel() {
         if (_otpCode.value.length != 6) { _error.value = "Please enter a 6-digit code"; return }
         viewModelScope.launch {
             _isLoading.value = true; _error.value = null
-            APIService.verifyOTP(_phone.value, _otpCode.value).onSuccess { (user, isNewUser) -> _currentUser.value = user; _isAuthenticated.value = true; _hasCompletedOnboarding.value = !isNewUser }.onFailure { _error.value = "Invalid OTP. Please try again." }
+            APIService.verifyOTP(_phone.value, _otpCode.value).onSuccess { (user, isNewUser) ->
+                _currentUser.value = user
+                _isAuthenticated.value = true
+                // Route to onboarding if user is new OR has not finished filling out their profile
+                _hasCompletedOnboarding.value = !isNewUser && user.profileCompleteness >= 50
+            }.onFailure { _error.value = "Invalid OTP. Please try again." }
             _isLoading.value = false
         }
     }

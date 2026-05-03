@@ -1,17 +1,14 @@
 package com.mitimaiti.app.services
 
 import com.mitimaiti.app.models.*
-import kotlinx.coroutines.delay
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.time.LocalDate
 
 /**
- * Unified API service that switches between mock data and real backend.
- * Toggle via ApiConfig.useMockData
- *
- * Real backend endpoints (backend/src/routes/):
+ * Live backend service. All calls hit production backend (no mocks).
+ * Endpoints (backend/src/routes/):
  *   POST /v1/auth/login        → sendOTP
  *   POST /v1/auth/verify       → verifyOTP
  *   POST /v1/auth/refresh      → refreshToken
@@ -19,7 +16,7 @@ import java.time.LocalDate
  *   GET  /v1/me                → fetchProfile
  *   PATCH /v1/me               → updateProfile
  *   GET  /v1/feed              → fetchFeed
- *   POST /v1/action            → performAction (like/pass)
+ *   POST /v1/action            → performAction
  *   POST /v1/action/rewind     → rewind
  *   GET  /v1/inbox             → fetchInbox
  *   GET  /v1/chat/:matchId     → fetchMessages
@@ -29,7 +26,7 @@ import java.time.LocalDate
  *   POST /v1/safety/report     → reportUser
  *   POST /v1/safety/block      → blockUser
  *
- * Real-time chat uses SocketManager (Socket.IO on port 4001)
+ * Real-time chat uses SocketManager (Socket.IO).
  */
 object APIService {
     private var tokenManager: TokenManager? = null
@@ -49,10 +46,6 @@ object APIService {
     // ──────────────────── AUTH ────────────────────
 
     suspend fun sendOTP(phone: String): Result<Boolean> {
-        if (ApiConfig.useMockData) {
-            delay(1000)
-            return if (phone.length >= 10) Result.success(true) else Result.failure(APIError.NetworkError)
-        }
         return try {
             val response = api.sendOTP(mapOf("phone" to phone))
             if (response.isSuccessful) Result.success(true)
@@ -61,29 +54,22 @@ object APIService {
     }
 
     suspend fun verifyOTP(phone: String, code: String): Result<Pair<User, Boolean>> {
-        if (ApiConfig.useMockData) {
-            delay(1500)
-            return if (code == "123456") {
-                setTokens("mock-access-token", "mock-refresh-token")
-                Result.success(Pair(MockData.currentUser, true))
-            } else Result.failure(APIError.InvalidOTP)
-        }
         return try {
             val response = api.verifyOTP(mapOf("phone" to phone, "token" to code))
             if (response.isSuccessful) {
                 val body = response.body() ?: return Result.failure(APIError.ServerError)
-                val token = body["access_token"] as? String ?: ""
-                val refresh = body["refresh_token"] as? String ?: ""
-                val userId = body["user_id"] as? String ?: ""
-                val isNew = body["is_new_user"] as? Boolean ?: false
+                val session = body["session"] as? Map<*, *>
+                val userMap = body["user"] as? Map<*, *>
+                val token = session?.get("access_token") as? String ?: ""
+                val refresh = session?.get("refresh_token") as? String ?: ""
+                val userId = userMap?.get("id") as? String ?: ""
+                val isNew = userMap?.get("is_new") as? Boolean ?: false
                 setTokens(token, refresh)
                 tokenManager?.saveTokens(token, refresh, userId)
-                // Connect WebSocket after auth
                 SocketManager.shared.connect(token)
-                Result.success(Pair(parseUser(body["user"] as? Map<*, *>), isNew))
+                Result.success(Pair(parseUser(userMap), isNew))
             } else {
-                val code = response.code()
-                if (code == 401) Result.failure(APIError.InvalidOTP)
+                if (response.code() == 401) Result.failure(APIError.InvalidOTP)
                 else Result.failure(APIError.ServerError)
             }
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
@@ -92,33 +78,25 @@ object APIService {
     // ──────────────────── PROFILE ────────────────────
 
     suspend fun fetchProfile(): Result<User> {
-        if (ApiConfig.useMockData) { delay(500); return Result.success(MockData.currentUser) }
         return try {
             val response = api.getProfile()
-            if (response.isSuccessful) {
-                Result.success(parseUser(response.body()))
-            } else Result.failure(APIError.ServerError)
-        } catch (e: Exception) { Result.failure(APIError.NetworkError) }
-    }
-
-    suspend fun updateProfile(updates: Map<String, Any>): Result<User> {
-        if (ApiConfig.useMockData) { delay(800); return Result.success(MockData.currentUser) }
-        return try {
-            val response = api.updateProfile(updates)
             if (response.isSuccessful) Result.success(parseUser(response.body()))
             else Result.failure(APIError.ServerError)
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
 
-    suspend fun uploadPhoto(bytes: ByteArray, mimeType: String = "image/jpeg"): Result<UserPhoto> {
-        if (ApiConfig.useMockData) {
-            delay(800)
-            return Result.success(UserPhoto(
-                url = "https://i.pravatar.cc/600?u=${java.util.UUID.randomUUID()}",
-                isPrimary = false,
-                sortOrder = 0
-            ))
+    suspend fun updateProfile(updates: Map<String, Any>): Result<User> {
+        return try {
+            val response = api.updateProfile(updates)
+            if (response.isSuccessful) Result.success(parseUser(response.body()))
+            else Result.failure(APIError.ServerError)
+        } catch (e: Exception) {
+            android.util.Log.e("APIService", "updateProfile failed", e)
+            Result.failure(APIError.NetworkError)
         }
+    }
+
+    suspend fun uploadPhoto(bytes: ByteArray, mimeType: String = "image/jpeg"): Result<UserPhoto> {
         return try {
             val body = bytes.toRequestBody(mimeType.toMediaTypeOrNull())
             val part = MultipartBody.Part.createFormData("file", "photo.jpg", body)
@@ -138,7 +116,6 @@ object APIService {
     }
 
     suspend fun deletePhoto(id: String): Result<Boolean> {
-        if (ApiConfig.useMockData) { delay(300); return Result.success(true) }
         return try {
             val response = api.deletePhoto(id)
             if (response.isSuccessful) Result.success(true) else Result.failure(APIError.ServerError)
@@ -146,7 +123,6 @@ object APIService {
     }
 
     suspend fun answerPrompt(answer: String): Result<Boolean> {
-        if (ApiConfig.useMockData) { delay(400); return Result.success(true) }
         return try {
             val response = api.answerPrompt(mapOf("answer" to answer))
             if (response.isSuccessful) Result.success(true) else Result.failure(APIError.ServerError)
@@ -154,7 +130,6 @@ object APIService {
     }
 
     suspend fun joinFamily(code: String, roleTag: String): Result<Boolean> {
-        if (ApiConfig.useMockData) { delay(500); return Result.success(true) }
         return try {
             val response = api.joinFamily(mapOf("code" to code, "roleTag" to roleTag))
             if (response.isSuccessful) Result.success(true) else Result.failure(APIError.ServerError)
@@ -162,7 +137,6 @@ object APIService {
     }
 
     suspend fun registerFcmToken(token: String, platform: String = "android"): Result<Boolean> {
-        if (ApiConfig.useMockData) { delay(200); return Result.success(true) }
         return try {
             val response = api.registerFcmToken(mapOf("token" to token, "platform" to platform))
             if (response.isSuccessful) Result.success(true) else Result.failure(APIError.ServerError)
@@ -172,13 +146,11 @@ object APIService {
     // ──────────────────── FEED ────────────────────
 
     suspend fun fetchFeed(cursor: String? = null): Result<List<FeedCard>> {
-        if (ApiConfig.useMockData) { delay(1000); return Result.success(MockData.makeFeedCards()) }
         return try {
             val response = api.getFeed(cursor)
             if (response.isSuccessful) {
                 val body = response.body() ?: return Result.success(emptyList())
-                val cards = parseFeedCards(body["cards"] as? List<*>)
-                Result.success(cards)
+                Result.success(parseFeedCards(body["cards"] as? List<*>))
             } else Result.failure(APIError.ServerError)
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
@@ -186,17 +158,6 @@ object APIService {
     // ──────────────────── ACTIONS ────────────────────
 
     suspend fun performAction(targetId: String, type: String): Result<Match?> {
-        if (ApiConfig.useMockData) {
-            delay(500)
-            if (type == "like") {
-                val isMatch = (1..10).random() <= 3
-                if (isMatch) {
-                    val user = MockData.mockUsers.firstOrNull { it.id == targetId } ?: MockData.mockUsers.first()
-                    return Result.success(Match(otherUser = user, status = MatchStatus.PENDING_FIRST_MESSAGE, matchedAt = System.currentTimeMillis(), expiresAt = System.currentTimeMillis() + 24 * 60 * 60 * 1000L))
-                }
-            }
-            return Result.success(null)
-        }
         return try {
             val response = api.performAction(mapOf("targetUserId" to targetId, "type" to type))
             if (response.isSuccessful) {
@@ -209,7 +170,6 @@ object APIService {
     }
 
     suspend fun rewind(): Result<Boolean> {
-        if (ApiConfig.useMockData) { delay(300); return Result.success(true) }
         return try {
             val response = api.rewind()
             Result.success(response.isSuccessful)
@@ -219,7 +179,6 @@ object APIService {
     // ──────────────────── INBOX ────────────────────
 
     suspend fun fetchInbox(): Result<Pair<List<LikedYouCard>, List<Match>>> {
-        if (ApiConfig.useMockData) { delay(800); return Result.success(Pair(MockData.makeLikes(), MockData.makeMatches())) }
         return try {
             val response = api.getInbox()
             if (response.isSuccessful) {
@@ -234,58 +193,40 @@ object APIService {
     // ──────────────────── CHAT ────────────────────
 
     suspend fun fetchMessages(matchId: String): Result<List<Message>> {
-        if (ApiConfig.useMockData) { delay(500); return Result.success(MockData.makeMessages(matchId)) }
         return try {
             val response = api.getMessages(matchId)
             if (response.isSuccessful) {
                 val body = response.body() ?: return Result.success(emptyList())
-                val messages = parseMessages(body["messages"] as? List<*>)
-                Result.success(messages)
+                Result.success(parseMessages(body["messages"] as? List<*>))
             } else Result.failure(APIError.ServerError)
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
 
     suspend fun sendMessage(matchId: String, content: String, type: MessageType = MessageType.TEXT): Result<Message> {
-        if (ApiConfig.useMockData) {
-            delay(300)
-            return Result.success(Message(matchId = matchId, senderId = "current-user-id", content = content, msgType = type, status = MessageStatus.SENT))
-        }
-        // Prefer WebSocket for real-time, REST as fallback
         if (SocketManager.shared.isConnected.value) {
             SocketManager.shared.sendMessage(matchId, content, type.value)
             return Result.success(Message(matchId = matchId, senderId = tokenManager?.getUserId().toString(), content = content, msgType = type, status = MessageStatus.SENDING))
         }
         return try {
             val response = api.sendMessage(matchId, mapOf("content" to content, "msgType" to type.value))
-            if (response.isSuccessful) {
-                val body = response.body()
-                Result.success(parseMessage(body?.get("message") as? Map<*, *>))
-            } else Result.failure(APIError.ServerError)
+            if (response.isSuccessful) Result.success(parseMessage(response.body()?.get("message") as? Map<*, *>))
+            else Result.failure(APIError.ServerError)
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
 
     suspend fun sendChatMedia(matchId: String, bytes: ByteArray, mimeType: String = "image/jpeg"): Result<Message> {
-        if (ApiConfig.useMockData) {
-            delay(600)
-            return Result.success(Message(matchId = matchId, senderId = "current-user-id",
-                content = "https://i.pravatar.cc/600?u=${java.util.UUID.randomUUID()}",
-                msgType = MessageType.PHOTO, status = MessageStatus.SENT))
-        }
         return try {
             val body = bytes.toRequestBody(mimeType.toMediaTypeOrNull())
             val part = MultipartBody.Part.createFormData("media", "chat.jpg", body)
             val response = api.sendMedia(matchId, part)
-            if (response.isSuccessful) {
-                val message = response.body()?.get("message") as? Map<*, *>
-                Result.success(parseMessage(message))
-            } else Result.failure(APIError.ServerError)
+            if (response.isSuccessful) Result.success(parseMessage(response.body()?.get("message") as? Map<*, *>))
+            else Result.failure(APIError.ServerError)
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
 
     // ──────────────────── FAMILY ────────────────────
 
     suspend fun fetchFamily(): Result<Pair<List<FamilyMember>, List<FamilySuggestion>>> {
-        if (ApiConfig.useMockData) { delay(600); return Result.success(Pair(MockData.makeFamilyMembers(), MockData.makeFamilySuggestions())) }
         return try {
             val response = api.getFamily()
             if (response.isSuccessful) {
@@ -298,11 +239,6 @@ object APIService {
     }
 
     suspend fun generateInvite(): Result<FamilyInvite> {
-        if (ApiConfig.useMockData) {
-            delay(400)
-            val code = "MM-${(100000..999999).random()}"
-            return Result.success(FamilyInvite(code = code, deepLink = "https://mitimaiti.com/join/$code", currentMembers = MockData.makeFamilyMembers().size))
-        }
         return try {
             val response = api.generateFamilyInvite()
             if (response.isSuccessful) {
@@ -310,7 +246,7 @@ object APIService {
                 Result.success(FamilyInvite(
                     code = body["code"] as? String ?: "",
                     deepLink = body["deep_link"] as? String ?: "",
-                    currentMembers = (body["current_members"] as? Double)?.toInt() ?: 0
+                    currentMembers = (body["current_members"] as? Number)?.toInt() ?: 0
                 ))
             } else Result.failure(APIError.ServerError)
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
@@ -319,7 +255,6 @@ object APIService {
     // ──────────────────── SAFETY ────────────────────
 
     suspend fun reportUser(userId: String, reason: String): Result<Boolean> {
-        if (ApiConfig.useMockData) { delay(500); return Result.success(true) }
         return try {
             val response = api.reportUser(mapOf("reported_user_id" to userId, "reason" to reason))
             Result.success(response.isSuccessful)
@@ -327,7 +262,6 @@ object APIService {
     }
 
     suspend fun blockUser(userId: String): Result<Boolean> {
-        if (ApiConfig.useMockData) { delay(500); return Result.success(true) }
         return try {
             val response = api.blockUser(mapOf("blocked_user_id" to userId))
             Result.success(response.isSuccessful)
@@ -337,7 +271,7 @@ object APIService {
     // ──────────────────── PARSERS ────────────────────
 
     private fun parseUser(data: Map<*, *>?): User {
-        if (data == null) return MockData.currentUser
+        if (data == null) return User(id = "", phone = "")
         return User(
             id = data["id"] as? String ?: "",
             phone = data["phone"] as? String ?: "",
@@ -345,7 +279,7 @@ object APIService {
             dateOfBirth = (data["date_of_birth"] as? String)?.let { try { LocalDate.parse(it) } catch (e: Exception) { null } },
             gender = (data["gender"] as? String)?.let { g -> Gender.entries.firstOrNull { it.name.equals(g, true) } },
             bio = data["bio"] as? String ?: "",
-            heightCm = (data["height_cm"] as? Double)?.toInt(),
+            heightCm = (data["height_cm"] as? Number)?.toInt(),
             city = data["city"] as? String ?: "",
             state = data["state"] as? String ?: "",
             country = data["country"] as? String ?: "",
@@ -359,7 +293,7 @@ object APIService {
                     urlThumb = photo["url_thumb"] as? String,
                     urlMedium = photo["url_medium"] as? String,
                     isPrimary = photo["is_primary"] as? Boolean ?: false,
-                    sortOrder = (photo["sort_order"] as? Double)?.toInt() ?: 0,
+                    sortOrder = (photo["sort_order"] as? Number)?.toInt() ?: 0,
                     isVerified = photo["is_verified"] as? Boolean ?: false
                 )
             } ?: emptyList(),
@@ -372,7 +306,7 @@ object APIService {
             foodPreference = (data["food_preference"] as? String)?.let { f -> FoodPreference.entries.firstOrNull { it.name.equals(f, true) } },
             interests = (data["interests"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
             isOnline = data["is_online"] as? Boolean ?: false,
-            profileCompleteness = (data["profile_completeness"] as? Double)?.toInt() ?: 0
+            profileCompleteness = (data["profile_completeness"] as? Number)?.toInt() ?: 0
         )
     }
 
@@ -380,16 +314,16 @@ object APIService {
     private fun parseFeedCards(data: List<*>?): List<FeedCard> {
         return data?.mapNotNull { item ->
             val card = item as? Map<*, *> ?: return@mapNotNull null
-            val score = (card["cultural_score"] as? Double)?.toInt() ?: 0
+            val score = (card["cultural_score"] as? Number)?.toInt() ?: 0
             FeedCard(
                 id = card["id"] as? String ?: "",
-                user = parseUser(card as? Map<*, *>),
+                user = parseUser(card),
                 culturalScore = CulturalScore(
                     overallScore = score,
                     badge = when { score >= 85 -> CulturalBadge.GOLD; score >= 65 -> CulturalBadge.GREEN; score >= 40 -> CulturalBadge.ORANGE; else -> CulturalBadge.NONE }
                 ),
-                commonInterests = (card["common_interests"] as? Double)?.toInt() ?: 0,
-                distanceKm = card["distance_km"] as? Double
+                commonInterests = (card["common_interests"] as? Number)?.toInt() ?: 0,
+                distanceKm = (card["distance_km"] as? Number)?.toDouble()
             )
         } ?: emptyList()
     }
@@ -397,7 +331,7 @@ object APIService {
     private fun parseLikes(data: List<*>?): List<LikedYouCard> {
         return data?.mapNotNull { item ->
             val like = item as? Map<*, *> ?: return@mapNotNull null
-            val score = (like["cultural_score"] as? Double)?.toInt() ?: 0
+            val score = (like["cultural_score"] as? Number)?.toInt() ?: 0
             LikedYouCard(
                 id = like["id"] as? String ?: "",
                 user = parseUser(like["user"] as? Map<*, *>),
@@ -412,18 +346,18 @@ object APIService {
     }
 
     private fun parseMatch(data: Map<*, *>?): Match {
-        if (data == null) return Match(otherUser = MockData.mockUsers.first())
+        if (data == null) return Match(otherUser = User(id = "", phone = ""))
         return Match(
             id = data["id"] as? String ?: "",
             otherUser = parseUser(data["other_user"] as? Map<*, *>),
             status = (data["status"] as? String)?.let { s -> MatchStatus.entries.firstOrNull { it.value == s } } ?: MatchStatus.PENDING_FIRST_MESSAGE,
-            matchedAt = (data["matched_at"] as? Double)?.toLong() ?: System.currentTimeMillis(),
-            expiresAt = (data["expires_at"] as? Double)?.toLong(),
+            matchedAt = (data["matched_at"] as? Number)?.toLong() ?: System.currentTimeMillis(),
+            expiresAt = (data["expires_at"] as? Number)?.toLong(),
             lastMessage = data["last_message"] as? String,
-            unreadCount = (data["unread_count"] as? Double)?.toInt() ?: 0,
+            unreadCount = (data["unread_count"] as? Number)?.toInt() ?: 0,
             firstMsgBy = data["first_msg_by"] as? String,
             firstMsgLocked = data["first_msg_locked"] as? Boolean ?: false,
-            firstMsgAt = (data["first_msg_at"] as? Double)?.toLong()
+            firstMsgAt = (data["first_msg_at"] as? Number)?.toLong()
         )
     }
 
@@ -441,7 +375,7 @@ object APIService {
             mediaUrl = data["media_url"] as? String,
             msgType = (data["msg_type"] as? String)?.let { t -> MessageType.entries.firstOrNull { it.value == t } } ?: MessageType.TEXT,
             status = if (data["is_read"] as? Boolean == true) MessageStatus.READ else MessageStatus.DELIVERED,
-            createdAt = (data["created_at"] as? Double)?.toLong() ?: System.currentTimeMillis()
+            createdAt = (data["created_at"] as? Number)?.toLong() ?: System.currentTimeMillis()
         )
     }
 
@@ -456,14 +390,14 @@ object APIService {
                 relationship = m["role_tag"] as? String ?: "",
                 status = (m["status"] as? String)?.let { s -> FamilyMemberStatus.entries.firstOrNull { it.value == s } } ?: FamilyMemberStatus.ACTIVE,
                 permissions = FamilyPermissions(
-                    canViewProfile = perms?.get("canViewProfile") as? Boolean ?: true,
-                    canViewPhotos = perms?.get("canViewPhotos") as? Boolean ?: true,
-                    canViewBasics = perms?.get("canViewBasics") as? Boolean ?: true,
-                    canViewSindhi = perms?.get("canViewSindhi") as? Boolean ?: true,
-                    canViewMatches = perms?.get("canViewMatches") as? Boolean ?: false,
-                    canSuggest = perms?.get("canSuggest") as? Boolean ?: true,
-                    canViewCulturalScore = perms?.get("canViewCulturalScore") as? Boolean ?: true,
-                    canViewKundli = perms?.get("canViewKundli") as? Boolean ?: false
+                    canViewProfile = perms?.get("can_view_profile") as? Boolean ?: true,
+                    canViewPhotos = perms?.get("can_view_photos") as? Boolean ?: true,
+                    canViewBasics = perms?.get("can_view_basics") as? Boolean ?: true,
+                    canViewSindhi = perms?.get("can_view_sindhi") as? Boolean ?: true,
+                    canViewMatches = perms?.get("can_view_matches") as? Boolean ?: false,
+                    canSuggest = perms?.get("can_suggest") as? Boolean ?: true,
+                    canViewCulturalScore = perms?.get("can_view_cultural_score") as? Boolean ?: true,
+                    canViewKundli = perms?.get("can_view_kundli") as? Boolean ?: false
                 )
             )
         } ?: emptyList()

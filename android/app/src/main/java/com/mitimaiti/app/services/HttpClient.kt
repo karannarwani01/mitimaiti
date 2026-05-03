@@ -48,7 +48,7 @@ object HttpClient {
     private suspend fun refreshToken(): String? {
         val refreshToken = tokenManager?.getRefreshToken() ?: return null
         return try {
-            val response = refreshApi.refreshToken(mapOf("refresh_token" to refreshToken))
+            val response = refreshApi.refreshToken(mapOf("refreshToken" to refreshToken))
             if (response.isSuccessful) {
                 val body = response.body()
                 val newAccess = body?.get("access_token") as? String
@@ -67,6 +67,7 @@ object HttpClient {
 
     private val okHttpClient = OkHttpClient.Builder()
         .addInterceptor(authInterceptor)
+        .addInterceptor(ResponseUnwrapInterceptor)
         .addInterceptor(loggingInterceptor)
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
@@ -87,6 +88,7 @@ object HttpClient {
     private val refreshRetrofit: Retrofit = Retrofit.Builder()
         .baseUrl(ApiConfig.BASE_URL)
         .client(OkHttpClient.Builder()
+            .addInterceptor(ResponseUnwrapInterceptor)
             .addInterceptor(loggingInterceptor)
             .connectTimeout(15, TimeUnit.SECONDS)
             .build())

@@ -58,6 +58,12 @@ import com.mitimaiti.app.viewmodels.OnboardingViewModel
 fun OnboardingScreen(onComplete: () -> Unit, onNavigateToEditProfile: () -> Unit = {}) {
     val viewModel: OnboardingViewModel = viewModel()
     val colors = LocalAdaptiveColors.current
+    val rootContext = LocalContext.current
+    val isSubmitting by viewModel.isSubmitting.collectAsState()
+    val submitError by viewModel.submitError.collectAsState()
+    val finishOnboarding: () -> Unit = {
+        viewModel.submitOnboarding(rootContext) { ok -> if (ok) onComplete() }
+    }
     val currentStep by viewModel.currentStep.collectAsState()
     val totalSteps = OnboardingStep.entries.size
     val stepIndex = OnboardingStep.entries.indexOf(currentStep)
@@ -237,8 +243,12 @@ fun OnboardingScreen(onComplete: () -> Unit, onNavigateToEditProfile: () -> Unit
                                 isNonSindhi = isNonSindhi,
                                 profileCompleteness = profileCompleteness,
                                 onCompleteSindhi = {
-                                    onComplete()
-                                    onNavigateToEditProfile()
+                                    viewModel.submitOnboarding(rootContext) { ok ->
+                                        if (ok) {
+                                            onComplete()
+                                            onNavigateToEditProfile()
+                                        }
+                                    }
                                 }
                             )
                         }
@@ -249,10 +259,11 @@ fun OnboardingScreen(onComplete: () -> Unit, onNavigateToEditProfile: () -> Unit
             // Next / Let's Go button
             Button(
                 onClick = {
-                    if (currentStep == OnboardingStep.READY) onComplete() else viewModel.nextStep()
+                    android.util.Log.d("Onboarding", "Button tapped, step=$currentStep, canProceed=$canProceed, isSubmitting=$isSubmitting")
+                    if (currentStep == OnboardingStep.READY) finishOnboarding() else viewModel.nextStep()
                 },
                 modifier = Modifier.fillMaxWidth().height(56.dp),
-                enabled = canProceed,
+                enabled = canProceed && !isSubmitting,
                 shape = RoundedCornerShape(AppTheme.radiusLg),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = AppColors.Rose,
