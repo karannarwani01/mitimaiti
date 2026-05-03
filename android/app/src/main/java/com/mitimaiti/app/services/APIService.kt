@@ -75,6 +75,13 @@ object APIService {
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
 
+    suspend fun verifyGoogleIdToken(idToken: String): Result<Pair<User, Boolean>> {
+        return try {
+            val response = api.verifyGoogleIdToken(mapOf("idToken" to idToken))
+            handleAuthVerifyResponse(response)
+        } catch (e: Exception) { Result.failure(APIError.NetworkError) }
+    }
+
     private suspend fun handleAuthVerifyResponse(
         response: retrofit2.Response<Map<String, Any>>
     ): Result<Pair<User, Boolean>> {

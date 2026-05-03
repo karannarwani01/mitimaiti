@@ -85,6 +85,22 @@ class AuthViewModel : ViewModel() {
         }
     }
 
+    fun signInWithGoogle(idToken: String) {
+        viewModelScope.launch {
+            _isLoading.value = true; _error.value = null
+            APIService.verifyGoogleIdToken(idToken).onSuccess { (user, isNewUser) ->
+                _currentUser.value = user
+                _isAuthenticated.value = true
+                _hasCompletedOnboarding.value = !isNewUser && user.profileCompleteness >= 50
+            }.onFailure { _error.value = "Google sign-in failed. Please try again." }
+            _isLoading.value = false
+        }
+    }
+
+    fun setGoogleSignInError(message: String) {
+        _error.value = message
+    }
+
     private fun isValidEmail(s: String): Boolean =
         s.isNotBlank() && android.util.Patterns.EMAIL_ADDRESS.matcher(s).matches()
 

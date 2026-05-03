@@ -77,6 +77,7 @@ The OpenAPI spec is served at `GET /v1/openapi.yaml` once the backend is running
 **Auth providers:**
 - **Phone OTP** is delivered via Supabase Auth (Twilio under the hood).
 - **Email OTP** is delivered via Supabase Auth's built-in SMTP. The built-in is rate-limited to ~2 emails/hour; production must configure a custom SMTP provider in the Supabase dashboard (**Resend free tier** is sufficient — 100 emails/day, 3000/month). Without this, `/v1/auth/email/login` will succeed for the first 1–2 requests per hour and silently rate-limit beyond that.
+- **Google Sign-In** uses Credential Manager + Sign in with Google on Android. Backend verifies the ID token with `google-auth-library` against `GOOGLE_WEB_CLIENT_ID` (the Web OAuth Client ID from Google Cloud Console), then mints a Supabase session via `signInWithIdToken`. Android passes the same Client ID to Credential Manager as `serverClientId` (built into the APK via `-PgoogleWebClientId=...` or the `GOOGLE_WEB_CLIENT_ID` env var at build time). Supabase Auth dashboard → Providers → Google must also be enabled and configured with the same Client ID.
 
 ### Admin
 ```bash

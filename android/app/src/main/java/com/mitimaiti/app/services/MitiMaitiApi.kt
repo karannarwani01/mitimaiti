@@ -25,6 +25,9 @@ interface MitiMaitiApi {
     @POST("auth/email/verify")
     suspend fun verifyEmailOTP(@Body body: Map<String, String>): Response<Map<String, Any>>
 
+    @POST("auth/google/verify")
+    suspend fun verifyGoogleIdToken(@Body body: Map<String, String>): Response<Map<String, Any>>
+
     @POST("auth/refresh")
     suspend fun refreshToken(@Body body: Map<String, String>): Response<Map<String, Any>>
 

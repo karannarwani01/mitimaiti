@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
+import { OAuth2Client } from 'google-auth-library';
 import { supabase } from '../config/supabase';
 import { redis } from '../config/redis';
 import { AppError, asyncHandler } from '../utils/errors';
@@ -44,6 +45,10 @@ const emailVerifySchema = z.object({
     .string()
     .min(6, 'OTP must be at least 6 characters')
     .max(6, 'OTP must be at most 6 characters'),
+});
+
+const googleVerifySchema = z.object({
+  idToken: z.string().min(20, 'idToken is required'),
 });
 
 const refreshSchema = z.object({
@@ -623,6 +628,205 @@ router.post(
     if (safetyResult.error) {
       console.error('[Auth] Failed to create safety row:', safetyResult.error.message);
     }
+
+    res.status(201).json({
+      success: true,
+      data: {
+        user: {
+          id: newUser.id,
+          authId: newUser.auth_id,
+          email: newUser.email,
+          phone: newUser.phone,
+          isVerified: false,
+          profileCompleteness: 0,
+          isNew: true,
+        },
+        session: {
+          accessToken: sessionData.access_token,
+          refreshToken: sessionData.refresh_token,
+          expiresAt: sessionData.expires_at,
+        },
+      },
+    });
+  })
+);
+
+// ─── POST /v1/auth/google/verify ────────────────────────────────────────────────
+// Verifies a Google ID token from the Android Credential Manager / Sign in with
+// Google flow, then provisions or refreshes the user. The mobile client obtains
+// the ID token from Google directly; we never touch a Google access token.
+//
+// GOOGLE_WEB_CLIENT_ID must match the Web OAuth Client ID configured in Google
+// Cloud Console — the audience claim of the ID token will equal that value.
+//
+// On success, mints a Supabase session by calling supabase.auth.signInWithIdToken
+// so the rest of the app's JWT/refresh plumbing stays identical to the phone +
+// email paths.
+
+const googleClientId = process.env.GOOGLE_WEB_CLIENT_ID || '';
+const googleVerifier = new OAuth2Client(googleClientId);
+
+router.post(
+  '/google/verify',
+  strictRateLimit,
+  validate(googleVerifySchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    if (!googleClientId) {
+      throw new AppError(
+        500,
+        'Google sign-in is not configured on the server',
+        'GOOGLE_NOT_CONFIGURED'
+      );
+    }
+
+    const { idToken } = req.body;
+
+    // 1. Verify the ID token signature + audience locally — fast and avoids any
+    //    extra network hop to Google.
+    let payload: import('google-auth-library').TokenPayload | undefined;
+    try {
+      const ticket = await googleVerifier.verifyIdToken({
+        idToken,
+        audience: googleClientId,
+      });
+      payload = ticket.getPayload();
+    } catch (e) {
+      throw new AppError(401, 'Invalid Google ID token', 'GOOGLE_TOKEN_INVALID');
+    }
+
+    if (!payload?.email || !payload.sub || payload.email_verified !== true) {
+      throw new AppError(401, 'Google account email not verified', 'GOOGLE_EMAIL_UNVERIFIED');
+    }
+
+    const email = payload.email.toLowerCase();
+
+    // 2. Hand the same idToken to Supabase Auth so it issues a Supabase session.
+    //    Supabase will create / link an auth user keyed off the Google sub.
+    const {
+      data: { session, user: authUser },
+      error: authError,
+    } = await supabase.auth.signInWithIdToken({
+      provider: 'google',
+      token: idToken,
+    });
+
+    if (authError || !authUser || !session) {
+      throw new AppError(
+        401,
+        authError?.message || 'Google sign-in failed',
+        'GOOGLE_SUPABASE_SIGNIN_FAILED'
+      );
+    }
+
+    const authUserId = authUser.id;
+    const sessionData = session;
+
+    // 3. Look up or provision our application-side users row.
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('*')
+      .eq('auth_id', authUserId)
+      .single();
+
+    if (existingUser) {
+      const updates: Record<string, any> = {
+        last_active: new Date().toISOString(),
+      };
+      if (existingUser.deletion_requested) {
+        updates.deletion_requested = false;
+        updates.deletion_scheduled_for = null;
+        updates.is_active = true;
+        await supabase
+          .from('user_settings')
+          .update({ discovery_enabled: true })
+          .eq('user_id', existingUser.id);
+      }
+      await supabase.from('users').update(updates).eq('id', existingUser.id);
+      await redis.del(`jwt_blacklist:${authUserId}`);
+
+      res.json({
+        success: true,
+        data: {
+          user: {
+            id: existingUser.id,
+            authId: existingUser.auth_id,
+            email: existingUser.email,
+            phone: existingUser.phone,
+            isVerified: existingUser.is_verified,
+            profileCompleteness: existingUser.profile_completeness,
+            isNew: false,
+          },
+          session: {
+            accessToken: sessionData.access_token,
+            refreshToken: sessionData.refresh_token,
+            expiresAt: sessionData.expires_at,
+          },
+        },
+      });
+      return;
+    }
+
+    // New user — pre-fill display_name from Google profile if present.
+    const displayName = payload.given_name || payload.name || null;
+
+    const { data: newUser, error: createError } = await supabase
+      .from('users')
+      .insert({
+        auth_id: authUserId,
+        email,
+        phone: null,
+        first_name: displayName,
+        is_verified: false,
+        is_active: true,
+        is_banned: false,
+        is_hidden: false,
+        profile_completeness: 0,
+        strikes: 0,
+        deletion_requested: false,
+        last_active: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (createError || !newUser) {
+      throw new AppError(500, 'Failed to create user account', 'USER_CREATE_FAILED');
+    }
+
+    const userId = newUser.id;
+    await Promise.all([
+      supabase.from('user_settings').insert({
+        user_id: userId,
+        discovery_enabled: true,
+        show_online_status: true,
+        show_distance: true,
+        push_notifications: true,
+        email_notifications: false,
+        age_min: 18,
+        age_max: 50,
+        distance_km: 100,
+        gender_preference: 'everyone',
+      }),
+      supabase.from('user_privileges').insert({
+        user_id: userId,
+        daily_likes: 50,
+        daily_super_likes: 1,
+        daily_rewinds: 10,
+        daily_comments: 5,
+        likes_used: 0,
+        super_likes_used: 0,
+        rewinds_used: 0,
+        comments_used: 0,
+        last_reset_at: new Date().toISOString(),
+      }),
+      supabase.from('user_safety').insert({
+        user_id: userId,
+        is_suspended: false,
+        is_permanently_banned: false,
+        strikes: 0,
+        last_reported_at: null,
+        suspension_until: null,
+      }),
+    ]);
 
     res.status(201).json({
       success: true,

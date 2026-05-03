@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -49,10 +50,20 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.credentials.CredentialManager
+import androidx.credentials.CustomCredential
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.GetCredentialException
+import androidx.credentials.exceptions.NoCredentialException
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import com.mitimaiti.app.BuildConfig
 import com.mitimaiti.app.ui.theme.AppColors
 import com.mitimaiti.app.ui.theme.AppTheme
 import com.mitimaiti.app.ui.theme.LocalAdaptiveColors
 import com.mitimaiti.app.viewmodels.AuthViewModel
+import kotlinx.coroutines.launch
 
 data class CountryCode(
     val code: String,
@@ -77,15 +88,65 @@ private val countryCodes = listOf(
 fun PhoneAuthScreen(viewModel: AuthViewModel, onOTPSent: () -> Unit, onEmailSelected: () -> Unit, onBack: () -> Unit) {
     val colors = LocalAdaptiveColors.current
     val view = LocalView.current
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val phone by viewModel.phone.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
     val otpSent by viewModel.otpSent.collectAsState()
+    val isAuthenticated by viewModel.isAuthenticated.collectAsState()
     var selectedCountry by remember { mutableStateOf(countryCodes[0]) }
     var showDropdown by remember { mutableStateOf(false) }
     var isPhoneFocused by remember { mutableStateOf(false) }
 
     LaunchedEffect(otpSent) { if (otpSent) onOTPSent() }
+    LaunchedEffect(isAuthenticated) {
+        if (isAuthenticated) onOTPSent()
+    }
+
+    // Google Sign-In via Credential Manager. Pulls a Google ID token, hands it
+    // off to the backend's /v1/auth/google/verify endpoint via AuthViewModel.
+    val onGoogleSignIn: () -> Unit = {
+        if (BuildConfig.GOOGLE_WEB_CLIENT_ID.isBlank()) {
+            viewModel.setGoogleSignInError(
+                "Google sign-in not configured (missing GOOGLE_WEB_CLIENT_ID)."
+            )
+        } else {
+            coroutineScope.launch {
+                val credentialManager = CredentialManager.create(context)
+                val googleIdOption = GetGoogleIdOption.Builder()
+                    .setServerClientId(BuildConfig.GOOGLE_WEB_CLIENT_ID)
+                    .setFilterByAuthorizedAccounts(false)
+                    .setAutoSelectEnabled(false)
+                    .build()
+                val request = GetCredentialRequest.Builder()
+                    .addCredentialOption(googleIdOption)
+                    .build()
+                try {
+                    val result = credentialManager.getCredential(context, request)
+                    val credential = result.credential
+                    if (credential is CustomCredential &&
+                        credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+                    ) {
+                        val tokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
+                        viewModel.signInWithGoogle(tokenCredential.idToken)
+                    } else {
+                        viewModel.setGoogleSignInError("Unexpected credential type from Google.")
+                    }
+                } catch (e: GetCredentialCancellationException) {
+                    // User dismissed the picker — silent, no error toast.
+                } catch (e: NoCredentialException) {
+                    viewModel.setGoogleSignInError(
+                        "No Google account available on this device. Add one in Settings."
+                    )
+                } catch (e: GetCredentialException) {
+                    viewModel.setGoogleSignInError(
+                        e.localizedMessage ?: "Google sign-in failed. Please try again."
+                    )
+                }
+            }
+        }
+    }
 
     val phoneBorderColor by animateColorAsState(
         targetValue = if (isPhoneFocused) AppColors.Rose else colors.border,
@@ -352,7 +413,10 @@ fun PhoneAuthScreen(viewModel: AuthViewModel, onOTPSent: () -> Unit, onEmailSele
                     backgroundColor = colors.surfaceMedium,
                     borderColor = colors.border,
                     textColor = colors.textPrimary,
-                    onClick = { view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK) }
+                    onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                        onGoogleSignIn()
+                    }
                 ) {
                     GoogleIcon(modifier = Modifier.size(20.dp))
                 }

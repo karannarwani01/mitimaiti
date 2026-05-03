@@ -156,6 +156,43 @@ paths:
         '401':
           description: Invalid or expired OTP
 
+  /auth/google/verify:
+    post:
+      tags: [Auth]
+      summary: Verify a Google ID token and obtain a session
+      description: |
+        Mobile clients launch the Credential Manager / Sign in with Google flow,
+        receive an ID token, and POST it here. Backend verifies the JWT against
+        Google's keys (audience must equal `GOOGLE_WEB_CLIENT_ID`), then mints a
+        Supabase session via `signInWithIdToken({provider: 'google'})`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [idToken]
+              properties:
+                idToken:
+                  type: string
+                  description: Google-issued ID token (JWT). Audience must match the configured GOOGLE_WEB_CLIENT_ID.
+      responses:
+        '200':
+          description: Existing user authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSession'
+        '201':
+          description: New user provisioned (first_name pre-filled from the Google profile)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSession'
+        '401':
+          description: Invalid Google ID token or unverified email
+
   /auth/refresh:
     post:
       tags: [Auth]

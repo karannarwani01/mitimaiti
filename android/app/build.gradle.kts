@@ -18,9 +18,18 @@ android {
     }
 
     buildTypes {
+        // GOOGLE_WEB_CLIENT_ID is the Web OAuth Client ID from Google Cloud
+        // Console — the Credential Manager flow uses it as the serverClientId
+        // and the backend uses it as the audience claim when verifying ID
+        // tokens. Override at build time with -PgoogleWebClientId=... or set
+        // it in ~/.gradle/gradle.properties to keep it out of the repo.
+        val googleWebClientId = (project.findProperty("googleWebClientId") as String?)
+            ?: System.getenv("GOOGLE_WEB_CLIENT_ID")
+            ?: ""
         debug {
             buildConfigField("String", "BASE_URL", "\"https://mitimaiti-backend-tyxa.onrender.com/v1/\"")
             buildConfigField("String", "SOCKET_URL", "\"https://mitimaiti-backend-tyxa.onrender.com\"")
+            buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
         }
         release {
             isMinifyEnabled = true
@@ -28,6 +37,7 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             buildConfigField("String", "BASE_URL", "\"https://mitimaiti-backend-tyxa.onrender.com/v1/\"")
             buildConfigField("String", "SOCKET_URL", "\"https://mitimaiti-backend-tyxa.onrender.com\"")
+            buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
         }
     }
     compileOptions {
@@ -85,6 +95,11 @@ dependencies {
 
     // Location
     implementation("com.google.android.gms:play-services-location:21.3.0")
+
+    // Google Sign-In via Credential Manager
+    implementation("androidx.credentials:credentials:1.3.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
 
     // Debug
     debugImplementation("androidx.compose.ui:ui-tooling")
