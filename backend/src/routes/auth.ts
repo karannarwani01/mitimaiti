@@ -51,6 +51,17 @@ const googleVerifySchema = z.object({
   idToken: z.string().min(20, 'idToken is required'),
 });
 
+const appleVerifySchema = z.object({
+  idToken: z.string().min(20, 'idToken is required'),
+  nonce: z.string().min(1).optional(),
+  fullName: z
+    .object({
+      givenName: z.string().nullable().optional(),
+      familyName: z.string().nullable().optional(),
+    })
+    .optional(),
+});
+
 const refreshSchema = z.object({
   refreshToken: z.string().min(1, 'Refresh token is required'),
 });
@@ -768,6 +779,172 @@ router.post(
 
     // New user — pre-fill display_name from Google profile if present.
     const displayName = payload.given_name || payload.name || null;
+
+    const { data: newUser, error: createError } = await supabase
+      .from('users')
+      .insert({
+        auth_id: authUserId,
+        email,
+        phone: null,
+        first_name: displayName,
+        is_verified: false,
+        is_active: true,
+        is_banned: false,
+        is_hidden: false,
+        profile_completeness: 0,
+        strikes: 0,
+        deletion_requested: false,
+        last_active: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (createError || !newUser) {
+      throw new AppError(500, 'Failed to create user account', 'USER_CREATE_FAILED');
+    }
+
+    const userId = newUser.id;
+    await Promise.all([
+      supabase.from('user_settings').insert({
+        user_id: userId,
+        discovery_enabled: true,
+        show_online_status: true,
+        show_distance: true,
+        push_notifications: true,
+        email_notifications: false,
+        age_min: 18,
+        age_max: 50,
+        distance_km: 100,
+        gender_preference: 'everyone',
+      }),
+      supabase.from('user_privileges').insert({
+        user_id: userId,
+        daily_likes: 50,
+        daily_super_likes: 1,
+        daily_rewinds: 10,
+        daily_comments: 5,
+        likes_used: 0,
+        super_likes_used: 0,
+        rewinds_used: 0,
+        comments_used: 0,
+        last_reset_at: new Date().toISOString(),
+      }),
+      supabase.from('user_safety').insert({
+        user_id: userId,
+        is_suspended: false,
+        is_permanently_banned: false,
+        strikes: 0,
+        last_reported_at: null,
+        suspension_until: null,
+      }),
+    ]);
+
+    res.status(201).json({
+      success: true,
+      data: {
+        user: {
+          id: newUser.id,
+          authId: newUser.auth_id,
+          email: newUser.email,
+          phone: newUser.phone,
+          isVerified: false,
+          profileCompleteness: 0,
+          isNew: true,
+        },
+        session: {
+          accessToken: sessionData.access_token,
+          refreshToken: sessionData.refresh_token,
+          expiresAt: sessionData.expires_at,
+        },
+      },
+    });
+  })
+);
+
+// ─── POST /v1/auth/apple/verify ─────────────────────────────────────────────────
+// Verifies an Apple identity token from Sign in with Apple on iOS, then
+// provisions or refreshes the user. Supabase validates the token against the
+// Apple provider configured in the project dashboard (Service ID + key);
+// audience is the iOS app's bundle ID for native flows.
+//
+// fullName is only populated by Apple on the very first sign-in for a given
+// Apple ID and only if the user agreed to share it; we backfill display_name
+// from it on user creation.
+
+router.post(
+  '/apple/verify',
+  strictRateLimit,
+  validate(appleVerifySchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    const { idToken, nonce, fullName } = req.body;
+
+    const {
+      data: { session, user: authUser },
+      error: authError,
+    } = await supabase.auth.signInWithIdToken({
+      provider: 'apple',
+      token: idToken,
+      nonce,
+    });
+
+    if (authError || !authUser || !session) {
+      throw new AppError(
+        401,
+        authError?.message || 'Apple sign-in failed',
+        'APPLE_SUPABASE_SIGNIN_FAILED'
+      );
+    }
+
+    const authUserId = authUser.id;
+    const sessionData = session;
+    const email = (authUser.email || '').toLowerCase() || null;
+
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('*')
+      .eq('auth_id', authUserId)
+      .single();
+
+    if (existingUser) {
+      const updates: Record<string, any> = {
+        last_active: new Date().toISOString(),
+      };
+      if (existingUser.deletion_requested) {
+        updates.deletion_requested = false;
+        updates.deletion_scheduled_for = null;
+        updates.is_active = true;
+        await supabase
+          .from('user_settings')
+          .update({ discovery_enabled: true })
+          .eq('user_id', existingUser.id);
+      }
+      await supabase.from('users').update(updates).eq('id', existingUser.id);
+      await redis.del(`jwt_blacklist:${authUserId}`);
+
+      res.json({
+        success: true,
+        data: {
+          user: {
+            id: existingUser.id,
+            authId: existingUser.auth_id,
+            email: existingUser.email,
+            phone: existingUser.phone,
+            isVerified: existingUser.is_verified,
+            profileCompleteness: existingUser.profile_completeness,
+            isNew: false,
+          },
+          session: {
+            accessToken: sessionData.access_token,
+            refreshToken: sessionData.refresh_token,
+            expiresAt: sessionData.expires_at,
+          },
+        },
+      });
+      return;
+    }
+
+    const displayName =
+      fullName?.givenName || authUser.user_metadata?.given_name || null;
 
     const { data: newUser, error: createError } = await supabase
       .from('users')

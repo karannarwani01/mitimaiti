@@ -88,6 +88,36 @@ actor APIService {
         return (resp.session.accessToken, resp.session.refreshToken, resp.user.isNew)
     }
 
+    func verifyAppleIdToken(
+        _ idToken: String,
+        nonce: String?,
+        givenName: String?,
+        familyName: String?
+    ) async throws -> (accessToken: String, refreshToken: String, isNew: Bool) {
+        struct FullName: Encodable { let givenName: String?; let familyName: String? }
+        struct Body: Encodable {
+            let idToken: String
+            let nonce: String?
+            let fullName: FullName?
+        }
+        struct Resp: Decodable {
+            struct UserStub: Decodable { let isNew: Bool }
+            struct Session: Decodable { let accessToken: String; let refreshToken: String }
+            let user: UserStub
+            let session: Session
+        }
+        let fullName: FullName? = (givenName != nil || familyName != nil)
+            ? FullName(givenName: givenName, familyName: familyName)
+            : nil
+        let resp: Resp = try await http.request(
+            .post,
+            "/auth/apple/verify",
+            body: Body(idToken: idToken, nonce: nonce, fullName: fullName)
+        )
+        await setTokens(access: resp.session.accessToken, refresh: resp.session.refreshToken)
+        return (resp.session.accessToken, resp.session.refreshToken, resp.user.isNew)
+    }
+
     func refresh() async throws {
         guard let refreshToken else { throw APIError.unauthorized }
         struct Body: Encodable { let refreshToken: String }

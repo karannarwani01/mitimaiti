@@ -135,6 +135,38 @@ class AuthViewModel: ObservableObject {
         error = message
     }
 
+    func signInWithApple(
+        idToken: String,
+        nonce: String?,
+        givenName: String?,
+        familyName: String?
+    ) {
+        isLoading = true
+        error = nil
+
+        Task {
+            do {
+                let result = try await api.verifyAppleIdToken(
+                    idToken,
+                    nonce: nonce,
+                    givenName: givenName,
+                    familyName: familyName
+                )
+                isLoading = false
+                hasCompletedOnboarding = !result.isNew
+                isAuthenticated = true
+                SocketChat.shared.connect(token: result.accessToken)
+            } catch {
+                isLoading = false
+                self.error = "Apple sign-in failed. Please try again."
+            }
+        }
+    }
+
+    func setAppleSignInError(_ message: String) {
+        error = message
+    }
+
     func resetOtpState() {
         otpSent = false
         otpCode = ""

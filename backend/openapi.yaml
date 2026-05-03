@@ -193,6 +193,56 @@ paths:
         '401':
           description: Invalid Google ID token or unverified email
 
+  /auth/apple/verify:
+    post:
+      tags: [Auth]
+      summary: Verify an Apple identity token and obtain a session
+      description: |
+        Native iOS clients launch Sign in with Apple, receive an identity token
+        (JWT) plus the raw nonce they sent, and POST both here. Backend forwards
+        the token to Supabase Auth via `signInWithIdToken({provider: 'apple'})`,
+        which validates against the Apple provider configured in the Supabase
+        dashboard (audience = the iOS app's bundle ID for native flows).
+
+        `fullName` is only sent on the very first sign-in for a given Apple ID
+        (and only if the user agreed to share it). When present, it backfills
+        the new user's `first_name`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [idToken]
+              properties:
+                idToken:
+                  type: string
+                  description: Apple-issued identity token (JWT).
+                nonce:
+                  type: string
+                  description: Raw nonce that was SHA256-hashed and sent in the original ASAuthorizationAppleIDRequest.
+                fullName:
+                  type: object
+                  properties:
+                    givenName: { type: string, nullable: true }
+                    familyName: { type: string, nullable: true }
+      responses:
+        '200':
+          description: Existing user authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSession'
+        '201':
+          description: New user provisioned (first_name pre-filled from fullName.givenName when supplied)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSession'
+        '401':
+          description: Invalid Apple identity token
+
   /auth/refresh:
     post:
       tags: [Auth]

@@ -1,4 +1,6 @@
 import SwiftUI
+import AuthenticationServices
+import CryptoKit
 
 struct PhoneAuthView: View {
     @EnvironmentObject var authVM: AuthViewModel
@@ -9,6 +11,7 @@ struct PhoneAuthView: View {
     @State private var showCountryPicker = false
     @State private var navigateToOTP = false
     @State private var animateIn = false
+    @State private var currentAppleNonce: String?
     @FocusState private var phoneFieldFocused: Bool
 
     // MARK: - Country Code
@@ -306,19 +309,42 @@ struct PhoneAuthView: View {
             }
 
             // Apple
-            Button {} label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "apple.logo")
-                        .font(.system(size: 18))
-                    Text("Apple")
-                        .font(.system(size: 14, weight: .semibold))
+            SignInWithAppleButton(
+                onRequest: { request in
+                    let nonce = randomNonce()
+                    currentAppleNonce = nonce
+                    request.requestedScopes = [.fullName, .email]
+                    request.nonce = sha256(nonce)
+                },
+                onCompletion: { result in
+                    switch result {
+                    case .success(let auth):
+                        guard
+                            let credential = auth.credential as? ASAuthorizationAppleIDCredential,
+                            let tokenData = credential.identityToken,
+                            let token = String(data: tokenData, encoding: .utf8)
+                        else {
+                            authVM.setAppleSignInError("Apple sign-in failed: missing token")
+                            return
+                        }
+                        authVM.signInWithApple(
+                            idToken: token,
+                            nonce: currentAppleNonce,
+                            givenName: credential.fullName?.givenName,
+                            familyName: credential.fullName?.familyName
+                        )
+                    case .failure(let err):
+                        let nsErr = err as NSError
+                        if nsErr.code != ASAuthorizationError.canceled.rawValue {
+                            authVM.setAppleSignInError(nsErr.localizedDescription)
+                        }
+                    }
                 }
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .frame(height: 48)
-                .background(Color.black)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-            }
+            )
+            .signInWithAppleButtonStyle(.black)
+            .frame(maxWidth: .infinity)
+            .frame(height: 48)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
 
             // Email
             NavigationLink {
@@ -351,6 +377,34 @@ struct PhoneAuthView: View {
             .font(.system(size: 11))
             .foregroundColor(colors.textMuted)
             .multilineTextAlignment(.center)
+    }
+
+    // MARK: - Apple Sign-In nonce helpers
+
+    private func randomNonce(length: Int = 32) -> String {
+        let charset: [Character] = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
+        var result = ""
+        var remaining = length
+        while remaining > 0 {
+            var randoms = [UInt8](repeating: 0, count: 16)
+            let status = SecRandomCopyBytes(kSecRandomDefault, randoms.count, &randoms)
+            guard status == errSecSuccess else {
+                fatalError("SecRandomCopyBytes failed: OSStatus \(status)")
+            }
+            for r in randoms where remaining > 0 {
+                if r < charset.count {
+                    result.append(charset[Int(r)])
+                    remaining -= 1
+                }
+            }
+        }
+        return result
+    }
+
+    private func sha256(_ input: String) -> String {
+        SHA256.hash(data: Data(input.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
     }
 }
 
