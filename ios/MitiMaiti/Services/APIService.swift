@@ -52,6 +52,42 @@ actor APIService {
         }
     }
 
+    func sendEmailOTP(email: String) async throws -> Bool {
+        struct Body: Encodable { let email: String }
+        let _: EmptyData = try await http.request(.post, "/auth/email/login", body: Body(email: email))
+        return true
+    }
+
+    func verifyEmailOTP(email: String, code: String) async throws -> (accessToken: String, refreshToken: String, isNew: Bool) {
+        struct Body: Encodable { let email: String; let token: String }
+        struct Resp: Decodable {
+            struct UserStub: Decodable { let isNew: Bool }
+            struct Session: Decodable { let accessToken: String; let refreshToken: String }
+            let user: UserStub
+            let session: Session
+        }
+        do {
+            let resp: Resp = try await http.request(.post, "/auth/email/verify", body: Body(email: email, token: code))
+            await setTokens(access: resp.session.accessToken, refresh: resp.session.refreshToken)
+            return (resp.session.accessToken, resp.session.refreshToken, resp.user.isNew)
+        } catch APIError.unauthorized {
+            throw APIError.invalidOTP
+        }
+    }
+
+    func verifyGoogleIdToken(_ idToken: String) async throws -> (accessToken: String, refreshToken: String, isNew: Bool) {
+        struct Body: Encodable { let idToken: String }
+        struct Resp: Decodable {
+            struct UserStub: Decodable { let isNew: Bool }
+            struct Session: Decodable { let accessToken: String; let refreshToken: String }
+            let user: UserStub
+            let session: Session
+        }
+        let resp: Resp = try await http.request(.post, "/auth/google/verify", body: Body(idToken: idToken))
+        await setTokens(access: resp.session.accessToken, refresh: resp.session.refreshToken)
+        return (resp.session.accessToken, resp.session.refreshToken, resp.user.isNew)
+    }
+
     func refresh() async throws {
         guard let refreshToken else { throw APIError.unauthorized }
         struct Body: Encodable { let refreshToken: String }

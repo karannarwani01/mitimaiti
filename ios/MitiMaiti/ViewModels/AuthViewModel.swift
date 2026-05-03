@@ -6,6 +6,7 @@ class AuthViewModel: ObservableObject {
     @Published var isAuthenticated = false
     @Published var hasCompletedOnboarding = false
     @Published var phone = ""
+    @Published var email = ""
     @Published var otpCode = ""
     @Published var isLoading = false
     @Published var error: String?
@@ -66,6 +67,80 @@ class AuthViewModel: ObservableObject {
         }
     }
 
+    func sendEmailOTP() {
+        guard isValidEmail(email) else {
+            error = "Please enter a valid email address"
+            return
+        }
+        isLoading = true
+        error = nil
+
+        Task {
+            do {
+                let success = try await api.sendEmailOTP(email: email)
+                isLoading = false
+                if success {
+                    otpSent = true
+                    resendCount += 1
+                    startResendTimer()
+                }
+            } catch {
+                isLoading = false
+                self.error = "Failed to send code. Please try again."
+            }
+        }
+    }
+
+    func verifyEmailOTP() {
+        guard otpCode.count == 6 else {
+            error = "Please enter the 6-digit code"
+            return
+        }
+        isLoading = true
+        error = nil
+
+        Task {
+            do {
+                let result = try await api.verifyEmailOTP(email: email, code: otpCode)
+                isLoading = false
+                hasCompletedOnboarding = !result.isNew
+                isAuthenticated = true
+                SocketChat.shared.connect(token: result.accessToken)
+            } catch {
+                isLoading = false
+                self.error = "Invalid code. Please try again."
+            }
+        }
+    }
+
+    func signInWithGoogle(idToken: String) {
+        isLoading = true
+        error = nil
+
+        Task {
+            do {
+                let result = try await api.verifyGoogleIdToken(idToken)
+                isLoading = false
+                hasCompletedOnboarding = !result.isNew
+                isAuthenticated = true
+                SocketChat.shared.connect(token: result.accessToken)
+            } catch {
+                isLoading = false
+                self.error = "Google sign-in failed. Please try again."
+            }
+        }
+    }
+
+    func setGoogleSignInError(_ message: String) {
+        error = message
+    }
+
+    func resetOtpState() {
+        otpSent = false
+        otpCode = ""
+        error = nil
+    }
+
     func completeOnboarding() {
         hasCompletedOnboarding = true
     }
@@ -74,12 +149,18 @@ class AuthViewModel: ObservableObject {
         isAuthenticated = false
         hasCompletedOnboarding = false
         phone = ""
+        email = ""
         otpCode = ""
         otpSent = false
         SocketChat.shared.disconnect()
         Task {
             await api.clearTokens()
         }
+    }
+
+    private func isValidEmail(_ s: String) -> Bool {
+        let pattern = #"^[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$"#
+        return s.range(of: pattern, options: .regularExpression) != nil
     }
 
     private func startResendTimer() {

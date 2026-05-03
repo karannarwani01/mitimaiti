@@ -321,7 +321,9 @@ struct PhoneAuthView: View {
             }
 
             // Email
-            Button {} label: {
+            NavigationLink {
+                EmailAuthView().environmentObject(authVM)
+            } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "envelope.fill")
                         .font(.system(size: 16))

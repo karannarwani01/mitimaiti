@@ -22,6 +22,7 @@
 		58A2A93ED487052FC791076C /* UserImageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AB60A5CAC7259C74EDB0E04 /* UserImageStore.swift */; };
 		600E43C1290E967091088F9B /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1730F30F16F904D1FE142FE6 /* WelcomeView.swift */; };
 		62AE35285A1468674C2F0D8C /* DiscoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4357D6E6B128A010830FADE /* DiscoverView.swift */; };
+		0A089CC021724FB5938B5E2B /* EmailAuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0C2800115B44FAAFC1B9D5 /* EmailAuthView.swift */; };
 		63155BC4063DCD5A20A1AB2D /* PhoneAuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E67FB49BEA1E6AA8DDCC2D6 /* PhoneAuthView.swift */; };
 		6C596A37CBD56994709DB156 /* HTTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3DF7AFC01CC4259BF578349 /* HTTPClient.swift */; };
 		6E4FCF96B7E70AD56B2BB0D0 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDCDE070760DA59744D9A460 /* Theme.swift */; };
@@ -74,6 +75,7 @@
 		225A3F79E591F5AA0849C9FB /* MitiMaiti.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = MitiMaiti.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		235BA25A7C5F919412E8CD52 /* OTPVerificationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OTPVerificationView.swift; sourceTree = "<group>"; };
 		2E67FB49BEA1E6AA8DDCC2D6 /* PhoneAuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneAuthView.swift; sourceTree = "<group>"; };
+		CC0C2800115B44FAAFC1B9D5 /* EmailAuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailAuthView.swift; sourceTree = "<group>"; };
 		2F4DA05AB721A04A24F8B8D1 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		3D65B635AB35E3847EE5AD34 /* MessageRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageRepository.swift; sourceTree = "<group>"; };
 		432F778A02FBA178A3924473 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
@@ -249,6 +251,7 @@
 			isa = PBXGroup;
 			children = (
 				235BA25A7C5F919412E8CD52 /* OTPVerificationView.swift */,
+				CC0C2800115B44FAAFC1B9D5 /* EmailAuthView.swift */,
 				2E67FB49BEA1E6AA8DDCC2D6 /* PhoneAuthView.swift */,
 				1730F30F16F904D1FE142FE6 /* WelcomeView.swift */,
 			);
@@ -400,6 +403,7 @@
 				6E7999836CF240DC419732D1 /* OTPVerificationView.swift in Sources */,
 				4DEA9444AC4DA3121A7D0349 /* OnboardingContainerView.swift in Sources */,
 				4B83E301BF3FB670F6A09FFE /* OnboardingViewModel.swift in Sources */,
+				0A089CC021724FB5938B5E2B /* EmailAuthView.swift in Sources */,
 				63155BC4063DCD5A20A1AB2D /* PhoneAuthView.swift in Sources */,
 				CCA17E0305B114F03FCD6E2A /* ProfileResponse.swift in Sources */,
 				704477E14BE7438513DD1BEB /* ProfileView.swift in Sources */,
