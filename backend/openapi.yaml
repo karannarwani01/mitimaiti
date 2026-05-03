@@ -93,6 +93,69 @@ paths:
         '401':
           description: Invalid or expired OTP
 
+  /auth/email/login:
+    post:
+      tags: [Auth]
+      summary: Send 6-digit OTP to email
+      description: |
+        Mirrors `/auth/login` but uses email as the identity. Supabase's built-in
+        SMTP is rate-limited (≈2 emails/hour); production must configure a
+        custom SMTP provider in the Supabase dashboard (Resend free tier works).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  maxLength: 254
+                  example: "user@example.com"
+      responses:
+        '200':
+          description: OTP sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessOnly'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /auth/email/verify:
+    post:
+      tags: [Auth]
+      summary: Verify email OTP and obtain a session
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, token]
+              properties:
+                email: { type: string, format: email, example: "user@example.com" }
+                token: { type: string, minLength: 6, maxLength: 6, example: "123456" }
+      responses:
+        '200':
+          description: Existing user authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSession'
+        '201':
+          description: New user provisioned (phone column will be NULL until set)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSession'
+        '401':
+          description: Invalid or expired OTP
+
   /auth/refresh:
     post:
       tags: [Auth]

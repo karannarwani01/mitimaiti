@@ -17,6 +17,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.mitimaiti.app.models.AppThemeMode
 import com.mitimaiti.app.navigation.Screen
+import com.mitimaiti.app.ui.auth.EmailAuthScreen
 import com.mitimaiti.app.ui.auth.OTPVerificationScreen
 import com.mitimaiti.app.ui.auth.PhoneAuthScreen
 import com.mitimaiti.app.ui.auth.SplashScreen
@@ -75,6 +76,17 @@ class MainActivity : ComponentActivity() {
                             PhoneAuthScreen(
                                 viewModel = authViewModel,
                                 onOTPSent = { navController.navigate(Screen.OTPVerification.route) },
+                                onEmailSelected = { navController.navigate(Screen.EmailAuth.route) },
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
+                        composable(Screen.EmailAuth.route) {
+                            EmailAuthScreen(
+                                viewModel = authViewModel,
+                                onVerified = {
+                                    val dest = if (authViewModel.hasCompletedOnboarding.value) Screen.Main.route else Screen.Onboarding.route
+                                    navController.navigate(dest) { popUpTo(Screen.Welcome.route) { inclusive = true } }
+                                },
                                 onBack = { navController.popBackStack() }
                             )
                         }

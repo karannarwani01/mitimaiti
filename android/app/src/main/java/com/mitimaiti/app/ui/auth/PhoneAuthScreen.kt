@@ -74,7 +74,7 @@ private val countryCodes = listOf(
 )
 
 @Composable
-fun PhoneAuthScreen(viewModel: AuthViewModel, onOTPSent: () -> Unit, onBack: () -> Unit) {
+fun PhoneAuthScreen(viewModel: AuthViewModel, onOTPSent: () -> Unit, onEmailSelected: () -> Unit, onBack: () -> Unit) {
     val colors = LocalAdaptiveColors.current
     val view = LocalView.current
     val phone by viewModel.phone.collectAsState()
@@ -376,7 +376,10 @@ fun PhoneAuthScreen(viewModel: AuthViewModel, onOTPSent: () -> Unit, onBack: () 
                     backgroundColor = colors.surfaceMedium,
                     borderColor = colors.border,
                     textColor = colors.textPrimary,
-                    onClick = { view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK) }
+                    onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                        onEmailSelected()
+                    }
                 ) {
                     EmailIcon(modifier = Modifier.size(20.dp), tint = colors.textSecondary)
                 }

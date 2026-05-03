@@ -19,6 +19,12 @@ interface MitiMaitiApi {
     @POST("auth/verify")
     suspend fun verifyOTP(@Body body: Map<String, String>): Response<Map<String, Any>>
 
+    @POST("auth/email/login")
+    suspend fun sendEmailOTP(@Body body: Map<String, String>): Response<Map<String, Any>>
+
+    @POST("auth/email/verify")
+    suspend fun verifyEmailOTP(@Body body: Map<String, String>): Response<Map<String, Any>>
+
     @POST("auth/refresh")
     suspend fun refreshToken(@Body body: Map<String, String>): Response<Map<String, Any>>
 

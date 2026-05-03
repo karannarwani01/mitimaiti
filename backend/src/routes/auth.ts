@@ -34,6 +34,18 @@ const verifySchema = z.object({
     .max(6, 'OTP must be at most 6 characters'),
 });
 
+const emailLoginSchema = z.object({
+  email: z.string().email('Email must be a valid address').max(254),
+});
+
+const emailVerifySchema = z.object({
+  email: z.string().email('Email must be a valid address').max(254),
+  token: z
+    .string()
+    .min(6, 'OTP must be at least 6 characters')
+    .max(6, 'OTP must be at most 6 characters'),
+});
+
 const refreshSchema = z.object({
   refreshToken: z.string().min(1, 'Refresh token is required'),
 });
@@ -359,6 +371,278 @@ router.post(
         },
       });
     }
+  })
+);
+
+// ─── POST /v1/auth/email/login ──────────────────────────────────────────────────
+// Sends a 6-digit OTP to the email via Supabase Auth (Supabase ships its own SMTP
+// at low rate-limit; production should configure a custom SMTP provider in the
+// Supabase dashboard — Resend free tier is sufficient).
+//
+// Mirrors /login (phone) so the mobile clients can switch identity type with a
+// minimal UI change.
+
+const devOtpSessionsByEmail = new Map<string, { email: string; createdAt: number }>();
+
+router.post(
+  '/email/login',
+  strictRateLimit,
+  validate(emailLoginSchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    const email = (req.body.email as string).toLowerCase();
+
+    if (isDev) {
+      devOtpSessionsByEmail.set(email, { email, createdAt: Date.now() });
+      console.log(`[Auth][DEV] Email OTP requested for ${email} — use code 123456`);
+      res.json({
+        success: true,
+        message: 'Verification code sent',
+      });
+      return;
+    }
+
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        shouldCreateUser: true,
+      },
+    });
+
+    if (error) {
+      console.error('[Auth] Supabase email OTP error:', JSON.stringify({ message: error.message, status: error.status, name: error.name }));
+      if (error.message.includes('rate') || error.status === 429) {
+        throw new AppError(
+          429,
+          'Too many OTP requests. Please wait before trying again.',
+          'OTP_RATE_LIMITED'
+        );
+      }
+      throw new AppError(
+        500,
+        'Failed to send verification code. Please try again.',
+        'OTP_SEND_FAILED'
+      );
+    }
+
+    res.json({
+      success: true,
+      message: 'Verification code sent',
+    });
+  })
+);
+
+// ─── POST /v1/auth/email/verify ─────────────────────────────────────────────────
+// Verifies the email OTP, provisions new email-only users, refreshes returning
+// users. New users get a NULL phone column — they can add a phone later from
+// Settings if we expose that flow.
+
+router.post(
+  '/email/verify',
+  strictRateLimit,
+  validate(emailVerifySchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    const email = (req.body.email as string).toLowerCase();
+    const { token } = req.body;
+
+    let authUserId: string;
+    let sessionData: { access_token: string; refresh_token: string; expires_at?: number };
+
+    if (isDev) {
+      const otpSession = devOtpSessionsByEmail.get(email);
+      if (!otpSession || token !== '123456') {
+        throw new AppError(401, 'Invalid or expired verification code', 'OTP_INVALID');
+      }
+      if (Date.now() - otpSession.createdAt > 5 * 60 * 1000) {
+        devOtpSessionsByEmail.delete(email);
+        throw new AppError(401, 'Invalid or expired verification code', 'OTP_INVALID');
+      }
+      devOtpSessionsByEmail.delete(email);
+
+      const crypto = await import('crypto');
+      const hashed = crypto.createHash('sha256').update(`dev-${email}`).digest('hex').slice(0, 32);
+      authUserId = `${hashed.slice(0,8)}-${hashed.slice(8,12)}-${hashed.slice(12,16)}-${hashed.slice(16,20)}-${hashed.slice(20,32)}`;
+
+      sessionData = {
+        access_token: `dev_${crypto.randomBytes(32).toString('hex')}`,
+        refresh_token: `dev_refresh_${crypto.randomBytes(32).toString('hex')}`,
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+      };
+
+      console.log(`[Auth][DEV] Verified email OTP for ${email}, authUserId=${authUserId}`);
+
+      res.status(201).json({
+        success: true,
+        data: {
+          user: {
+            id: authUserId,
+            authId: authUserId,
+            email,
+            phone: null,
+            isVerified: false,
+            profileCompleteness: 0,
+            isNew: true,
+          },
+          session: {
+            accessToken: sessionData.access_token,
+            refreshToken: sessionData.refresh_token,
+            expiresAt: sessionData.expires_at,
+          },
+        },
+      });
+      return;
+    }
+
+    const {
+      data: { session, user: authUser },
+      error: authError,
+    } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: 'email',
+    });
+
+    if (authError || !authUser || !session) {
+      throw new AppError(401, 'Invalid or expired verification code', 'OTP_INVALID');
+    }
+    authUserId = authUser.id;
+    sessionData = session;
+
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('*')
+      .eq('auth_id', authUserId)
+      .single();
+
+    if (existingUser) {
+      const updates: Record<string, any> = {
+        last_active: new Date().toISOString(),
+      };
+
+      if (existingUser.deletion_requested) {
+        updates.deletion_requested = false;
+        updates.deletion_scheduled_for = null;
+        updates.is_active = true;
+
+        await supabase
+          .from('user_settings')
+          .update({ discovery_enabled: true })
+          .eq('user_id', existingUser.id);
+      }
+
+      await supabase.from('users').update(updates).eq('id', existingUser.id);
+      await redis.del(`jwt_blacklist:${authUserId}`);
+
+      res.json({
+        success: true,
+        data: {
+          user: {
+            id: existingUser.id,
+            authId: existingUser.auth_id,
+            email: existingUser.email,
+            phone: existingUser.phone,
+            isVerified: existingUser.is_verified,
+            profileCompleteness: existingUser.profile_completeness,
+            isNew: false,
+          },
+          session: {
+            accessToken: sessionData.access_token,
+            refreshToken: sessionData.refresh_token,
+            expiresAt: sessionData.expires_at,
+          },
+        },
+      });
+      return;
+    }
+
+    // New user — insert with email, phone left NULL (relies on migration 005).
+    const { data: newUser, error: createError } = await supabase
+      .from('users')
+      .insert({
+        auth_id: authUserId,
+        email,
+        phone: null,
+        is_verified: false,
+        is_active: true,
+        is_banned: false,
+        is_hidden: false,
+        profile_completeness: 0,
+        strikes: 0,
+        deletion_requested: false,
+        last_active: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (createError || !newUser) {
+      throw new AppError(500, 'Failed to create user account', 'USER_CREATE_FAILED');
+    }
+
+    const userId = newUser.id;
+
+    const [settingsResult, privilegesResult, safetyResult] = await Promise.all([
+      supabase.from('user_settings').insert({
+        user_id: userId,
+        discovery_enabled: true,
+        show_online_status: true,
+        show_distance: true,
+        push_notifications: true,
+        email_notifications: false,
+        age_min: 18,
+        age_max: 50,
+        distance_km: 100,
+        gender_preference: 'everyone',
+      }),
+      supabase.from('user_privileges').insert({
+        user_id: userId,
+        daily_likes: 50,
+        daily_super_likes: 1,
+        daily_rewinds: 10,
+        daily_comments: 5,
+        likes_used: 0,
+        super_likes_used: 0,
+        rewinds_used: 0,
+        comments_used: 0,
+        last_reset_at: new Date().toISOString(),
+      }),
+      supabase.from('user_safety').insert({
+        user_id: userId,
+        is_suspended: false,
+        is_permanently_banned: false,
+        strikes: 0,
+        last_reported_at: null,
+        suspension_until: null,
+      }),
+    ]);
+
+    if (settingsResult.error) {
+      console.error('[Auth] Failed to create default settings:', settingsResult.error.message);
+    }
+    if (privilegesResult.error) {
+      console.error('[Auth] Failed to create default privileges:', privilegesResult.error.message);
+    }
+    if (safetyResult.error) {
+      console.error('[Auth] Failed to create safety row:', safetyResult.error.message);
+    }
+
+    res.status(201).json({
+      success: true,
+      data: {
+        user: {
+          id: newUser.id,
+          authId: newUser.auth_id,
+          email: newUser.email,
+          phone: newUser.phone,
+          isVerified: false,
+          profileCompleteness: 0,
+          isNew: true,
+        },
+        session: {
+          accessToken: sessionData.access_token,
+          refreshToken: sessionData.refresh_token,
+          expiresAt: sessionData.expires_at,
+        },
+      },
+    });
   })
 );
 

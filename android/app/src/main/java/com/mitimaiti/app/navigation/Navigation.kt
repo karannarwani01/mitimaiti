@@ -5,6 +5,7 @@ sealed class Screen(val route: String) {
     object Welcome : Screen("welcome")
     object PhoneAuth : Screen("phone_auth")
     object OTPVerification : Screen("otp_verification")
+    object EmailAuth : Screen("email_auth")
     object Onboarding : Screen("onboarding")
     object Main : Screen("main")
     object Chat : Screen("chat/{matchId}") {

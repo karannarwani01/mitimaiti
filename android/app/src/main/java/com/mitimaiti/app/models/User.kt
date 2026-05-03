@@ -23,6 +23,7 @@ data class UserPrompt(
 data class User(
     val id: String = UUID.randomUUID().toString(),
     val phone: String = "",
+    val email: String? = null,
     val displayName: String = "",
     val dateOfBirth: LocalDate? = null,
     val gender: Gender? = null,

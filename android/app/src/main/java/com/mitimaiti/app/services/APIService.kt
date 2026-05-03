@@ -56,23 +56,43 @@ object APIService {
     suspend fun verifyOTP(phone: String, code: String): Result<Pair<User, Boolean>> {
         return try {
             val response = api.verifyOTP(mapOf("phone" to phone, "token" to code))
-            if (response.isSuccessful) {
-                val body = response.body() ?: return Result.failure(APIError.ServerError)
-                val session = body["session"] as? Map<*, *>
-                val userMap = body["user"] as? Map<*, *>
-                val token = session?.get("access_token") as? String ?: ""
-                val refresh = session?.get("refresh_token") as? String ?: ""
-                val userId = userMap?.get("id") as? String ?: ""
-                val isNew = userMap?.get("is_new") as? Boolean ?: false
-                setTokens(token, refresh)
-                tokenManager?.saveTokens(token, refresh, userId)
-                SocketManager.shared.connect(token)
-                Result.success(Pair(parseUser(userMap), isNew))
-            } else {
-                if (response.code() == 401) Result.failure(APIError.InvalidOTP)
-                else Result.failure(APIError.ServerError)
-            }
+            handleAuthVerifyResponse(response)
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
+    }
+
+    suspend fun sendEmailOTP(email: String): Result<Boolean> {
+        return try {
+            val response = api.sendEmailOTP(mapOf("email" to email))
+            if (response.isSuccessful) Result.success(true)
+            else Result.failure(APIError.ServerError)
+        } catch (e: Exception) { Result.failure(APIError.NetworkError) }
+    }
+
+    suspend fun verifyEmailOTP(email: String, code: String): Result<Pair<User, Boolean>> {
+        return try {
+            val response = api.verifyEmailOTP(mapOf("email" to email, "token" to code))
+            handleAuthVerifyResponse(response)
+        } catch (e: Exception) { Result.failure(APIError.NetworkError) }
+    }
+
+    private suspend fun handleAuthVerifyResponse(
+        response: retrofit2.Response<Map<String, Any>>
+    ): Result<Pair<User, Boolean>> {
+        if (!response.isSuccessful) {
+            return if (response.code() == 401) Result.failure(APIError.InvalidOTP)
+            else Result.failure(APIError.ServerError)
+        }
+        val body = response.body() ?: return Result.failure(APIError.ServerError)
+        val session = body["session"] as? Map<*, *>
+        val userMap = body["user"] as? Map<*, *>
+        val token = session?.get("access_token") as? String ?: ""
+        val refresh = session?.get("refresh_token") as? String ?: ""
+        val userId = userMap?.get("id") as? String ?: ""
+        val isNew = userMap?.get("is_new") as? Boolean ?: false
+        setTokens(token, refresh)
+        tokenManager?.saveTokens(token, refresh, userId)
+        SocketManager.shared.connect(token)
+        return Result.success(Pair(parseUser(userMap), isNew))
     }
 
     // ──────────────────── PROFILE ────────────────────
@@ -275,6 +295,7 @@ object APIService {
         return User(
             id = data["id"] as? String ?: "",
             phone = data["phone"] as? String ?: "",
+            email = data["email"] as? String,
             displayName = data["display_name"] as? String ?: "",
             dateOfBirth = (data["date_of_birth"] as? String)?.let { try { LocalDate.parse(it) } catch (e: Exception) { null } },
             gender = (data["gender"] as? String)?.let { g -> Gender.entries.firstOrNull { it.name.equals(g, true) } },
