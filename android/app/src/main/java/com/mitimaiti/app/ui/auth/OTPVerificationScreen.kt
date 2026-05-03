@@ -17,6 +17,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mitimaiti.app.BuildConfig
 import com.mitimaiti.app.ui.theme.AppColors
 import com.mitimaiti.app.ui.theme.AppTheme
 import com.mitimaiti.app.ui.theme.LocalAdaptiveColors
@@ -51,8 +52,10 @@ fun OTPVerificationScreen(viewModel: AuthViewModel, onVerified: () -> Unit, onBa
             Button(onClick = { viewModel.verifyOTP() }, modifier = Modifier.fillMaxWidth().height(56.dp), enabled = otpCode.length == 6 && !isLoading, shape = RoundedCornerShape(AppTheme.radiusLg), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Rose, disabledContainerColor = AppColors.Rose.copy(alpha = 0.4f))) {
                 if (isLoading) CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White, strokeWidth = 2.dp) else Text("Verify", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
             }
-            Spacer(modifier = Modifier.height(16.dp))
-            Text("For testing, use code: 123456", fontSize = 13.sp, color = colors.textMuted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            if (BuildConfig.DEBUG) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("For testing, use code: 123456", fontSize = 13.sp, color = colors.textMuted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            }
             Spacer(modifier = Modifier.height(32.dp))
         }
     }
