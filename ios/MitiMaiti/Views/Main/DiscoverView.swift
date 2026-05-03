@@ -107,10 +107,8 @@ struct DiscoverView: View {
     @ViewBuilder
     private var mainContent: some View {
         if feedVM.isLoading {
-            Spacer()
-            ProgressView()
-                .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.rose))
-                .scaleEffect(1.5)
+            DiscoverCardSkeleton()
+                .padding(.top, 8)
             Spacer()
         } else if feedVM.cards.isEmpty {
             Spacer()

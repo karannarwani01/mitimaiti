@@ -42,22 +42,13 @@ struct PhoneAuthView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 0) {
-                    Spacer().frame(height: 60)
-
-                    // White card container (matching web: max-w-md bg-white rounded-2xl shadow-xl p-6)
-                    VStack(spacing: 0) {
-                        cardHeader
-                        cardContent
-                    }
-                    .background(colors.cardDark)
-                    .clipShape(RoundedRectangle(cornerRadius: 20))
-                    .shadow(color: colors.elevatedShadowColor, radius: 24, x: 0, y: 8)
-                    .padding(.horizontal, AppTheme.spacingMD)
-                    .opacity(animateIn ? 1 : 0)
-                    .offset(y: animateIn ? 0 : 20)
-
-                    Spacer().frame(height: 40)
+                    cardHeader
+                    cardContent
+                        .padding(.horizontal, AppTheme.spacingMD)
+                        .padding(.bottom, 32)
                 }
+                .opacity(animateIn ? 1 : 0)
+                .offset(y: animateIn ? 0 : 20)
             }
         }
         .navigationBarTitleDisplayMode(.inline)

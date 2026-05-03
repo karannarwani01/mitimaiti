@@ -272,9 +272,10 @@ class LocalizationManager: ObservableObject {
             "onboarding.startDiscovering": "Start Discovering",
             // Welcome
             "welcome.title": "MitiMaiti",
-            "welcome.subtitle": "Where Sindhi Hearts Meet",
+            "welcome.subtitle": "Where Sindhi Hearts Connect",
+            "welcome.tagline": "Find meaningful connections rooted in Sindhi culture, values, and traditions",
             "welcome.getStarted": "Get Started",
-            "welcome.haveAccount": "I have an account",
+            "welcome.haveAccount": "Already have an account? Sign in",
             "welcome.culturalMatch": "Cultural Match",
             "welcome.kundli": "Kundli",
             "welcome.familyMode": "Family Mode",

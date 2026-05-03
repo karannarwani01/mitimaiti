@@ -100,8 +100,8 @@ fun DiscoverScreen(viewModel: FeedViewModel, onNavigateToEditProfile: () -> Unit
             // ── Card Deck + Buttons + Banner ──
             when {
                 isLoading -> {
-                    Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = AppColors.Rose)
+                    Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.TopCenter) {
+                        ShimmerDiscoverCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                     }
                 }
                 cards.isEmpty() -> {
