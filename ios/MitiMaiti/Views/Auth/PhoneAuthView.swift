@@ -290,7 +290,18 @@ struct PhoneAuthView: View {
     private var socialButtons: some View {
         HStack(spacing: 10) {
             // Google
-            Button {} label: {
+            Button {
+                Task {
+                    do {
+                        let idToken = try await GoogleSignInService.signIn()
+                        authVM.signInWithGoogle(idToken: idToken)
+                    } catch GoogleSignInError.canceled {
+                        // user dismissed — silent
+                    } catch {
+                        authVM.setGoogleSignInError(error.localizedDescription)
+                    }
+                }
+            } label: {
                 HStack(spacing: 8) {
                     GoogleLogoShape()
                         .frame(width: 18, height: 18)

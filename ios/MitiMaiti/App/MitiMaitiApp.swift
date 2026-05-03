@@ -27,6 +27,9 @@ struct MitiMaitiApp: App {
 
                 ToastOverlay()
             }
+            .onOpenURL { url in
+                GoogleSignInService.handle(url: url)
+            }
         }
     }
 }
