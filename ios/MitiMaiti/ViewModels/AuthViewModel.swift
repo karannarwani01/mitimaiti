@@ -53,11 +53,7 @@ class AuthViewModel: ObservableObject {
             do {
                 let result = try await api.verifyOTP(phone: phone, code: otpCode)
                 isLoading = false
-                if result.isNew {
-                    hasCompletedOnboarding = false
-                } else {
-                    hasCompletedOnboarding = true
-                }
+                hasCompletedOnboarding = !result.isNew && result.profileCompleteness >= 50 && result.profileCompleteness >= 50
                 isAuthenticated = true
                 SocketChat.shared.connect(token: result.accessToken)
             } catch {
@@ -103,7 +99,7 @@ class AuthViewModel: ObservableObject {
             do {
                 let result = try await api.verifyEmailOTP(email: email, code: otpCode)
                 isLoading = false
-                hasCompletedOnboarding = !result.isNew
+                hasCompletedOnboarding = !result.isNew && result.profileCompleteness >= 50
                 isAuthenticated = true
                 SocketChat.shared.connect(token: result.accessToken)
             } catch {
@@ -121,12 +117,12 @@ class AuthViewModel: ObservableObject {
             do {
                 let result = try await api.verifyGoogleIdToken(idToken)
                 isLoading = false
-                hasCompletedOnboarding = !result.isNew
+                hasCompletedOnboarding = !result.isNew && result.profileCompleteness >= 50
                 isAuthenticated = true
                 SocketChat.shared.connect(token: result.accessToken)
             } catch {
                 isLoading = false
-                self.error = "Google sign-in failed. Please try again."
+                self.error = "Google sign-in failed: \(error.localizedDescription)"
             }
         }
     }
@@ -153,7 +149,7 @@ class AuthViewModel: ObservableObject {
                     familyName: familyName
                 )
                 isLoading = false
-                hasCompletedOnboarding = !result.isNew
+                hasCompletedOnboarding = !result.isNew && result.profileCompleteness >= 50
                 isAuthenticated = true
                 SocketChat.shared.connect(token: result.accessToken)
             } catch {

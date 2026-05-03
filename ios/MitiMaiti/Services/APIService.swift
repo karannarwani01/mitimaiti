@@ -35,10 +35,10 @@ actor APIService {
         return true
     }
 
-    func verifyOTP(phone: String, code: String) async throws -> (accessToken: String, refreshToken: String, isNew: Bool) {
+    func verifyOTP(phone: String, code: String) async throws -> (accessToken: String, refreshToken: String, isNew: Bool, profileCompleteness: Int) {
         struct Body: Encodable { let phone: String; let token: String }
         struct Resp: Decodable {
-            struct UserStub: Decodable { let isNew: Bool }
+            struct UserStub: Decodable { let isNew: Bool; let profileCompleteness: Int? }
             struct Session: Decodable { let accessToken: String; let refreshToken: String }
             let user: UserStub
             let session: Session
@@ -46,7 +46,7 @@ actor APIService {
         do {
             let resp: Resp = try await http.request(.post, "/auth/verify", body: Body(phone: phone, token: code))
             await setTokens(access: resp.session.accessToken, refresh: resp.session.refreshToken)
-            return (resp.session.accessToken, resp.session.refreshToken, resp.user.isNew)
+            return (resp.session.accessToken, resp.session.refreshToken, resp.user.isNew, resp.user.profileCompleteness ?? 0)
         } catch APIError.unauthorized {
             throw APIError.invalidOTP
         }
@@ -58,10 +58,10 @@ actor APIService {
         return true
     }
 
-    func verifyEmailOTP(email: String, code: String) async throws -> (accessToken: String, refreshToken: String, isNew: Bool) {
+    func verifyEmailOTP(email: String, code: String) async throws -> (accessToken: String, refreshToken: String, isNew: Bool, profileCompleteness: Int) {
         struct Body: Encodable { let email: String; let token: String }
         struct Resp: Decodable {
-            struct UserStub: Decodable { let isNew: Bool }
+            struct UserStub: Decodable { let isNew: Bool; let profileCompleteness: Int? }
             struct Session: Decodable { let accessToken: String; let refreshToken: String }
             let user: UserStub
             let session: Session
@@ -69,23 +69,26 @@ actor APIService {
         do {
             let resp: Resp = try await http.request(.post, "/auth/email/verify", body: Body(email: email, token: code))
             await setTokens(access: resp.session.accessToken, refresh: resp.session.refreshToken)
-            return (resp.session.accessToken, resp.session.refreshToken, resp.user.isNew)
+            return (resp.session.accessToken, resp.session.refreshToken, resp.user.isNew, resp.user.profileCompleteness ?? 0)
         } catch APIError.unauthorized {
             throw APIError.invalidOTP
         }
     }
 
-    func verifyGoogleIdToken(_ idToken: String) async throws -> (accessToken: String, refreshToken: String, isNew: Bool) {
-        struct Body: Encodable { let idToken: String }
+    func verifyGoogleIdToken(_ idToken: String) async throws -> (accessToken: String, refreshToken: String, isNew: Bool, profileCompleteness: Int) {
         struct Resp: Decodable {
-            struct UserStub: Decodable { let isNew: Bool }
+            struct UserStub: Decodable { let isNew: Bool; let profileCompleteness: Int? }
             struct Session: Decodable { let accessToken: String; let refreshToken: String }
             let user: UserStub
             let session: Session
         }
-        let resp: Resp = try await http.request(.post, "/auth/google/verify", body: Body(idToken: idToken))
+        // Pre-encode with default key strategy: backend zod expects camelCase
+        // `idToken`; HTTPClient's encoder converts camelCase → snake_case which
+        // would 400 the request.
+        let raw = try JSONSerialization.data(withJSONObject: ["idToken": idToken])
+        let resp: Resp = try await http.request(.post, "/auth/google/verify", rawBody: raw)
         await setTokens(access: resp.session.accessToken, refresh: resp.session.refreshToken)
-        return (resp.session.accessToken, resp.session.refreshToken, resp.user.isNew)
+        return (resp.session.accessToken, resp.session.refreshToken, resp.user.isNew, resp.user.profileCompleteness ?? 0)
     }
 
     func verifyAppleIdToken(
@@ -93,29 +96,27 @@ actor APIService {
         nonce: String?,
         givenName: String?,
         familyName: String?
-    ) async throws -> (accessToken: String, refreshToken: String, isNew: Bool) {
-        struct FullName: Encodable { let givenName: String?; let familyName: String? }
-        struct Body: Encodable {
-            let idToken: String
-            let nonce: String?
-            let fullName: FullName?
-        }
+    ) async throws -> (accessToken: String, refreshToken: String, isNew: Bool, profileCompleteness: Int) {
         struct Resp: Decodable {
-            struct UserStub: Decodable { let isNew: Bool }
+            struct UserStub: Decodable { let isNew: Bool; let profileCompleteness: Int? }
             struct Session: Decodable { let accessToken: String; let refreshToken: String }
             let user: UserStub
             let session: Session
         }
-        let fullName: FullName? = (givenName != nil || familyName != nil)
-            ? FullName(givenName: givenName, familyName: familyName)
-            : nil
-        let resp: Resp = try await http.request(
-            .post,
-            "/auth/apple/verify",
-            body: Body(idToken: idToken, nonce: nonce, fullName: fullName)
-        )
+        // See verifyGoogleIdToken: backend wants camelCase, HTTPClient's
+        // encoder snake-cases. Build the body manually and send rawBody.
+        var bodyDict: [String: Any] = ["idToken": idToken]
+        if let nonce { bodyDict["nonce"] = nonce }
+        if givenName != nil || familyName != nil {
+            var fullName: [String: Any] = [:]
+            if let givenName { fullName["givenName"] = givenName }
+            if let familyName { fullName["familyName"] = familyName }
+            bodyDict["fullName"] = fullName
+        }
+        let raw = try JSONSerialization.data(withJSONObject: bodyDict)
+        let resp: Resp = try await http.request(.post, "/auth/apple/verify", rawBody: raw)
         await setTokens(access: resp.session.accessToken, refresh: resp.session.refreshToken)
-        return (resp.session.accessToken, resp.session.refreshToken, resp.user.isNew)
+        return (resp.session.accessToken, resp.session.refreshToken, resp.user.isNew, resp.user.profileCompleteness ?? 0)
     }
 
     func refresh() async throws {
