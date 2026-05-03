@@ -45,6 +45,11 @@ mobile/*.iml
 *.swp
 *.swo
 
+# Xcode per-user state (window layout, breakpoints, scheme prefs)
+**/xcuserdata/
+**/*.xcuserstate
+**/DerivedData/
+
 # Secrets — never commit
 *.pem
 *.key

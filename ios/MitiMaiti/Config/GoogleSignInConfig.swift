@@ -14,8 +14,8 @@ import Foundation
 //   2. (Optional) GIDClientID = iosClientID — only if you'd rather configure
 //      the SDK from the plist instead of in code.
 enum GoogleSignInConfig {
-    static let iosClientID: String = ""
-    static let webClientID: String = ""
+    static let iosClientID: String = "820326686046-fnflhh4tdm712irkio6d7npaovtpu9al.apps.googleusercontent.com"
+    static let webClientID: String = "820326686046-mnsqmqe8sup8v8fvak4mg1o38pgsaqm0.apps.googleusercontent.com"
 
     static var isConfigured: Bool {
         !iosClientID.isEmpty && !webClientID.isEmpty
