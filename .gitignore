@@ -51,3 +51,9 @@ mobile/*.iml
 google-services.json
 GoogleService-Info.plist
 firebase_service_account.json
+
+# Debug artifacts from manual emulator/device testing
+/emu*.png
+/onb_*.png
+/ui.xml
+/window_dump.xml
