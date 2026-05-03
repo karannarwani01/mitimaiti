@@ -1,0 +1,28 @@
+# Triggers a Render deploy of mitimaiti-backend on every push to main.
+#
+# Replaces Render's native GitHub auto-deploy because that webhook stopped
+# firing after the repo was transferred to this account (see
+# memory: reference_render_autodeploy.md). Calling Render's Deploy Hook URL
+# directly is independent of GitHub App webhooks and is therefore reliable.
+#
+# To use a different service, swap the secret name. The URL itself is private —
+# anyone with it can trigger deploys, hence the secret.
+name: Deploy backend to Render
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: render-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy
+        run: |
+          curl --fail --silent --show-error \
+            -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" \
+            -o /dev/null -w "Render deploy triggered. HTTP %{http_code}\n"
