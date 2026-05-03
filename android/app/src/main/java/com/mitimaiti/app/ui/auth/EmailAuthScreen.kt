@@ -17,7 +17,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.mitimaiti.app.BuildConfig
 import com.mitimaiti.app.ui.theme.AppColors
 import com.mitimaiti.app.ui.theme.AppTheme
 import com.mitimaiti.app.ui.theme.LocalAdaptiveColors
@@ -190,16 +189,6 @@ fun EmailAuthScreen(
                     } else {
                         Text("Verify", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
                     }
-                }
-                if (BuildConfig.DEBUG) {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        "For testing, use code: 123456",
-                        fontSize = 13.sp,
-                        color = colors.textMuted,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
                 }
                 Spacer(modifier = Modifier.height(32.dp))
             }
