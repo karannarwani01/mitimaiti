@@ -421,18 +421,6 @@ fun PhoneAuthScreen(viewModel: AuthViewModel, onOTPSent: () -> Unit, onEmailSele
                     GoogleIcon(modifier = Modifier.size(20.dp))
                 }
 
-                // Apple button
-                SocialSignInButton(
-                    label = "Apple",
-                    modifier = Modifier.weight(1f),
-                    backgroundColor = Color(0xFF1A1A1A),
-                    borderColor = Color.Transparent,
-                    textColor = Color.White,
-                    onClick = { view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK) }
-                ) {
-                    AppleIcon(modifier = Modifier.size(20.dp))
-                }
-
                 // Email button
                 SocialSignInButton(
                     label = "Email",
@@ -555,34 +543,6 @@ private fun GoogleIcon(modifier: Modifier = Modifier) {
             close()
         }
         drawPath(redPath, color = Color(0xFFEA4335))
-    }
-}
-
-// Apple logo drawn with Canvas
-@Composable
-private fun AppleIcon(modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier) {
-        val s = size.width / 24f
-        val applePath = Path().apply {
-            // Apple body
-            moveTo(17.05f * s, 20.28f * s)
-            cubicTo(16.07f * s, 21.23f * s, 15f * s, 21.16f * s, 13.97f * s, 20.68f * s)
-            cubicTo(12.88f * s, 20.18f * s, 11.89f * s, 20.2f * s, 10.73f * s, 20.68f * s)
-            cubicTo(9.29f * s, 21.3f * s, 8.53f * s, 21.12f * s, 7.67f * s, 20.28f * s)
-            cubicTo(2.79f * s, 15.25f * s, 3.51f * s, 7.59f * s, 9.05f * s, 7.31f * s)
-            cubicTo(10.4f * s, 7.38f * s, 11.34f * s, 8.05f * s, 12.13f * s, 8.11f * s)
-            cubicTo(13.31f * s, 7.87f * s, 14.44f * s, 7.18f * s, 15.7f * s, 7.27f * s)
-            cubicTo(17.21f * s, 7.39f * s, 18.35f * s, 7.99f * s, 19.1f * s, 9.07f * s)
-            cubicTo(15.98f * s, 10.94f * s, 16.72f * s, 15.05f * s, 19.58f * s, 16.2f * s)
-            cubicTo(19.01f * s, 17.7f * s, 18.27f * s, 19.19f * s, 17.04f * s, 20.29f * s)
-            close()
-            // Apple leaf
-            moveTo(12.03f * s, 7.25f * s)
-            cubicTo(11.88f * s, 5.02f * s, 13.69f * s, 3.18f * s, 15.77f * s, 3f * s)
-            cubicTo(16.06f * s, 5.58f * s, 13.43f * s, 7.5f * s, 12.03f * s, 7.25f * s)
-            close()
-        }
-        drawPath(applePath, color = Color.White)
     }
 }
 
