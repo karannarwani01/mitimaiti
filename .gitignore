@@ -60,5 +60,7 @@ firebase_service_account.json
 # Debug artifacts from manual emulator/device testing
 /emu*.png
 /onb_*.png
+/debug_*.png
+/debug_*.xml
 /ui.xml
 /window_dump.xml

@@ -17,6 +17,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.mitimaiti.app.models.AppThemeMode
 import com.mitimaiti.app.navigation.Screen
+import com.mitimaiti.app.navigation.SplashDestination
+import com.mitimaiti.app.services.APIService
 import com.mitimaiti.app.ui.auth.EmailAuthScreen
 import com.mitimaiti.app.ui.auth.OTPVerificationScreen
 import com.mitimaiti.app.ui.auth.PhoneAuthScreen
@@ -57,8 +59,39 @@ class MainActivity : ComponentActivity() {
                     NavHost(navController = navController, startDestination = Screen.Splash.route) {
                         composable(Screen.Splash.route) {
                             SplashScreen(
-                                onFinished = {
-                                    navController.navigate(Screen.Welcome.route) {
+                                resolveDestination = {
+                                    // No stored session → straight to Welcome.
+                                    val token = app.tokenManager.getAccessToken()
+                                    if (token.isNullOrBlank()) {
+                                        SplashDestination.WELCOME
+                                    } else {
+                                        // Validate the session by hitting /me. If it succeeds we
+                                        // know the JWT is still valid and can route by profile
+                                        // completeness. If it fails (401, network blip, etc.) we
+                                        // fall back to Welcome — the OTP/Google paths will mint a
+                                        // fresh session.
+                                        APIService.fetchProfile().fold(
+                                            onSuccess = { user ->
+                                                val hasOnboarded = user.profileCompleteness >= 50
+                                                authViewModel.bootstrapAuthenticated(user, hasOnboarded)
+                                                if (hasOnboarded) SplashDestination.MAIN
+                                                else SplashDestination.ONBOARDING
+                                            },
+                                            onFailure = {
+                                                app.tokenManager.clearTokens()
+                                                APIService.clearTokens()
+                                                SplashDestination.WELCOME
+                                            }
+                                        )
+                                    }
+                                },
+                                onFinished = { destination ->
+                                    val route = when (destination) {
+                                        SplashDestination.WELCOME -> Screen.Welcome.route
+                                        SplashDestination.ONBOARDING -> Screen.Onboarding.route
+                                        SplashDestination.MAIN -> Screen.Main.route
+                                    }
+                                    navController.navigate(route) {
                                         popUpTo(Screen.Splash.route) { inclusive = true }
                                     }
                                 }

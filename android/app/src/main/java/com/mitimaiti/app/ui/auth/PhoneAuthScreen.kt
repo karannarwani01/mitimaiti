@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -90,7 +91,6 @@ fun PhoneAuthScreen(viewModel: AuthViewModel, onOTPSent: () -> Unit, onEmailSele
     val view = LocalView.current
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val phone by viewModel.phone.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
     val otpSent by viewModel.otpSent.collectAsState()
@@ -98,6 +98,10 @@ fun PhoneAuthScreen(viewModel: AuthViewModel, onOTPSent: () -> Unit, onEmailSele
     var selectedCountry by remember { mutableStateOf(countryCodes[0]) }
     var showDropdown by remember { mutableStateOf(false) }
     var isPhoneFocused by remember { mutableStateOf(false) }
+    // Local digits-only state (no country code). The viewmodel's `phone` holds
+    // the full E.164 we send to the API — we set it once on submit; binding the
+    // input to it caused the field to redisplay "+919876543210" after Continue.
+    var rawPhone by rememberSaveable { mutableStateOf("") }
 
     LaunchedEffect(otpSent) { if (otpSent) onOTPSent() }
     LaunchedEffect(isAuthenticated) {
@@ -188,13 +192,6 @@ fun PhoneAuthScreen(viewModel: AuthViewModel, onOTPSent: () -> Unit, onEmailSele
                 color = colors.textPrimary,
                 lineHeight = 32.sp
             )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                "We'll send you a verification code to get started.",
-                fontSize = 15.sp,
-                color = colors.textSecondary,
-                lineHeight = 22.sp
-            )
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -284,7 +281,7 @@ fun PhoneAuthScreen(viewModel: AuthViewModel, onOTPSent: () -> Unit, onEmailSele
                         .padding(horizontal = 16.dp),
                     contentAlignment = Alignment.CenterStart
                 ) {
-                    if (phone.isEmpty()) {
+                    if (rawPhone.isEmpty()) {
                         Text(
                             "98765 43210",
                             fontSize = 16.sp,
@@ -292,10 +289,9 @@ fun PhoneAuthScreen(viewModel: AuthViewModel, onOTPSent: () -> Unit, onEmailSele
                         )
                     }
                     BasicTextField(
-                        value = phone,
+                        value = rawPhone,
                         onValueChange = { newValue ->
-                            val digits = newValue.filter { it.isDigit() }.take(10)
-                            viewModel.updatePhone(digits)
+                            rawPhone = newValue.filter { it.isDigit() }.take(10)
                         },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -347,14 +343,14 @@ fun PhoneAuthScreen(viewModel: AuthViewModel, onOTPSent: () -> Unit, onEmailSele
             Spacer(modifier = Modifier.height(24.dp))
 
             // Continue button with rose gradient
-            val rawPhone = phone.filter { it.isDigit() }
             val isValid = rawPhone.length >= 7
             Button(
                 onClick = {
                     view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                    // Prepend country code before sending
-                    val fullPhone = "${selectedCountry.code}$rawPhone"
-                    viewModel.updatePhone(fullPhone)
+                    // Build E.164 only at submit time so the visible field stays
+                    // local digits while the viewmodel holds the full number for
+                    // the API + the OTP screen subtitle.
+                    viewModel.updatePhone("${selectedCountry.code}$rawPhone")
                     viewModel.sendOTP()
                 },
                 modifier = Modifier

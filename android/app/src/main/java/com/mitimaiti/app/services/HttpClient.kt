@@ -16,26 +16,45 @@ object HttpClient {
         this.tokenManager = tokenManager
     }
 
+    // Public auth endpoints — these mint a session and must never carry a stale
+    // Bearer token. /auth/refresh in particular would short-circuit the
+    // 401-retry loop below if it carried the same expired token it's trying to
+    // replace.
+    private val publicAuthPaths = setOf(
+        "/v1/auth/login",
+        "/v1/auth/verify",
+        "/v1/auth/email/login",
+        "/v1/auth/email/verify",
+        "/v1/auth/google/verify",
+        "/v1/auth/apple/verify",
+        "/v1/auth/refresh",
+    )
+
+    private fun isPublicAuth(path: String): Boolean = path in publicAuthPaths
+
     private val authInterceptor = Interceptor { chain ->
-        val token = runBlocking { tokenManager?.getAccessToken() }
+        val originalRequest = chain.request()
+        val isPublic = isPublicAuth(originalRequest.url.encodedPath)
+        val token = if (isPublic) null else runBlocking { tokenManager?.getAccessToken() }
         val request = if (token != null) {
-            chain.request().newBuilder()
+            originalRequest.newBuilder()
                 .addHeader("Authorization", "Bearer $token")
                 .addHeader("Content-Type", "application/json")
                 .build()
         } else {
-            chain.request().newBuilder()
+            originalRequest.newBuilder()
                 .addHeader("Content-Type", "application/json")
                 .build()
         }
         val response = chain.proceed(request)
 
-        // Handle 401 — token expired
-        if (response.code == 401) {
+        // Handle 401 — token expired. Skip on public auth endpoints; a 401
+        // there means bad credentials, not a stale token.
+        if (response.code == 401 && !isPublic) {
             response.close()
             val newToken = runBlocking { refreshToken() }
             if (newToken != null) {
-                val retryRequest = chain.request().newBuilder()
+                val retryRequest = originalRequest.newBuilder()
                     .addHeader("Authorization", "Bearer $newToken")
                     .addHeader("Content-Type", "application/json")
                     .build()

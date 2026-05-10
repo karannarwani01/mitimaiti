@@ -18,14 +18,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mitimaiti.app.navigation.SplashDestination
 import com.mitimaiti.app.ui.theme.AppColors
 import com.mitimaiti.app.ui.theme.AppTheme
 import com.mitimaiti.app.ui.theme.LocalAdaptiveColors
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 
 @Composable
 fun SplashScreen(
-    onFinished: () -> Unit
+    resolveDestination: suspend () -> SplashDestination,
+    onFinished: (SplashDestination) -> Unit
 ) {
     val colors = LocalAdaptiveColors.current
 
@@ -70,8 +74,16 @@ fun SplashScreen(
         heartBeat = true
         contentScale = 1f
         contentAlpha = 1f
-        delay(2500)
-        onFinished()
+        // Run the auth check in parallel with the minimum splash duration.
+        // Whichever takes longer determines when we navigate; auth check exceeds
+        // the animation only on a Render cold start (~30s) where we'd rather
+        // wait than dump the user onto Welcome and lose their valid session.
+        val destination = coroutineScope {
+            val authJob = async { resolveDestination() }
+            delay(2500)
+            authJob.await()
+        }
+        onFinished(destination)
     }
 
     Box(

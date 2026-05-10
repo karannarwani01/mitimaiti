@@ -17,3 +17,6 @@ sealed class Screen(val route: String) {
     object Privacy : Screen("privacy")
     object Terms : Screen("terms")
 }
+
+/** Where the splash routes once the stored session has been resolved. */
+enum class SplashDestination { WELCOME, ONBOARDING, MAIN }

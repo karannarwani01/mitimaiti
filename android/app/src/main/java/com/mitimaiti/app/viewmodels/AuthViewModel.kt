@@ -107,6 +107,17 @@ class AuthViewModel : ViewModel() {
     fun completeOnboarding() { _hasCompletedOnboarding.value = true }
     fun logout() { _isAuthenticated.value = false; _hasCompletedOnboarding.value = false; _phone.value = ""; _email.value = ""; _otpCode.value = ""; _otpSent.value = false; _currentUser.value = null; APIService.clearTokens() }
 
+    /**
+     * Hydrate auth state from a session that was already in token storage when
+     * the app launched, so the user lands directly on Main / Onboarding instead
+     * of bouncing through Welcome.
+     */
+    fun bootstrapAuthenticated(user: User, hasOnboarded: Boolean) {
+        _currentUser.value = user
+        _isAuthenticated.value = true
+        _hasCompletedOnboarding.value = hasOnboarded
+    }
+
     private fun startResendTimer() {
         viewModelScope.launch { _resendCooldown.value = 30; while (_resendCooldown.value > 0) { delay(1000); _resendCooldown.value-- } }
     }
