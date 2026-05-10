@@ -75,9 +75,9 @@ actor APIService {
         }
     }
 
-    func verifyGoogleIdToken(_ idToken: String) async throws -> (accessToken: String, refreshToken: String, isNew: Bool, profileCompleteness: Int) {
+    func verifyGoogleIdToken(_ idToken: String) async throws -> (accessToken: String, refreshToken: String, isNew: Bool, profileCompleteness: Int, firstName: String?) {
         struct Resp: Decodable {
-            struct UserStub: Decodable { let isNew: Bool; let profileCompleteness: Int? }
+            struct UserStub: Decodable { let isNew: Bool; let profileCompleteness: Int?; let firstName: String? }
             struct Session: Decodable { let accessToken: String; let refreshToken: String }
             let user: UserStub
             let session: Session
@@ -88,7 +88,7 @@ actor APIService {
         let raw = try JSONSerialization.data(withJSONObject: ["idToken": idToken])
         let resp: Resp = try await http.request(.post, "/auth/google/verify", rawBody: raw)
         await setTokens(access: resp.session.accessToken, refresh: resp.session.refreshToken)
-        return (resp.session.accessToken, resp.session.refreshToken, resp.user.isNew, resp.user.profileCompleteness ?? 0)
+        return (resp.session.accessToken, resp.session.refreshToken, resp.user.isNew, resp.user.profileCompleteness ?? 0, resp.user.firstName)
     }
 
     func verifyAppleIdToken(
@@ -96,9 +96,9 @@ actor APIService {
         nonce: String?,
         givenName: String?,
         familyName: String?
-    ) async throws -> (accessToken: String, refreshToken: String, isNew: Bool, profileCompleteness: Int) {
+    ) async throws -> (accessToken: String, refreshToken: String, isNew: Bool, profileCompleteness: Int, firstName: String?) {
         struct Resp: Decodable {
-            struct UserStub: Decodable { let isNew: Bool; let profileCompleteness: Int? }
+            struct UserStub: Decodable { let isNew: Bool; let profileCompleteness: Int?; let firstName: String? }
             struct Session: Decodable { let accessToken: String; let refreshToken: String }
             let user: UserStub
             let session: Session
@@ -116,7 +116,7 @@ actor APIService {
         let raw = try JSONSerialization.data(withJSONObject: bodyDict)
         let resp: Resp = try await http.request(.post, "/auth/apple/verify", rawBody: raw)
         await setTokens(access: resp.session.accessToken, refresh: resp.session.refreshToken)
-        return (resp.session.accessToken, resp.session.refreshToken, resp.user.isNew, resp.user.profileCompleteness ?? 0)
+        return (resp.session.accessToken, resp.session.refreshToken, resp.user.isNew, resp.user.profileCompleteness ?? 0, resp.user.firstName)
     }
 
     func refresh() async throws {

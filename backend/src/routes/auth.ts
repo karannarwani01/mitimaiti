@@ -763,6 +763,7 @@ router.post(
             authId: existingUser.auth_id,
             email: existingUser.email,
             phone: existingUser.phone,
+            firstName: existingUser.first_name,
             isVerified: existingUser.is_verified,
             profileCompleteness: existingUser.profile_completeness,
             isNew: false,
@@ -777,8 +778,10 @@ router.post(
       return;
     }
 
-    // New user — pre-fill display_name from Google profile if present.
-    const displayName = payload.given_name || payload.name || null;
+    // New user — pre-fill name from Google profile. Prefer the full `name`
+    // claim (e.g. "Karan Narwani") over `given_name` so the onboarding
+    // "What's your full name?" field arrives populated.
+    const displayName = payload.name || payload.given_name || null;
 
     const { data: newUser, error: createError } = await supabase
       .from('users')
@@ -847,6 +850,7 @@ router.post(
           authId: newUser.auth_id,
           email: newUser.email,
           phone: newUser.phone,
+          firstName: newUser.first_name,
           isVerified: false,
           profileCompleteness: 0,
           isNew: true,
@@ -929,6 +933,7 @@ router.post(
             authId: existingUser.auth_id,
             email: existingUser.email,
             phone: existingUser.phone,
+            firstName: existingUser.first_name,
             isVerified: existingUser.is_verified,
             profileCompleteness: existingUser.profile_completeness,
             isNew: false,
@@ -943,8 +948,14 @@ router.post(
       return;
     }
 
+    // Apple returns fullName only on the very first sign-in for an Apple ID
+    // and only if the user agreed to share it. Combine given+family into a
+    // single value for the onboarding "What's your full name?" field.
     const displayName =
-      fullName?.givenName || authUser.user_metadata?.given_name || null;
+      [fullName?.givenName, fullName?.familyName].filter(Boolean).join(' ') ||
+      authUser.user_metadata?.full_name ||
+      authUser.user_metadata?.given_name ||
+      null;
 
     const { data: newUser, error: createError } = await supabase
       .from('users')
@@ -1013,6 +1024,7 @@ router.post(
           authId: newUser.auth_id,
           email: newUser.email,
           phone: newUser.phone,
+          firstName: newUser.first_name,
           isVerified: false,
           profileCompleteness: 0,
           isNew: true,

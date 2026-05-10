@@ -96,6 +96,12 @@ object APIService {
         val refresh = session?.get("refresh_token") as? String ?: ""
         val userId = userMap?.get("id") as? String ?: ""
         val isNew = userMap?.get("is_new") as? Boolean ?: false
+        // Pre-seed the onboarding name field with the OAuth provider's name so
+        // returning Google/Apple users don't have to retype it. Backend keys
+        // it as camelCase `firstName`.
+        (userMap?.get("first_name") as? String ?: userMap?.get("firstName") as? String)
+            ?.takeIf { it.isNotBlank() }
+            ?.let { UserPrefs.setFirstName(it) }
         setTokens(token, refresh)
         tokenManager?.saveTokens(token, refresh, userId)
         SocketManager.shared.connect(token)

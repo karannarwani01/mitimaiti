@@ -117,6 +117,9 @@ class AuthViewModel: ObservableObject {
             do {
                 let result = try await api.verifyGoogleIdToken(idToken)
                 isLoading = false
+                if let firstName = result.firstName, !firstName.isEmpty {
+                    UserProfileStore.shared.firstName = firstName
+                }
                 hasCompletedOnboarding = !result.isNew && result.profileCompleteness >= 50
                 isAuthenticated = true
                 SocketChat.shared.connect(token: result.accessToken)
@@ -149,6 +152,9 @@ class AuthViewModel: ObservableObject {
                     familyName: familyName
                 )
                 isLoading = false
+                if let firstName = result.firstName, !firstName.isEmpty {
+                    UserProfileStore.shared.firstName = firstName
+                }
                 hasCompletedOnboarding = !result.isNew && result.profileCompleteness >= 50
                 isAuthenticated = true
                 SocketChat.shared.connect(token: result.accessToken)
