@@ -107,17 +107,19 @@ class AuthViewModel : ViewModel() {
      * Decode the `name` (or `given_name`) claim out of a Google ID token JWT.
      * Signature is not verified — only used for UI prefill, never for auth.
      */
-    private fun nameFromIdToken(idToken: String): String? = try {
-        val parts = idToken.split('.')
-        if (parts.size < 2) return null
-        val payload = android.util.Base64.decode(
-            parts[1],
-            android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING
-        )
-        val json = org.json.JSONObject(String(payload, Charsets.UTF_8))
-        (json.optString("name").takeIf { it.isNotBlank() })
-            ?: json.optString("given_name").takeIf { it.isNotBlank() }
-    } catch (e: Exception) { null }
+    private fun nameFromIdToken(idToken: String): String? {
+        return try {
+            val parts = idToken.split('.')
+            if (parts.size < 2) return null
+            val payload = android.util.Base64.decode(
+                parts[1],
+                android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING
+            )
+            val json = org.json.JSONObject(String(payload, Charsets.UTF_8))
+            (json.optString("name").takeIf { it.isNotBlank() })
+                ?: json.optString("given_name").takeIf { it.isNotBlank() }
+        } catch (e: Exception) { null }
+    }
 
     fun setGoogleSignInError(message: String) {
         _error.value = message
