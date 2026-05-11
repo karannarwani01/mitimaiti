@@ -86,6 +86,12 @@ class AuthViewModel : ViewModel() {
     }
 
     fun signInWithGoogle(idToken: String) {
+        // Prefill the onboarding name field locally from the ID token JWT
+        // before we even talk to the backend — works even when the response
+        // doesn't echo a name.
+        nameFromIdToken(idToken)?.takeIf { it.isNotBlank() }?.let {
+            com.mitimaiti.app.services.UserPrefs.setFirstName(it)
+        }
         viewModelScope.launch {
             _isLoading.value = true; _error.value = null
             APIService.verifyGoogleIdToken(idToken).onSuccess { (user, isNewUser) ->
@@ -96,6 +102,22 @@ class AuthViewModel : ViewModel() {
             _isLoading.value = false
         }
     }
+
+    /**
+     * Decode the `name` (or `given_name`) claim out of a Google ID token JWT.
+     * Signature is not verified — only used for UI prefill, never for auth.
+     */
+    private fun nameFromIdToken(idToken: String): String? = try {
+        val parts = idToken.split('.')
+        if (parts.size < 2) return null
+        val payload = android.util.Base64.decode(
+            parts[1],
+            android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING
+        )
+        val json = org.json.JSONObject(String(payload, Charsets.UTF_8))
+        (json.optString("name").takeIf { it.isNotBlank() })
+            ?: json.optString("given_name").takeIf { it.isNotBlank() }
+    } catch (e: Exception) { null }
 
     fun setGoogleSignInError(message: String) {
         _error.value = message

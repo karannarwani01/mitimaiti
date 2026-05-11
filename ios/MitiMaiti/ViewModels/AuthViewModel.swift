@@ -113,6 +113,14 @@ class AuthViewModel: ObservableObject {
         isLoading = true
         error = nil
 
+        // Extract the user's name from the Google ID token *before* we hit the
+        // backend, so onboarding prefill works even if the backend response
+        // doesn't carry it back. The ID token is a JWT and its payload
+        // contains the `name` claim (full name) plus `given_name`.
+        if let name = Self.nameFromIdToken(idToken), !name.isEmpty {
+            UserProfileStore.shared.firstName = name
+        }
+
         Task {
             do {
                 let result = try await api.verifyGoogleIdToken(idToken)
@@ -130,6 +138,27 @@ class AuthViewModel: ObservableObject {
         }
     }
 
+    /// Decode the `name` (or `given_name`) claim from a Google ID token JWT
+    /// without verifying the signature — we only trust this for UI prefill,
+    /// not for auth.
+    private static func nameFromIdToken(_ idToken: String) -> String? {
+        let parts = idToken.split(separator: ".")
+        guard parts.count >= 2 else { return nil }
+        var payload = String(parts[1])
+        // JWT uses base64url; pad to a multiple of 4 for Data(base64Encoded:).
+        let pad = (4 - payload.count % 4) % 4
+        payload += String(repeating: "=", count: pad)
+        payload = payload.replacingOccurrences(of: "-", with: "+")
+                          .replacingOccurrences(of: "_", with: "/")
+        guard let data = Data(base64Encoded: payload),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        if let name = json["name"] as? String, !name.isEmpty { return name }
+        if let given = json["given_name"] as? String, !given.isEmpty { return given }
+        return nil
+    }
+
     func setGoogleSignInError(_ message: String) {
         error = message
     }
@@ -142,6 +171,14 @@ class AuthViewModel: ObservableObject {
     ) {
         isLoading = true
         error = nil
+
+        // Apple only sends fullName on the very first sign-in for a given
+        // Apple ID. When it does, prefill onboarding from it locally — no
+        // need to round-trip through the backend.
+        let appleName = [givenName, familyName].compactMap { $0 }.joined(separator: " ")
+        if !appleName.isEmpty {
+            UserProfileStore.shared.firstName = appleName
+        }
 
         Task {
             do {
