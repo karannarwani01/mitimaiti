@@ -463,19 +463,20 @@ private struct GenderCard: View {
     let action: () -> Void
     @Environment(\.adaptiveColors) private var colors
 
-    private var emoji: String {
+    private var symbolName: String {
         switch gender {
-        case .man: return "👨"
-        case .woman: return "👩"
-        case .nonBinary: return "🧑"
+        case .man: return "figure.stand"
+        case .woman: return "figure.stand.dress"
+        case .nonBinary: return "figure.arms.open"
         }
     }
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 16) {
-                Text(emoji)
-                    .font(.system(size: 28))
+                Image(systemName: symbolName)
+                    .font(.system(size: 22, weight: .medium))
+                    .foregroundColor(isSelected ? AppTheme.rose : colors.textPrimary)
                     .frame(width: 44, height: 44)
                     .background(
                         Circle()
@@ -689,12 +690,12 @@ private struct IntentCard: View {
     let action: () -> Void
     @Environment(\.adaptiveColors) private var colors
 
-    private var emoji: String {
+    private var symbolName: String {
         switch intent {
-        case .casual: return "☕"
-        case .serious: return "🌹"
-        case .open: return "✨"
-        case .marriage: return "💍"
+        case .casual: return "cup.and.saucer.fill"
+        case .serious: return "heart.fill"
+        case .open: return "sparkles"
+        case .marriage: return "person.2.fill"
         }
     }
 
@@ -710,8 +711,9 @@ private struct IntentCard: View {
     var body: some View {
         Button(action: action) {
             HStack(alignment: .top, spacing: 16) {
-                Text(emoji)
-                    .font(.system(size: 28))
+                Image(systemName: symbolName)
+                    .font(.system(size: 22, weight: .medium))
+                    .foregroundColor(isSelected ? AppTheme.rose : colors.textPrimary)
                     .frame(width: 44, height: 44)
                     .background(
                         Circle()
@@ -771,19 +773,20 @@ private struct ShowMeCard: View {
     let action: () -> Void
     @Environment(\.adaptiveColors) private var colors
 
-    private var emoji: String {
+    private var symbolName: String {
         switch pref {
-        case .men: return "👨"
-        case .women: return "👩"
-        case .everyone: return "🌈"
+        case .men: return "figure.stand"
+        case .women: return "figure.stand.dress"
+        case .everyone: return "figure.2.arms.open"
         }
     }
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 16) {
-                Text(emoji)
-                    .font(.system(size: 28))
+                Image(systemName: symbolName)
+                    .font(.system(size: 22, weight: .medium))
+                    .foregroundColor(isSelected ? AppTheme.rose : colors.textPrimary)
                     .frame(width: 44, height: 44)
                     .background(
                         Circle()
@@ -835,7 +838,8 @@ private struct LocationStepContent: View {
 
     var body: some View {
         VStack(spacing: AppTheme.spacingMD) {
-            // Auto-detect location button
+            // Auto-detect location button — matches Android: circular icon badge
+            // with two-line label, so icon stays visible while the spinner runs.
             Button {
                 locationDetector.detectLocation { detectedCity, _, _ in
                     if let c = detectedCity {
@@ -845,28 +849,39 @@ private struct LocationStepContent: View {
                     }
                 }
             } label: {
-                HStack(spacing: 10) {
-                    if locationDetector.isDetecting {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.rose))
-                            .scaleEffect(0.8)
-                    } else {
-                        Image(systemName: "location.fill")
-                            .font(.system(size: 16))
-                            .foregroundColor(AppTheme.rose)
+                HStack(spacing: 12) {
+                    ZStack {
+                        Circle()
+                            .fill(AppTheme.rose.opacity(0.1))
+                            .frame(width: 40, height: 40)
+                        if locationDetector.isDetecting {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.rose))
+                                .scaleEffect(0.8)
+                        } else {
+                            Image(systemName: "location.fill")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(AppTheme.rose)
+                        }
                     }
-                    Text(locationDetector.isDetecting ? "Detecting..." : "Use Current Location")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(AppTheme.rose)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(locationDetector.isDetecting ? "Detecting location..." : "Use my current location")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(AppTheme.rose)
+                        Text("Auto-detect your city")
+                            .font(.system(size: 13))
+                            .foregroundColor(colors.textSecondary)
+                    }
+                    Spacer()
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .background(
-                    RoundedRectangle(cornerRadius: AppTheme.radiusMD)
-                        .fill(AppTheme.rose.opacity(0.08))
+                    RoundedRectangle(cornerRadius: AppTheme.radiusLG)
+                        .fill(AppTheme.rose.opacity(0.05))
                         .overlay(
-                            RoundedRectangle(cornerRadius: AppTheme.radiusMD)
-                                .stroke(AppTheme.rose.opacity(0.2), lineWidth: 1)
+                            RoundedRectangle(cornerRadius: AppTheme.radiusLG)
+                                .stroke(AppTheme.rose.opacity(0.15), lineWidth: 1)
                         )
                 )
             }
@@ -990,6 +1005,7 @@ class LocationDetector: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var isDetecting = false
     private let manager = CLLocationManager()
     private var completion: ((String?, String?, String?) -> Void)?
+    private var requestPending = false
 
     override init() {
         super.init()
@@ -1000,8 +1016,42 @@ class LocationDetector: NSObject, ObservableObject, CLLocationManagerDelegate {
     func detectLocation(completion: @escaping (String?, String?, String?) -> Void) {
         self.completion = completion
         isDetecting = true
-        manager.requestWhenInUseAuthorization()
-        manager.requestLocation()
+        let status = manager.authorizationStatus
+        switch status {
+        case .authorizedWhenInUse, .authorizedAlways:
+            manager.requestLocation()
+        case .notDetermined:
+            // Wait for authorizationDidChange before requesting location.
+            requestPending = true
+            manager.requestWhenInUseAuthorization()
+        case .denied, .restricted:
+            finish(nil, nil, nil)
+        @unknown default:
+            finish(nil, nil, nil)
+        }
+    }
+
+    private func finish(_ city: String?, _ region: String?, _ country: String?) {
+        isDetecting = false
+        requestPending = false
+        completion?(city, region, country)
+        completion = nil
+    }
+
+    nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        Task { @MainActor in
+            guard self.requestPending else { return }
+            let status = manager.authorizationStatus
+            switch status {
+            case .authorizedWhenInUse, .authorizedAlways:
+                self.requestPending = false
+                manager.requestLocation()
+            case .denied, .restricted:
+                self.finish(nil, nil, nil)
+            default:
+                break
+            }
+        }
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
@@ -1011,8 +1061,7 @@ class LocationDetector: NSObject, ObservableObject, CLLocationManagerDelegate {
             Task { @MainActor in
                 guard let self else { return }
                 let placemark = placemarks?.first
-                self.isDetecting = false
-                self.completion?(
+                self.finish(
                     placemark?.locality,
                     placemark?.administrativeArea,
                     placemark?.country
@@ -1023,8 +1072,7 @@ class LocationDetector: NSObject, ObservableObject, CLLocationManagerDelegate {
 
     nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         Task { @MainActor in
-            self.isDetecting = false
-            self.completion?(nil, nil, nil)
+            self.finish(nil, nil, nil)
         }
     }
 }

@@ -8,20 +8,20 @@
 
 /* Begin PBXBuildFile section */
 		04662ABE081C14CF59290D0E /* UserProfileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 147E2572E77262BD15CC51BB /* UserProfileStore.swift */; };
-		0A089CC021724FB5938B5E2B /* EmailAuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0C2800115B44FAAFC1B9D5 /* EmailAuthView.swift */; };
 		0D80CF65E909D35DF39AF105 /* IceBreakerPrompts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C6D6F8A481677FD2F901907 /* IceBreakerPrompts.swift */; };
+		1373B48C66AA51ED1B128991 /* GoogleSignInConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = A41E8925C604A5B9810FF653 /* GoogleSignInConfig.swift */; };
+		16BCD0BA9627E0D8B642AA3D /* EmailAuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A41E7B47FF53D835B0374FC7 /* EmailAuthView.swift */; };
 		16E23B943B21C4F82FA071A6 /* FamilyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 817B15F387BBDBBBBD3A9204 /* FamilyView.swift */; };
 		25E6605C894DA77BBF9AB8FE /* Match.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFA6BE12D8E88A5D69E0EB2A /* Match.swift */; };
 		27A6ECDACF1CC689C213867C /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67B9737FEC6551D0638CB283 /* ChatView.swift */; };
-		2AFF54812FA7EB08000621EC /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 2AFF54802FA7EB08000621EC /* GoogleSignIn */; };
-		2AFF54832FA7EB08000621EC /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 2AFF54822FA7EB08000621EC /* GoogleSignInSwift */; };
+		2C969E1448D5D3A848DBE562 /* GoogleSignInService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D3517369F1B91F70D46E74B /* GoogleSignInService.swift */; };
+		2D70C7639FCF97247CC2DD09 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 3E622C17CC6068584EE54E90 /* GoogleSignIn */; };
 		3721A43BC427F78FC397EAB5 /* InboxView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6077B737D03664A0ECC9BBE /* InboxView.swift */; };
 		3CD602E18AAB1A4EA6DF4B87 /* ToastManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 928F7D049B97D5DDB1618D10 /* ToastManager.swift */; };
 		4B83E301BF3FB670F6A09FFE /* OnboardingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A39E2C718C6D76E06C1091A3 /* OnboardingViewModel.swift */; };
 		4DEA9444AC4DA3121A7D0349 /* OnboardingContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 174F4A5A4F51A001C55F9550 /* OnboardingContainerView.swift */; };
 		4FDB46224925BE16F64B9039 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89C40D3AB03FE9915402B49D /* ContentView.swift */; };
 		53863F4A77D347A00DE88131 /* FeedCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B81423DD47677095E37D908 /* FeedCard.swift */; };
-		53E8CBBF66F344D78850B182 /* GoogleSignInConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FF42C62944541578FF84CC6 /* GoogleSignInConfig.swift */; };
 		547408FEB8426FFBE2E3FED1 /* GlassCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 154D586DDB6B441D18F95979 /* GlassCard.swift */; };
 		58A2A93ED487052FC791076C /* UserImageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AB60A5CAC7259C74EDB0E04 /* UserImageStore.swift */; };
 		600E43C1290E967091088F9B /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1730F30F16F904D1FE142FE6 /* WelcomeView.swift */; };
@@ -30,6 +30,7 @@
 		6C596A37CBD56994709DB156 /* HTTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3DF7AFC01CC4259BF578349 /* HTTPClient.swift */; };
 		6E4FCF96B7E70AD56B2BB0D0 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDCDE070760DA59744D9A460 /* Theme.swift */; };
 		6E7999836CF240DC419732D1 /* OTPVerificationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 235BA25A7C5F919412E8CD52 /* OTPVerificationView.swift */; };
+		6F338278A2618BC188BFA82D /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = A2CC590ED561ACCF1B0B6F3A /* GoogleSignInSwift */; };
 		704477E14BE7438513DD1BEB /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2EE87F445D3DE95DAEFA55E /* ProfileView.swift */; };
 		7052B7337B892562C1B8E8B3 /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53FEA4EB77F063C3C4BEA951 /* SettingsViewModel.swift */; };
 		73D434E7723BBD06DF90C964 /* TokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE06DD7DB3D7C9003303ED65 /* TokenStore.swift */; };
@@ -46,7 +47,6 @@
 		A1A4509589373CDFFC00E4CF /* MatchesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D766A471EA7CA3CB7B312641 /* MatchesView.swift */; };
 		A1C29D86FF0D85CFFB820F87 /* APIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4B90365D201CFD64089E527 /* APIService.swift */; };
 		A1D83150818C6F3A6B8F637E /* ProfileViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F2E18810F467B9A48B9B7C7 /* ProfileViewModel.swift */; };
-		A8A935D996CF40F9A136C986 /* GoogleSignInService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E597F3C151E4C8BBFBAFCE3 /* GoogleSignInService.swift */; };
 		A9D22EA4222D3B61944627AD /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = E80284C6AE7351F6F732B582 /* AppConfig.swift */; };
 		AAF20ADD595C57870881C8B5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 65F30B08041A03FE81243E50 /* Assets.xcassets */; };
 		ABC17BE90D7AC4DE5786B4E8 /* Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10667B045864C59FCFEF4859 /* Extensions.swift */; };
@@ -74,14 +74,13 @@
 		174F4A5A4F51A001C55F9550 /* OnboardingContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingContainerView.swift; sourceTree = "<group>"; };
 		1B81423DD47677095E37D908 /* FeedCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedCard.swift; sourceTree = "<group>"; };
 		1C6D6F8A481677FD2F901907 /* IceBreakerPrompts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IceBreakerPrompts.swift; sourceTree = "<group>"; };
-		1E597F3C151E4C8BBFBAFCE3 /* GoogleSignInService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleSignInService.swift; sourceTree = "<group>"; };
 		20312866CCE1401D2D1F21BA /* LikedYouView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LikedYouView.swift; sourceTree = "<group>"; };
 		21DAA33A2088A879B539FBF5 /* ProfileResponse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileResponse.swift; sourceTree = "<group>"; };
-		225A3F79E591F5AA0849C9FB /* MitiMaiti.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MitiMaiti.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		225A3F79E591F5AA0849C9FB /* MitiMaiti.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = MitiMaiti.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		235BA25A7C5F919412E8CD52 /* OTPVerificationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OTPVerificationView.swift; sourceTree = "<group>"; };
-		2AFF54842FA7ECD2000621EC /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		2E67FB49BEA1E6AA8DDCC2D6 /* PhoneAuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneAuthView.swift; sourceTree = "<group>"; };
 		2F4DA05AB721A04A24F8B8D1 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		3D3517369F1B91F70D46E74B /* GoogleSignInService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleSignInService.swift; sourceTree = "<group>"; };
 		3D65B635AB35E3847EE5AD34 /* MessageRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageRepository.swift; sourceTree = "<group>"; };
 		432F778A02FBA178A3924473 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		4DBD4CC91F98B185CBD3566C /* MitiMaitiApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MitiMaitiApp.swift; sourceTree = "<group>"; };
@@ -91,17 +90,20 @@
 		65F30B08041A03FE81243E50 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		66F00DA56064F7CA9AE9C772 /* SocketManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocketManager.swift; sourceTree = "<group>"; };
 		67B9737FEC6551D0638CB283 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
-		6FF42C62944541578FF84CC6 /* GoogleSignInConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleSignInConfig.swift; sourceTree = "<group>"; };
 		76397834BDE13008D948849C /* InboxViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InboxViewModel.swift; sourceTree = "<group>"; };
 		769BD9C8B2D662CED468052F /* FeedViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedViewModel.swift; sourceTree = "<group>"; };
+		7D6D177C787662783AADFEBD /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		7ECB45A2ED82A25A49EF44BD /* Enums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Enums.swift; sourceTree = "<group>"; };
 		7F2E18810F467B9A48B9B7C7 /* ProfileViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileViewModel.swift; sourceTree = "<group>"; };
 		817B15F387BBDBBBBD3A9204 /* FamilyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FamilyView.swift; sourceTree = "<group>"; };
+		83F789AD116571817595DE40 /* MitiMaiti.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MitiMaiti.entitlements; sourceTree = "<group>"; };
 		88FE92D46BABEE168DE2079D /* Family.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Family.swift; sourceTree = "<group>"; };
 		89C40D3AB03FE9915402B49D /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		928F7D049B97D5DDB1618D10 /* ToastManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastManager.swift; sourceTree = "<group>"; };
 		99B858841BA4C3CDD6E683CC /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		A39E2C718C6D76E06C1091A3 /* OnboardingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingViewModel.swift; sourceTree = "<group>"; };
+		A41E7B47FF53D835B0374FC7 /* EmailAuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailAuthView.swift; sourceTree = "<group>"; };
+		A41E8925C604A5B9810FF653 /* GoogleSignInConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleSignInConfig.swift; sourceTree = "<group>"; };
 		A4B90365D201CFD64089E527 /* APIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIService.swift; sourceTree = "<group>"; };
 		B2EE87F445D3DE95DAEFA55E /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		B3DF7AFC01CC4259BF578349 /* HTTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPClient.swift; sourceTree = "<group>"; };
@@ -109,7 +111,6 @@
 		BB3BCE9D114AE38A2BEC87CE /* ThemeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeManager.swift; sourceTree = "<group>"; };
 		BFA6BE12D8E88A5D69E0EB2A /* Match.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Match.swift; sourceTree = "<group>"; };
 		C22F1C34B1B231F873465150 /* ChatViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModel.swift; sourceTree = "<group>"; };
-		CC0C2800115B44FAAFC1B9D5 /* EmailAuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailAuthView.swift; sourceTree = "<group>"; };
 		CEAE2E9821C4BA1137AAD91E /* SkeletonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkeletonView.swift; sourceTree = "<group>"; };
 		D766A471EA7CA3CB7B312641 /* MatchesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MatchesView.swift; sourceTree = "<group>"; };
 		DD07BFBE5931DC3033414600 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
@@ -126,9 +127,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				2AFF54832FA7EB08000621EC /* GoogleSignInSwift in Frameworks */,
 				8F3EFDD1B4C103720C12E920 /* SocketIO in Frameworks */,
-				2AFF54812FA7EB08000621EC /* GoogleSignIn in Frameworks */,
+				2D70C7639FCF97247CC2DD09 /* GoogleSignIn in Frameworks */,
+				6F338278A2618BC188BFA82D /* GoogleSignInSwift in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -166,7 +167,7 @@
 			isa = PBXGroup;
 			children = (
 				E80284C6AE7351F6F732B582 /* AppConfig.swift */,
-				6FF42C62944541578FF84CC6 /* GoogleSignInConfig.swift */,
+				A41E8925C604A5B9810FF653 /* GoogleSignInConfig.swift */,
 			);
 			path = Config;
 			sourceTree = "<group>";
@@ -260,8 +261,8 @@
 		B06D86B6586D7E0F4C0E8672 /* Auth */ = {
 			isa = PBXGroup;
 			children = (
+				A41E7B47FF53D835B0374FC7 /* EmailAuthView.swift */,
 				235BA25A7C5F919412E8CD52 /* OTPVerificationView.swift */,
-				CC0C2800115B44FAAFC1B9D5 /* EmailAuthView.swift */,
 				2E67FB49BEA1E6AA8DDCC2D6 /* PhoneAuthView.swift */,
 				1730F30F16F904D1FE142FE6 /* WelcomeView.swift */,
 			);
@@ -272,7 +273,7 @@
 			isa = PBXGroup;
 			children = (
 				A4B90365D201CFD64089E527 /* APIService.swift */,
-				1E597F3C151E4C8BBFBAFCE3 /* GoogleSignInService.swift */,
+				3D3517369F1B91F70D46E74B /* GoogleSignInService.swift */,
 				B3DF7AFC01CC4259BF578349 /* HTTPClient.swift */,
 				3D65B635AB35E3847EE5AD34 /* MessageRepository.swift */,
 				21DAA33A2088A879B539FBF5 /* ProfileResponse.swift */,
@@ -286,7 +287,8 @@
 		E6ABE6D69BEDD86A2F20AF71 /* MitiMaiti */ = {
 			isa = PBXGroup;
 			children = (
-				2AFF54842FA7ECD2000621EC /* Info.plist */,
+				7D6D177C787662783AADFEBD /* Info.plist */,
+				83F789AD116571817595DE40 /* MitiMaiti.entitlements */,
 				8771021D6075C785351A5227 /* App */,
 				560B01A61C5AE14680B21F2A /* Config */,
 				833AD5E1421B9DCB875FAD64 /* Models */,
@@ -325,8 +327,8 @@
 			name = MitiMaiti;
 			packageProductDependencies = (
 				AD43A56A7C03CCECE06EF089 /* SocketIO */,
-				2AFF54802FA7EB08000621EC /* GoogleSignIn */,
-				2AFF54822FA7EB08000621EC /* GoogleSignInSwift */,
+				3E622C17CC6068584EE54E90 /* GoogleSignIn */,
+				A2CC590ED561ACCF1B0B6F3A /* GoogleSignInSwift */,
 			);
 			productName = MitiMaiti;
 			productReference = 225A3F79E591F5AA0849C9FB /* MitiMaiti.app */;
@@ -357,8 +359,8 @@
 			mainGroup = EE00E9939993F9F6A9DA877A;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				E6990C3A1FC5F6113C9BFDD7 /* XCRemoteSwiftPackageReference "socket" */,
-				2AFF547F2FA7EB08000621EC /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+				8F738087493CF5FA433F3B4B /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+				E6990C3A1FC5F6113C9BFDD7 /* XCRemoteSwiftPackageReference "socket.io-client-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9D8B1A12F0B00F1A34229398 /* Products */;
@@ -388,14 +390,13 @@
 			files = (
 				A1C29D86FF0D85CFFB820F87 /* APIService.swift in Sources */,
 				A9D22EA4222D3B61944627AD /* AppConfig.swift in Sources */,
-				53E8CBBF66F344D78850B182 /* GoogleSignInConfig.swift in Sources */,
-				A8A935D996CF40F9A136C986 /* GoogleSignInService.swift in Sources */,
 				7F64F34B2AE580C23269C628 /* AuthViewModel.swift in Sources */,
 				27A6ECDACF1CC689C213867C /* ChatView.swift in Sources */,
 				842F129BAD83B89AFDEAD31F /* ChatViewModel.swift in Sources */,
 				4FDB46224925BE16F64B9039 /* ContentView.swift in Sources */,
 				62AE35285A1468674C2F0D8C /* DiscoverView.swift in Sources */,
 				9D031002BFC9E78C7E136BD7 /* EditProfileView.swift in Sources */,
+				16BCD0BA9627E0D8B642AA3D /* EmailAuthView.swift in Sources */,
 				F1CAEACBDF594F4CC5FDF511 /* Enums.swift in Sources */,
 				ABC17BE90D7AC4DE5786B4E8 /* Extensions.swift in Sources */,
 				F1F1BAB400659F629830FA28 /* Family.swift in Sources */,
@@ -404,6 +405,8 @@
 				53863F4A77D347A00DE88131 /* FeedCard.swift in Sources */,
 				EC3B112A4CE9D530D14F6A92 /* FeedViewModel.swift in Sources */,
 				547408FEB8426FFBE2E3FED1 /* GlassCard.swift in Sources */,
+				1373B48C66AA51ED1B128991 /* GoogleSignInConfig.swift in Sources */,
+				2C969E1448D5D3A848DBE562 /* GoogleSignInService.swift in Sources */,
 				6C596A37CBD56994709DB156 /* HTTPClient.swift in Sources */,
 				0D80CF65E909D35DF39AF105 /* IceBreakerPrompts.swift in Sources */,
 				7BAD12855C230842DF44F559 /* ImageCompression.swift in Sources */,
@@ -420,7 +423,6 @@
 				6E7999836CF240DC419732D1 /* OTPVerificationView.swift in Sources */,
 				4DEA9444AC4DA3121A7D0349 /* OnboardingContainerView.swift in Sources */,
 				4B83E301BF3FB670F6A09FFE /* OnboardingViewModel.swift in Sources */,
-				0A089CC021724FB5938B5E2B /* EmailAuthView.swift in Sources */,
 				63155BC4063DCD5A20A1AB2D /* PhoneAuthView.swift in Sources */,
 				CCA17E0305B114F03FCD6E2A /* ProfileResponse.swift in Sources */,
 				704477E14BE7438513DD1BEB /* ProfileView.swift in Sources */,
@@ -519,13 +521,11 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = MitiMaiti/MitiMaiti.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MitiMaiti/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = MitiMaiti;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
 				INFOPLIST_KEY_NSCameraUsageDescription = "MitiMaiti uses your camera so you can take live photos to send in chat.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "MitiMaiti uses your location to find nearby Sindhi matches in your area.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "MitiMaiti uses your microphone so you can record voice messages in chat.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "MitiMaiti uses your photo library so you can pick photos to send in chat.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -610,13 +610,11 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = MitiMaiti/MitiMaiti.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MitiMaiti/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = MitiMaiti;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
 				INFOPLIST_KEY_NSCameraUsageDescription = "MitiMaiti uses your camera so you can take live photos to send in chat.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "MitiMaiti uses your location to find nearby Sindhi matches in your area.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "MitiMaiti uses your microphone so you can record voice messages in chat.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "MitiMaiti uses your photo library so you can pick photos to send in chat.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -656,7 +654,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		2AFF547F2FA7EB08000621EC /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+		8F738087493CF5FA433F3B4B /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
 			requirement = {
@@ -664,7 +662,7 @@
 				minimumVersion = 9.1.0;
 			};
 		};
-		E6990C3A1FC5F6113C9BFDD7 /* XCRemoteSwiftPackageReference "socket" */ = {
+		E6990C3A1FC5F6113C9BFDD7 /* XCRemoteSwiftPackageReference "socket.io-client-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/socketio/socket.io-client-swift";
 			requirement = {
@@ -675,19 +673,19 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		2AFF54802FA7EB08000621EC /* GoogleSignIn */ = {
+		3E622C17CC6068584EE54E90 /* GoogleSignIn */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 2AFF547F2FA7EB08000621EC /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			package = 8F738087493CF5FA433F3B4B /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
 			productName = GoogleSignIn;
 		};
-		2AFF54822FA7EB08000621EC /* GoogleSignInSwift */ = {
+		A2CC590ED561ACCF1B0B6F3A /* GoogleSignInSwift */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 2AFF547F2FA7EB08000621EC /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			package = 8F738087493CF5FA433F3B4B /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
 			productName = GoogleSignInSwift;
 		};
 		AD43A56A7C03CCECE06EF089 /* SocketIO */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = E6990C3A1FC5F6113C9BFDD7 /* XCRemoteSwiftPackageReference "socket" */;
+			package = E6990C3A1FC5F6113C9BFDD7 /* XCRemoteSwiftPackageReference "socket.io-client-swift" */;
 			productName = SocketIO;
 		};
 /* End XCSwiftPackageProductDependency section */

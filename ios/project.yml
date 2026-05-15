@@ -22,6 +22,9 @@ packages:
   SocketIO:
     url: https://github.com/socketio/socket.io-client-swift
     from: 16.1.0
+  GoogleSignIn:
+    url: https://github.com/google/GoogleSignIn-iOS
+    from: 9.1.0
 targets:
   MitiMaiti:
     type: application
@@ -33,6 +36,10 @@ targets:
     dependencies:
       - package: SocketIO
         product: SocketIO
+      - package: GoogleSignIn
+        product: GoogleSignIn
+      - package: GoogleSignIn
+        product: GoogleSignInSwift
     settings:
       base:
         INFOPLIST_KEY_UILaunchScreen_Generation: true
@@ -41,4 +48,5 @@ targets:
         INFOPLIST_KEY_NSMicrophoneUsageDescription: "MitiMaiti uses your microphone so you can record voice messages in chat."
         INFOPLIST_KEY_NSCameraUsageDescription: "MitiMaiti uses your camera so you can take live photos to send in chat."
         INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "MitiMaiti uses your photo library so you can pick photos to send in chat."
+        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "MitiMaiti uses your location to find nearby Sindhi matches in your area."
         GENERATE_INFOPLIST_FILE: true

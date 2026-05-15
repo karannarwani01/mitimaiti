@@ -554,9 +554,11 @@ private fun GenderStep(selected: Gender?, onSelect: (Gender) -> Unit) {
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 18.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        gender.emoji,
-                        fontSize = 24.sp
+                    Icon(
+                        imageVector = genderIcon(gender),
+                        contentDescription = null,
+                        tint = if (isSelected) AppColors.Rose else colors.textPrimary,
+                        modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.width(14.dp))
                     Text(
@@ -710,9 +712,11 @@ private fun IntentStep(selected: Intent?, onSelect: (Intent) -> Unit) {
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 18.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        intent.emoji,
-                        fontSize = 24.sp
+                    Icon(
+                        imageVector = intentIcon(intent),
+                        contentDescription = null,
+                        tint = if (isSelected) Color(intent.color) else colors.textPrimary,
+                        modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.width(14.dp))
                     Column(modifier = Modifier.weight(1f)) {
@@ -774,9 +778,11 @@ private fun ShowMeStep(selected: ShowMe?, onSelect: (ShowMe) -> Unit) {
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 18.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        option.emoji,
-                        fontSize = 24.sp
+                    Icon(
+                        imageVector = showMeIcon(option),
+                        contentDescription = null,
+                        tint = if (isSelected) AppColors.Rose else colors.textPrimary,
+                        modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.width(14.dp))
                     Text(
@@ -1255,4 +1261,23 @@ private fun ConfettiParticle(color: Color, isCircle: Boolean, seed: Int) {
             .clip(if (isCircle) CircleShape else RoundedCornerShape(1.dp))
             .background(color)
     )
+}
+
+private fun genderIcon(gender: Gender): androidx.compose.ui.graphics.vector.ImageVector = when (gender) {
+    Gender.MAN -> Icons.Default.Man
+    Gender.WOMAN -> Icons.Default.Woman
+    Gender.NON_BINARY -> Icons.Default.Transgender
+}
+
+private fun intentIcon(intent: Intent): androidx.compose.ui.graphics.vector.ImageVector = when (intent) {
+    Intent.CASUAL -> Icons.Default.LocalCafe
+    Intent.SERIOUS -> Icons.Default.Favorite
+    Intent.OPEN -> Icons.Default.AutoAwesome
+    Intent.MARRIAGE -> Icons.Default.People
+}
+
+private fun showMeIcon(option: ShowMe): androidx.compose.ui.graphics.vector.ImageVector = when (option) {
+    ShowMe.MEN -> Icons.Default.Man
+    ShowMe.WOMEN -> Icons.Default.Woman
+    ShowMe.EVERYONE -> Icons.Default.Diversity3
 }
