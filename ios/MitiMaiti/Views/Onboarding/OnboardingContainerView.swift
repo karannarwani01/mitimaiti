@@ -1143,15 +1143,14 @@ private struct ReadyStepContent: View {
         AppTheme.rose, .pink, .orange, .yellow, .purple, .blue, .green, .red
     ]
 
-    private var profileCompleteness: Double {
-        var score = 0.0
-        if !vm.firstName.isEmpty { score += 0.2 }
-        if vm.selectedGender != nil { score += 0.15 }
-        if vm.selectedIntent != nil { score += 0.15 }
-        if vm.selectedShowMe != nil { score += 0.1 }
-        if vm.selectedCity != nil { score += 0.15 }
-        if !vm.selectedImages.isEmpty { score += 0.25 }
-        return min(score, 1.0)
+    // Real, backend-computed profile completeness (0–100). The backend's
+    // calculateCompleteness() is the single source of truth used for
+    // matching, so we show that instead of a local guess that always maxes
+    // out after onboarding. nil until the GET /me fetch resolves.
+    @State private var realCompleteness: Int?
+
+    private var completenessFraction: Double {
+        Double(min(max(realCompleteness ?? 0, 0), 100)) / 100.0
     }
 
     var body: some View {
@@ -1224,6 +1223,14 @@ private struct ReadyStepContent: View {
         .onAppear {
             animateEmoji = true
             showConfetti = true
+        }
+        .task {
+            // Pull the authoritative completeness the backend computed from
+            // the actual saved profile (photos were just uploaded before
+            // this step). Single source of truth, matches ProfileView.
+            if let user = try? await APIService.shared.fetchProfile() {
+                realCompleteness = user.profileCompleteness
+            }
         }
     }
 
@@ -1315,7 +1322,7 @@ private struct ReadyStepContent: View {
                             .font(.system(size: 13, weight: .medium))
                             .foregroundColor(colors.textMuted)
                         Spacer()
-                        Text("\(Int(profileCompleteness * 100))%")
+                        Text(realCompleteness.map { "\($0)%" } ?? "…")
                             .font(.system(size: 13, weight: .bold))
                             .foregroundColor(AppTheme.rose)
                     }
@@ -1328,8 +1335,8 @@ private struct ReadyStepContent: View {
 
                             RoundedRectangle(cornerRadius: 4)
                                 .fill(AppTheme.roseGradient)
-                                .frame(width: geo.size.width * profileCompleteness, height: 6)
-                                .animation(.easeOut(duration: 0.8), value: profileCompleteness)
+                                .frame(width: geo.size.width * completenessFraction, height: 6)
+                                .animation(.easeOut(duration: 0.8), value: completenessFraction)
                         }
                     }
                     .frame(height: 6)

@@ -119,7 +119,6 @@ class OnboardingViewModel: ObservableObject {
                 return
             }
         }
-        NSLog("[MM][onboard] proceedFromPhotos done, advancing")
         isLoading = false
         nextStep()
     }
