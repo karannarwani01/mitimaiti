@@ -397,11 +397,13 @@ async function upsertProfileTable(
 
 async function fetchProfileData(userId: string): Promise<CompletenessData> {
   const [
-    { data: basics },
+    { data: userRow },
+    { data: basicProfile },
     { data: sindhi },
     { data: chatti },
     { data: personality },
   ] = await Promise.all([
+    supabase.from('users').select('*').eq('id', userId).single(),
     supabase.from('basic_profiles').select('*').eq('user_id', userId).single(),
     supabase
       .from('sindhi_profiles')
@@ -419,6 +421,21 @@ async function fetchProfileData(userId: string): Promise<CompletenessData> {
       .eq('user_id', userId)
       .single(),
   ]);
+
+  // calculateCompleteness expects the 8 "basics" fields under data.basics,
+  // but PATCH /me stores most of them on the `users` table (with `dob`
+  // rather than `date_of_birth`); only height_cm lives on basic_profiles.
+  // Merge both so completeness actually credits saved basics.
+  const basics = {
+    ...(basicProfile || {}),
+    display_name: userRow?.display_name ?? null,
+    date_of_birth: userRow?.dob ?? null,
+    gender: userRow?.gender ?? null,
+    bio: userRow?.bio ?? null,
+    city: userRow?.city ?? null,
+    state: userRow?.state ?? null,
+    country: userRow?.country ?? null,
+  };
 
   return { basics, sindhi, chatti, personality };
 }
