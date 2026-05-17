@@ -18,11 +18,10 @@ struct MitiMaitiApp: App {
                     .preferredColorScheme(themeManager.colorScheme)
                     .withAdaptiveColors()
                     .task {
-                        await APIService.shared.bootstrap()
-                        if let token = await APIService.shared.currentAccessToken() {
-                            authVM.isAuthenticated = true
-                            SocketChat.shared.connect(token: token)
-                        }
+                        // Force a fresh sign-in on every launch by wiping any
+                        // tokens left from a previous run. Stop auto-resuming
+                        // the session.
+                        await APIService.shared.clearTokens()
                     }
 
                 ToastOverlay()

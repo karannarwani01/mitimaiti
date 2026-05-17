@@ -138,6 +138,36 @@ class AuthViewModel: ObservableObject {
         }
     }
 
+    /// Pull the local-part of the `email` claim out of an Apple ID token JWT
+    /// and capitalize it as a best-effort name. Apple doesn't expose a name
+    /// claim in the token; this is a fallback when credential.fullName is nil
+    /// (common after the first sign-in). For `karan.narwani@example.com` this
+    /// returns "Karan Narwani"; for `karannarwani01@hotmail.com" it returns
+    /// "Karannarwani01" — not great, but better than empty.
+    private static func nameGuessFromAppleIdToken(_ idToken: String) -> String? {
+        let parts = idToken.split(separator: ".")
+        guard parts.count >= 2 else { return nil }
+        var payload = String(parts[1])
+        let pad = (4 - payload.count % 4) % 4
+        payload += String(repeating: "=", count: pad)
+        payload = payload.replacingOccurrences(of: "-", with: "+")
+                          .replacingOccurrences(of: "_", with: "/")
+        guard let data = Data(base64Encoded: payload),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let email = json["email"] as? String,
+              let localPart = email.split(separator: "@").first else {
+            return nil
+        }
+        // Strip trailing digits — `karannarwani01` → `karannarwani` — so the
+        // prefill reads as a name, not a username.
+        let cleaned = String(localPart).trimmingCharacters(in: .decimalDigits)
+        guard !cleaned.isEmpty else { return nil }
+        return cleaned
+            .split(whereSeparator: { ".+_-".contains($0) })
+            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+            .joined(separator: " ")
+    }
+
     /// Decode the `name` (or `given_name`) claim from a Google ID token JWT
     /// without verifying the signature — we only trust this for UI prefill,
     /// not for auth.
@@ -173,11 +203,16 @@ class AuthViewModel: ObservableObject {
         error = nil
 
         // Apple only sends fullName on the very first sign-in for a given
-        // Apple ID. When it does, prefill onboarding from it locally — no
-        // need to round-trip through the backend.
+        // Apple ID and even then is inconsistent — on subsequent sign-ins
+        // both fields come back nil. Use fullName when we have it; otherwise
+        // fall back to the email local-part from the ID token JWT so the
+        // onboarding "What's your full name?" field still has *something* to
+        // prefill instead of staying blank.
         let appleName = [givenName, familyName].compactMap { $0 }.joined(separator: " ")
         if !appleName.isEmpty {
             UserProfileStore.shared.firstName = appleName
+        } else if let fallback = Self.nameGuessFromAppleIdToken(idToken), !fallback.isEmpty {
+            UserProfileStore.shared.firstName = fallback
         }
 
         Task {

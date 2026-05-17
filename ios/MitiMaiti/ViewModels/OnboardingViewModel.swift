@@ -20,6 +20,11 @@ class OnboardingViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var error: String?
 
+    // Tracks which selectedImages indices have already been uploaded so going
+    // back-and-forth between steps doesn't re-upload the same photo.
+    private var uploadedImageHashes: Set<Int> = []
+    private let api = APIService.shared
+
     var age: Int {
         let components = DateComponents(year: birthYear, month: birthMonth, day: birthDay)
         guard let dob = Calendar.current.date(from: components) else { return 0 }
@@ -87,5 +92,41 @@ class OnboardingViewModel: ObservableObject {
         }
         // Keep the store in sync with the current selection
         UserImageStore.shared.setAll(selectedImages)
+    }
+
+    /// Upload every photo in selectedImages that we haven't already pushed
+    /// to the backend, then advance to the next step. Called from the
+    /// Continue button on the photos step so the .ready / Discover screens
+    /// see the photos on the user's actual profile.
+    func proceedFromPhotos() async {
+        guard canProceed else { return }
+        NSLog("[MM][onboard] proceedFromPhotos start, count=%d", selectedImages.count)
+        isLoading = true
+        error = nil
+        for (index, image) in selectedImages.enumerated() {
+            let hash = image.hashValue
+            if uploadedImageHashes.contains(hash) {
+                NSLog("[MM][onboard] photo %d already uploaded, skip", index)
+                continue
+            }
+            guard let data = image.jpegData(compressionQuality: 0.85) else {
+                NSLog("[MM][onboard] photo %d: jpeg encode failed", index)
+                continue
+            }
+            NSLog("[MM][onboard] photo %d: uploading %d bytes", index, data.count)
+            do {
+                let result = try await api.uploadPhoto(imageData: data)
+                NSLog("[MM][onboard] photo %d: uploaded as %@", index, result.id)
+                uploadedImageHashes.insert(hash)
+            } catch {
+                NSLog("[MM][onboard] photo %d: FAIL %@", index, "\(error)")
+                self.error = "Couldn't upload photo \(index + 1): \(error.localizedDescription)"
+                isLoading = false
+                return
+            }
+        }
+        NSLog("[MM][onboard] proceedFromPhotos done, advancing")
+        isLoading = false
+        nextStep()
     }
 }

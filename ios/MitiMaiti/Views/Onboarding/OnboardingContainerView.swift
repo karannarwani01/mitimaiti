@@ -11,33 +11,39 @@ struct OnboardingContainerView: View {
         ZStack {
             colors.background.ignoresSafeArea()
 
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 0) {
-                    Spacer().frame(height: 20)
-
-                    // White card container matching web design
+            GeometryReader { geo in
+                ScrollView(showsIndicators: false) {
                     VStack(spacing: 0) {
-                        // Progress bar at top of card
-                        progressBar
+                        // Flex spacer above the card so short content centers
+                        // vertically; tall content (e.g. with keyboard up) just
+                        // scrolls past this naturally.
+                        Spacer(minLength: 20)
 
-                        // Card header: back + step counter
-                        cardHeader
+                        // White card container matching web design
+                        VStack(spacing: 0) {
+                            // Progress bar at top of card
+                            progressBar
 
-                        // Title + subtitle
-                        titleSection
+                            // Card header: back + step counter
+                            cardHeader
 
-                        // Step content
-                        stepContentSection
+                            // Title + subtitle
+                            titleSection
 
-                        // Continue button inside card
-                        continueButton
+                            // Step content
+                            stepContentSection
+
+                            // Continue button inside card
+                            continueButton
+                        }
+                        .background(colors.cardDark)
+                        .clipShape(RoundedRectangle(cornerRadius: 20))
+                        .shadow(color: colors.elevatedShadowColor, radius: 24, x: 0, y: 8)
+                        .padding(.horizontal, AppTheme.spacingMD)
+
+                        Spacer(minLength: 40)
                     }
-                    .background(colors.cardDark)
-                    .clipShape(RoundedRectangle(cornerRadius: 20))
-                    .shadow(color: colors.elevatedShadowColor, radius: 24, x: 0, y: 8)
-                    .padding(.horizontal, AppTheme.spacingMD)
-
-                    Spacer().frame(height: 40)
+                    .frame(minHeight: geo.size.height)
                 }
             }
         }
@@ -147,7 +153,11 @@ struct OnboardingContainerView: View {
             EmptyView()
         } else {
             Button {
-                vm.nextStep()
+                if vm.currentStep == .photos {
+                    Task { await vm.proceedFromPhotos() }
+                } else {
+                    vm.nextStep()
+                }
             } label: {
                 if vm.isLoading {
                     ProgressView()
@@ -550,6 +560,14 @@ private struct PhotosStepContent: View {
                 .font(.system(size: 12))
                 .foregroundColor(colors.textMuted)
                 .multilineTextAlignment(.center)
+
+            if let err = vm.error {
+                Text(err)
+                    .font(.system(size: 12))
+                    .foregroundColor(.red)
+                    .multilineTextAlignment(.center)
+                    .padding(.top, 4)
+            }
         }
         .photosPicker(
             isPresented: $showPicker,
@@ -571,53 +589,46 @@ private struct PhotosStepContent: View {
     }
 
     private func filledPhotoSlot(at index: Int) -> some View {
-        ZStack {
-            Image(uiImage: vm.selectedImages[index])
-                .resizable()
-                .scaledToFill()
-                .frame(minWidth: 0, maxWidth: .infinity)
-                .aspectRatio(3.0 / 4.0, contentMode: .fill)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-                .shadow(color: colors.cardShadowColor, radius: 6, x: 0, y: 3)
-
-            // Remove button (top-right)
-            VStack {
-                HStack {
-                    Spacer()
-                    Button { vm.removePhoto(at: index) } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(.white)
-                            .frame(width: 28, height: 28)
-                            .background(Circle().fill(Color.black.opacity(0.5)))
+        // Constrain the whole slot to the same 3:4 frame the empty slots use,
+        // then crop the image to fill that frame and overlay controls. The
+        // previous structure put aspectRatio + clipShape directly on the
+        // Image, which let the Image's intrinsic size overflow the grid cell
+        // and bleed into adjacent slots.
+        Color.clear
+            .aspectRatio(3.0 / 4.0, contentMode: .fit)
+            .overlay(
+                Image(uiImage: vm.selectedImages[index])
+                    .resizable()
+                    .scaledToFill()
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .overlay(alignment: .topTrailing) {
+                Button { vm.removePhoto(at: index) } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(width: 28, height: 28)
+                        .background(Circle().fill(Color.black.opacity(0.5)))
+                }
+                .padding(6)
+            }
+            .overlay(alignment: .bottomLeading) {
+                if index == 0 {
+                    HStack(spacing: 3) {
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 8))
+                        Text("MAIN")
+                            .font(.system(size: 10, weight: .bold))
                     }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(AppTheme.gold)
+                    .clipShape(Capsule())
                     .padding(6)
                 }
-                Spacer()
             }
-
-            // MAIN badge (bottom-left, index 0 only)
-            if index == 0 {
-                VStack {
-                    Spacer()
-                    HStack {
-                        HStack(spacing: 3) {
-                            Image(systemName: "star.fill")
-                                .font(.system(size: 8))
-                            Text("MAIN")
-                                .font(.system(size: 10, weight: .bold))
-                        }
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(AppTheme.gold)
-                        .clipShape(Capsule())
-                        .padding(6)
-                        Spacer()
-                    }
-                }
-            }
-        }
+            .shadow(color: colors.cardShadowColor, radius: 6, x: 0, y: 3)
     }
 
     private func emptyPhotoSlot(index: Int) -> some View {
