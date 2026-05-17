@@ -39,6 +39,14 @@ export function globalErrorHandler(
   _next: NextFunction
 ): void {
   if (err instanceof AppError) {
+    // Operational, but 5xx still means something broke server-side — log it
+    // so failures aren't invisible (previously these never hit the logs).
+    if (err.statusCode >= 500) {
+      console.error(
+        `[AppError ${err.statusCode}] ${err.code}: ${err.message}`,
+        err.stack
+      );
+    }
     res.status(err.statusCode).json({
       success: false,
       error: {
