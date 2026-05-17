@@ -153,7 +153,7 @@ const settingsSchema = z
 const userSchema = z
   .object({
     intent: z
-      .enum(['casual', 'open', 'marriage'])
+      .enum(['casual', 'serious', 'open', 'marriage'])
       .optional(),
     education: z.string().max(100).optional(),
     occupation: z.string().max(100).optional(),

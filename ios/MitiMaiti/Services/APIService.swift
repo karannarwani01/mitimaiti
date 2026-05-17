@@ -196,6 +196,16 @@ actor APIService {
         return resp.user
     }
 
+    /// PATCH /me with raw section payload (basics/user/settings/…). Returns
+    /// the backend-recalculated profile completeness. Matches the actual
+    /// PATCH /me response shape ({ updated, profileCompleteness }).
+    func patchMe(_ updates: [String: Any]) async throws -> Int {
+        struct Resp: Decodable { let profileCompleteness: Int }
+        let body = try JSONSerialization.data(withJSONObject: updates)
+        let resp: Resp = try await authedRequest(.patch, "/me", rawBody: body)
+        return resp.profileCompleteness
+    }
+
     // MARK: - Feed
 
     func fetchFeed(cursor: String? = nil) async throws -> [FeedCard] {

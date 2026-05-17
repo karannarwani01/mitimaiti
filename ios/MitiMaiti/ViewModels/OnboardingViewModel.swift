@@ -17,6 +17,8 @@ class OnboardingViewModel: ObservableObject {
     @Published var selectedIntent: Intent?
     @Published var selectedShowMe: ShowMe?
     @Published var selectedCity: String?
+    @Published var selectedRegion: String?
+    @Published var selectedCountry: String?
     @Published var isLoading = false
     @Published var error: String?
 
@@ -121,5 +123,53 @@ class OnboardingViewModel: ObservableObject {
         }
         isLoading = false
         nextStep()
+    }
+
+    /// Persist every onboarding-collected field to the backend in one
+    /// PATCH /me. Photos are uploaded earlier (proceedFromPhotos); this
+    /// covers the rest, which until now never left the device. Called once
+    /// from the final screen. Returns the backend-recalculated completeness,
+    /// or nil if nothing to send / the request failed.
+    func submitProfile() async -> Int? {
+        var basics: [String: Any] = [:]
+        let name = firstName.trimmingCharacters(in: .whitespaces)
+        if name.count >= 2 { basics["display_name"] = name }
+        basics["date_of_birth"] = String(
+            format: "%04d-%02d-%02d", birthYear, birthMonth, birthDay
+        )
+        if let g = selectedGender { basics["gender"] = g.rawValue }
+        if let city = selectedCity?.trimmingCharacters(in: .whitespaces),
+           !city.isEmpty {
+            basics["city"] = city
+        }
+        if let st = selectedRegion?.trimmingCharacters(in: .whitespaces),
+           !st.isEmpty {
+            basics["state"] = st
+        }
+        if let co = selectedCountry?.trimmingCharacters(in: .whitespaces),
+           !co.isEmpty {
+            basics["country"] = co
+        }
+
+        var userFields: [String: Any] = [:]
+        if let intent = selectedIntent { userFields["intent"] = intent.rawValue }
+
+        var settings: [String: Any] = [:]
+        if let show = selectedShowMe {
+            settings["gender_preference"] = show.rawValue
+        }
+
+        var payload: [String: Any] = [:]
+        if !basics.isEmpty { payload["basics"] = basics }
+        if !userFields.isEmpty { payload["user"] = userFields }
+        if !settings.isEmpty { payload["settings"] = settings }
+        guard !payload.isEmpty else { return nil }
+
+        do {
+            return try await api.patchMe(payload)
+        } catch {
+            self.error = "Couldn't save your profile: \(error.localizedDescription)"
+            return nil
+        }
     }
 }

@@ -852,9 +852,11 @@ private struct LocationStepContent: View {
             // Auto-detect location button — matches Android: circular icon badge
             // with two-line label, so icon stays visible while the spinner runs.
             Button {
-                locationDetector.detectLocation { detectedCity, _, _ in
+                locationDetector.detectLocation { detectedCity, region, country in
                     if let c = detectedCity {
                         vm.selectedCity = c
+                        vm.selectedRegion = region
+                        vm.selectedCountry = country
                         searchText = ""
                         isSearchFocused = false
                     }
@@ -922,6 +924,8 @@ private struct LocationStepContent: View {
 
                     Button {
                         vm.selectedCity = nil
+                        vm.selectedRegion = nil
+                        vm.selectedCountry = nil
                         searchText = ""
                         isSearchFocused = true
                     } label: {
@@ -968,6 +972,11 @@ private struct LocationStepContent: View {
                             Button {
                                 withAnimation(.spring(response: 0.3)) {
                                     vm.selectedCity = city
+                                    // Manual pick from the mock list has no
+                                    // reliable region/country — clear stale
+                                    // values from a prior auto-detect.
+                                    vm.selectedRegion = nil
+                                    vm.selectedCountry = nil
                                     searchText = ""
                                     isSearchFocused = false
                                 }
@@ -1225,10 +1234,13 @@ private struct ReadyStepContent: View {
             showConfetti = true
         }
         .task {
-            // Pull the authoritative completeness the backend computed from
-            // the actual saved profile (photos were just uploaded before
-            // this step). Single source of truth, matches ProfileView.
-            if let user = try? await APIService.shared.fetchProfile() {
+            // Persist everything onboarding collected (name, DOB, gender,
+            // intent, show-me, city) — until now this never left the device.
+            // patchMe returns the backend-recalculated completeness, the
+            // single source of truth used for matching / shown on ProfileView.
+            if let submitted = await vm.submitProfile() {
+                realCompleteness = submitted
+            } else if let user = try? await APIService.shared.fetchProfile() {
                 realCompleteness = user.profileCompleteness
             }
         }
