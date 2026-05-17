@@ -852,9 +852,19 @@ router.post(
     ]);
 
     if (thumbRes.error || medRes.error || largeRes.error) {
+      const detail =
+        thumbRes.error?.message ||
+        medRes.error?.message ||
+        largeRes.error?.message ||
+        'unknown';
+      console.error('[/me/media] storage upload failed:', {
+        thumb: thumbRes.error,
+        medium: medRes.error,
+        large: largeRes.error,
+      });
       throw new AppError(
         500,
-        'Failed to upload images to storage',
+        `Failed to upload images to storage: ${detail}`,
         'UPLOAD_FAILED'
       );
     }
