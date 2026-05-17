@@ -104,23 +104,51 @@ class OnboardingViewModel: ObservableObject {
         guard canProceed else { return }
         isLoading = true
         error = nil
+
+        // Reconcile with the server first. Re-running onboarding or resuming
+        // must not blindly append past the 6-photo cap — find how many photos
+        // the account already has and only upload enough net-new ones to fill.
+        let maxPhotos = 6
+        var serverPhotoCount = 0
+        if let profile = try? await api.fetchProfile() {
+            serverPhotoCount = profile.photos.count
+        }
+        var remainingSlots = max(0, maxPhotos - serverPhotoCount)
+        var uploadedThisPass = false
+
         for (index, image) in selectedImages.enumerated() {
             let hash = image.hashValue
-            if uploadedImageHashes.contains(hash) {
-                continue
-            }
+            if uploadedImageHashes.contains(hash) { continue }
+            // Account already at capacity (e.g. photos from a prior run) —
+            // nothing more to upload, the requirement is already met.
+            if remainingSlots <= 0 { break }
             guard let data = image.jpegData(compressionQuality: 0.85) else {
                 continue
             }
             do {
                 _ = try await api.uploadPhoto(imageData: data)
                 uploadedImageHashes.insert(hash)
+                remainingSlots -= 1
+                uploadedThisPass = true
+            } catch APIError.photoLimitReached {
+                // Server says we're already at the limit — not an onboarding
+                // failure; the user has enough photos. Stop trying to add more.
+                break
             } catch {
-                self.error = "Couldn't upload photo \(index + 1): \(error.localizedDescription)"
+                self.error =
+                    "Couldn't upload photo \(index + 1): \(error.localizedDescription)"
                 isLoading = false
                 return
             }
         }
+
+        // Onboarding only needs the account to end up with at least one photo.
+        if serverPhotoCount == 0 && !uploadedThisPass && uploadedImageHashes.isEmpty {
+            self.error = "Please add at least one photo to continue."
+            isLoading = false
+            return
+        }
+
         isLoading = false
         nextStep()
     }

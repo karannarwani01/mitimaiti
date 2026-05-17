@@ -154,6 +154,9 @@ actor APIService {
                 return try await uploadPhoto(imageData: imageData, mimeType: mimeType)
             }
             let bodyString = String(data: data, encoding: .utf8) ?? "<binary>"
+            if http.statusCode == 400 && bodyString.contains("MAX_PHOTOS") {
+                throw APIError.photoLimitReached
+            }
             throw APIError.serverError("HTTP \(http.statusCode): \(bodyString.prefix(200))")
         }
 
@@ -359,6 +362,7 @@ enum APIError: LocalizedError {
     case networkError
     case unauthorized
     case rateLimited
+    case photoLimitReached
     case serverError(String)
 
     var errorDescription: String? {
@@ -367,6 +371,7 @@ enum APIError: LocalizedError {
         case .networkError: return "Network error. Please check your connection."
         case .unauthorized: return "Session expired. Please log in again."
         case .rateLimited: return "Too many requests. Please wait a moment."
+        case .photoLimitReached: return "You've reached the maximum of 6 photos."
         case .serverError(let msg): return msg
         }
     }
