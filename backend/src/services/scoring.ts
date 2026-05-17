@@ -328,20 +328,32 @@ export async function getCulturalScore(
  * Invalidate cached cultural score when a user updates their profile.
  */
 export async function invalidateCulturalScoreCache(userId: string): Promise<void> {
-  let cursor = '0';
-  do {
-    const [newCursor, keys] = await redis.scan(
-      cursor,
-      'MATCH',
-      `${CACHE_PREFIX}:*${userId}*`,
-      'COUNT',
-      100
+  // Best-effort cache cleanup. Redis is configured with
+  // enableOfflineQueue:false + maxRetriesPerRequest:1, so a scan/del issued
+  // while the connection isn't ready rejects immediately. This runs AFTER
+  // the profile write that triggered it, so a Redis hiccup must never turn
+  // a successful update into a 500 — swallow and log; entries expire by TTL.
+  try {
+    let cursor = '0';
+    do {
+      const [newCursor, keys] = await redis.scan(
+        cursor,
+        'MATCH',
+        `${CACHE_PREFIX}:*${userId}*`,
+        'COUNT',
+        100
+      );
+      cursor = newCursor;
+      if (keys.length > 0) {
+        await redis.del(...keys);
+      }
+    } while (cursor !== '0');
+  } catch (err) {
+    console.error(
+      '[scoring] invalidateCulturalScoreCache failed (non-fatal):',
+      err instanceof Error ? err.message : err
     );
-    cursor = newCursor;
-    if (keys.length > 0) {
-      await redis.del(...keys);
-    }
-  } while (cursor !== '0');
+  }
 }
 
 export default { computeCulturalScore, getCulturalScore, invalidateCulturalScoreCache };
