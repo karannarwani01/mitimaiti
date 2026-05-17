@@ -74,14 +74,19 @@ enum GoogleSignInService {
     }
 
     private static func topViewController(
-        base: UIViewController? = UIApplication.shared
+        base: UIViewController? = nil
+    ) -> UIViewController? {
+        // Resolve the default here (not as a default argument): default
+        // argument expressions are evaluated in a nonisolated context, which
+        // would warn on these @MainActor UIKit APIs. Inside this @MainActor
+        // function the access is correctly isolated.
+        let root = base ?? UIApplication.shared
             .connectedScenes
             .compactMap { ($0 as? UIWindowScene)?.keyWindow?.rootViewController }
             .first
-    ) -> UIViewController? {
-        if let nav = base as? UINavigationController { return topViewController(base: nav.visibleViewController) }
-        if let tab = base as? UITabBarController { return topViewController(base: tab.selectedViewController) }
-        if let presented = base?.presentedViewController { return topViewController(base: presented) }
-        return base
+        if let nav = root as? UINavigationController { return topViewController(base: nav.visibleViewController) }
+        if let tab = root as? UITabBarController { return topViewController(base: tab.selectedViewController) }
+        if let presented = root?.presentedViewController { return topViewController(base: presented) }
+        return root
     }
 }
