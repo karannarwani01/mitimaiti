@@ -100,26 +100,20 @@ class OnboardingViewModel: ObservableObject {
     /// see the photos on the user's actual profile.
     func proceedFromPhotos() async {
         guard canProceed else { return }
-        NSLog("[MM][onboard] proceedFromPhotos start, count=%d", selectedImages.count)
         isLoading = true
         error = nil
         for (index, image) in selectedImages.enumerated() {
             let hash = image.hashValue
             if uploadedImageHashes.contains(hash) {
-                NSLog("[MM][onboard] photo %d already uploaded, skip", index)
                 continue
             }
             guard let data = image.jpegData(compressionQuality: 0.85) else {
-                NSLog("[MM][onboard] photo %d: jpeg encode failed", index)
                 continue
             }
-            NSLog("[MM][onboard] photo %d: uploading %d bytes", index, data.count)
             do {
-                let result = try await api.uploadPhoto(imageData: data)
-                NSLog("[MM][onboard] photo %d: uploaded as %@", index, result.id)
+                _ = try await api.uploadPhoto(imageData: data)
                 uploadedImageHashes.insert(hash)
             } catch {
-                NSLog("[MM][onboard] photo %d: FAIL %@", index, "\(error)")
                 self.error = "Couldn't upload photo \(index + 1): \(error.localizedDescription)"
                 isLoading = false
                 return

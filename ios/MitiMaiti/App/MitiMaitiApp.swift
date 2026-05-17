@@ -17,12 +17,6 @@ struct MitiMaitiApp: App {
                     .environmentObject(themeManager)
                     .preferredColorScheme(themeManager.colorScheme)
                     .withAdaptiveColors()
-                    .task {
-                        // Force a fresh sign-in on every launch by wiping any
-                        // tokens left from a previous run. Stop auto-resuming
-                        // the session.
-                        await APIService.shared.clearTokens()
-                    }
 
                 ToastOverlay()
             }

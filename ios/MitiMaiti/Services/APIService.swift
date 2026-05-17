@@ -154,7 +154,6 @@ actor APIService {
                 return try await uploadPhoto(imageData: imageData, mimeType: mimeType)
             }
             let bodyString = String(data: data, encoding: .utf8) ?? "<binary>"
-            NSLog("[MM][upload] HTTP %d body: %@", http.statusCode, bodyString)
             throw APIError.serverError("HTTP \(http.statusCode): \(bodyString.prefix(200))")
         }
 
