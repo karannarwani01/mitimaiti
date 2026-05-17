@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { OAuth2Client } from 'google-auth-library';
-import { supabase } from '../config/supabase';
+import { supabase, supabaseAuth } from '../config/supabase';
 import { redis } from '../config/redis';
 import { AppError, asyncHandler } from '../utils/errors';
 import { validate } from '../middleware/validate';
@@ -99,7 +99,7 @@ router.post(
       return;
     }
 
-    const { error } = await supabase.auth.signInWithOtp({
+    const { error } = await supabaseAuth.auth.signInWithOtp({
       phone,
       options: {
         // Supabase sends the OTP via Twilio
@@ -183,7 +183,7 @@ router.post(
       const {
         data: { session, user: authUser },
         error: authError,
-      } = await supabase.auth.verifyOtp({
+      } = await supabaseAuth.auth.verifyOtp({
         phone,
         token,
         type: 'sms',
@@ -417,7 +417,7 @@ router.post(
       return;
     }
 
-    const { error } = await supabase.auth.signInWithOtp({
+    const { error } = await supabaseAuth.auth.signInWithOtp({
       email,
       options: {
         shouldCreateUser: true,
@@ -511,7 +511,7 @@ router.post(
     const {
       data: { session, user: authUser },
       error: authError,
-    } = await supabase.auth.verifyOtp({
+    } = await supabaseAuth.auth.verifyOtp({
       email,
       token,
       type: 'email',
@@ -670,7 +670,7 @@ router.post(
 // GOOGLE_WEB_CLIENT_ID must match the Web OAuth Client ID configured in Google
 // Cloud Console — the audience claim of the ID token will equal that value.
 //
-// On success, mints a Supabase session by calling supabase.auth.signInWithIdToken
+// On success, mints a Supabase session by calling supabaseAuth.auth.signInWithIdToken
 // so the rest of the app's JWT/refresh plumbing stays identical to the phone +
 // email paths.
 
@@ -716,7 +716,7 @@ router.post(
     const {
       data: { session, user: authUser },
       error: authError,
-    } = await supabase.auth.signInWithIdToken({
+    } = await supabaseAuth.auth.signInWithIdToken({
       provider: 'google',
       token: idToken,
     });
@@ -885,7 +885,7 @@ router.post(
     const {
       data: { session, user: authUser },
       error: authError,
-    } = await supabase.auth.signInWithIdToken({
+    } = await supabaseAuth.auth.signInWithIdToken({
       provider: 'apple',
       token: idToken,
       nonce,
@@ -1051,7 +1051,7 @@ router.post(
     const {
       data: { session },
       error,
-    } = await supabase.auth.refreshSession({ refresh_token: refreshToken });
+    } = await supabaseAuth.auth.refreshSession({ refresh_token: refreshToken });
 
     if (error || !session) {
       throw new AppError(
