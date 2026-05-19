@@ -680,13 +680,22 @@ router.patch(
     const profileData = await fetchProfileData(user.id);
     const completeness = calculateCompleteness(profileData);
 
-    await supabase
-      .from('users')
-      .update({
-        profile_completeness: completeness,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', user.id);
+    // Onboarding is considered complete once the mandatory basics exist
+    // (name + date of birth + gender). Only ever flip needs_onboarding to
+    // false — never back to true — so a later profile edit that clears a
+    // field can't kick an existing user back into the onboarding flow.
+    const b = profileData.basics as Record<string, unknown>;
+    const onboardingComplete = Boolean(
+      b.display_name && b.date_of_birth && b.gender
+    );
+
+    const userUpdate: Record<string, unknown> = {
+      profile_completeness: completeness,
+      updated_at: new Date().toISOString(),
+    };
+    if (onboardingComplete) userUpdate.needs_onboarding = false;
+
+    await supabase.from('users').update(userUpdate).eq('id', user.id);
 
     // Invalidate cultural score cache if culturally-relevant fields changed
     if (basics || sindhi || chatti || userFields) {

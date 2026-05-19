@@ -37,11 +37,21 @@ struct ContentView: View {
         .animation(.easeInOut(duration: 0.5), value: showSplash)
         .animation(.easeInOut(duration: 0.5), value: authVM.isAuthenticated)
         .animation(.easeInOut(duration: 0.5), value: authVM.hasCompletedOnboarding)
-        .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-                withAnimation(.easeOut(duration: 0.6)) {
-                    showSplash = false
-                }
+        .task {
+            // Resume a saved session (if any) while the splash is visible,
+            // then dismiss the splash — but keep it up for a minimum so the
+            // brand moment doesn't flash by on a fast restore.
+            let start = Date()
+            await authVM.restoreSession()
+            let minSplash: TimeInterval = 1.8
+            let elapsed = Date().timeIntervalSince(start)
+            if elapsed < minSplash {
+                try? await Task.sleep(
+                    nanoseconds: UInt64((minSplash - elapsed) * 1_000_000_000)
+                )
+            }
+            withAnimation(.easeOut(duration: 0.6)) {
+                showSplash = false
             }
         }
     }

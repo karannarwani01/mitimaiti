@@ -17,6 +17,7 @@ struct ProfileResponse: Decodable {
         let phone: String?
         let isVerified: Bool?
         let profileCompleteness: Int?
+        let needsOnboarding: Bool?
         let isOnline: Bool?
         let lastActive: Date?
         let intent: Intent?

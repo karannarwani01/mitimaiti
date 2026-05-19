@@ -53,7 +53,7 @@ class AuthViewModel: ObservableObject {
             do {
                 let result = try await api.verifyOTP(phone: phone, code: otpCode)
                 isLoading = false
-                hasCompletedOnboarding = !result.isNew && result.profileCompleteness >= 50 && result.profileCompleteness >= 50
+                hasCompletedOnboarding = !result.needsOnboarding
                 isAuthenticated = true
                 SocketChat.shared.connect(token: result.accessToken)
             } catch {
@@ -99,7 +99,7 @@ class AuthViewModel: ObservableObject {
             do {
                 let result = try await api.verifyEmailOTP(email: email, code: otpCode)
                 isLoading = false
-                hasCompletedOnboarding = !result.isNew && result.profileCompleteness >= 50
+                hasCompletedOnboarding = !result.needsOnboarding
                 isAuthenticated = true
                 SocketChat.shared.connect(token: result.accessToken)
             } catch {
@@ -128,7 +128,7 @@ class AuthViewModel: ObservableObject {
                 if let firstName = result.firstName, !firstName.isEmpty {
                     UserProfileStore.shared.firstName = firstName
                 }
-                hasCompletedOnboarding = !result.isNew && result.profileCompleteness >= 50
+                hasCompletedOnboarding = !result.needsOnboarding
                 isAuthenticated = true
                 SocketChat.shared.connect(token: result.accessToken)
             } catch {
@@ -227,7 +227,7 @@ class AuthViewModel: ObservableObject {
                 if let firstName = result.firstName, !firstName.isEmpty {
                     UserProfileStore.shared.firstName = firstName
                 }
-                hasCompletedOnboarding = !result.isNew && result.profileCompleteness >= 50
+                hasCompletedOnboarding = !result.needsOnboarding
                 isAuthenticated = true
                 SocketChat.shared.connect(token: result.accessToken)
             } catch {
@@ -249,6 +249,19 @@ class AuthViewModel: ObservableObject {
 
     func completeOnboarding() {
         hasCompletedOnboarding = true
+    }
+
+    /// Attempt to resume a previously saved session on app launch. If valid
+    /// tokens are found and accepted by the backend, the user skips the
+    /// Welcome screen; onboarding is shown only if the server says it's still
+    /// needed. No stored/valid session leaves the user on Welcome.
+    func restoreSession() async {
+        guard let needsOnboarding = await api.restoreSession() else { return }
+        hasCompletedOnboarding = !needsOnboarding
+        isAuthenticated = true
+        if let token = await api.currentAccessToken() {
+            SocketChat.shared.connect(token: token)
+        }
     }
 
     func logout() {

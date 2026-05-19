@@ -218,6 +218,7 @@ router.post(
             isVerified: false,
             profileCompleteness: 0,
             isNew: true,
+            needsOnboarding: true,
           },
           session: {
             accessToken: sessionData.access_token,
@@ -271,6 +272,7 @@ router.post(
             isVerified: existingUser.is_verified,
             profileCompleteness: existingUser.profile_completeness,
             isNew: false,
+            needsOnboarding: existingUser.needs_onboarding ?? true,
           },
           session: {
             accessToken: sessionData.access_token,
@@ -378,6 +380,7 @@ router.post(
             isVerified: false,
             profileCompleteness: 0,
             isNew: true,
+            needsOnboarding: true,
           },
           session: {
             accessToken: sessionData.access_token,
@@ -497,6 +500,7 @@ router.post(
             isVerified: false,
             profileCompleteness: 0,
             isNew: true,
+            needsOnboarding: true,
           },
           session: {
             accessToken: sessionData.access_token,
@@ -559,6 +563,7 @@ router.post(
             isVerified: existingUser.is_verified,
             profileCompleteness: existingUser.profile_completeness,
             isNew: false,
+            needsOnboarding: existingUser.needs_onboarding ?? true,
           },
           session: {
             accessToken: sessionData.access_token,
@@ -651,6 +656,7 @@ router.post(
           isVerified: false,
           profileCompleteness: 0,
           isNew: true,
+          needsOnboarding: true,
         },
         session: {
           accessToken: sessionData.access_token,
@@ -767,6 +773,7 @@ router.post(
             isVerified: existingUser.is_verified,
             profileCompleteness: existingUser.profile_completeness,
             isNew: false,
+            needsOnboarding: existingUser.needs_onboarding ?? true,
           },
           session: {
             accessToken: sessionData.access_token,
@@ -854,6 +861,7 @@ router.post(
           isVerified: false,
           profileCompleteness: 0,
           isNew: true,
+          needsOnboarding: true,
         },
         session: {
           accessToken: sessionData.access_token,
@@ -937,6 +945,7 @@ router.post(
             isVerified: existingUser.is_verified,
             profileCompleteness: existingUser.profile_completeness,
             isNew: false,
+            needsOnboarding: existingUser.needs_onboarding ?? true,
           },
           session: {
             accessToken: sessionData.access_token,
@@ -1028,6 +1037,7 @@ router.post(
           isVerified: false,
           profileCompleteness: 0,
           isNew: true,
+          needsOnboarding: true,
         },
         session: {
           accessToken: sessionData.access_token,
