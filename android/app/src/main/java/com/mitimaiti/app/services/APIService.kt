@@ -167,9 +167,21 @@ object APIService {
                     isPrimary = media["is_primary"] as? Boolean ?: false,
                     sortOrder = (media["sort_order"] as? Number)?.toInt() ?: 0
                 ))
+            } else if (response.code() == 400 && errorCodeOf(response) == "MAX_PHOTOS") {
+                // Server's 6-photo cap — surface a typed error so onboarding can
+                // treat it as non-fatal (mirrors iOS APIError.photoLimitReached).
+                Result.failure(APIError.PhotoLimitReached)
             } else Result.failure(APIError.ServerError)
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
+
+    /** Read `error.code` from a non-2xx response body ({ success:false, error:{ code } }). */
+    private fun errorCodeOf(response: retrofit2.Response<*>): String? = try {
+        val raw = response.errorBody()?.string()
+        if (raw.isNullOrBlank()) null
+        else com.google.gson.JsonParser.parseString(raw).asJsonObject
+            .getAsJsonObject("error")?.get("code")?.asString
+    } catch (e: Exception) { null }
 
     suspend fun deletePhoto(id: String): Result<Boolean> {
         return try {
@@ -480,4 +492,6 @@ sealed class APIError : Exception() {
     object Unauthorized : APIError()
     object RateLimited : APIError()
     object ServerError : APIError()
+    /** Server's 6-photo cap (400 MAX_PHOTOS). Treated as non-fatal in onboarding. */
+    object PhotoLimitReached : APIError()
 }

@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.mitimaiti.app.models.Gender
 import com.mitimaiti.app.models.Intent
 import com.mitimaiti.app.models.ShowMe
+import com.mitimaiti.app.services.APIError
 import com.mitimaiti.app.services.APIService
 import com.mitimaiti.app.services.PhotoRepository
 import com.mitimaiti.app.services.UserPrefs
@@ -110,9 +111,33 @@ class OnboardingViewModel : ViewModel() {
                 return@launch
             }
 
+            // Reconcile photos with the server before uploading. Re-running or
+            // resuming onboarding must not blindly append past the 6-photo cap —
+            // find how many photos the account already has and only upload enough
+            // net-new ones to fill the remaining slots (mirrors iOS
+            // proceedFromPhotos). The cap error is non-fatal.
+            val maxPhotos = 6
+            var serverPhotoCount = 0
+            APIService.fetchProfile().onSuccess { serverPhotoCount = it.photos.size }
+            var remainingSlots = (maxPhotos - serverPhotoCount).coerceAtLeast(0)
+            var uploadedThisPass = false
             for (uri in selectedPhotos.value) {
+                if (remainingSlots <= 0) break
                 val bytes = ImageCompression.compressForUpload(context, uri) ?: continue
-                APIService.uploadPhoto(bytes)
+                val result = APIService.uploadPhoto(bytes)
+                when {
+                    result.isSuccess -> { remainingSlots--; uploadedThisPass = true }
+                    result.exceptionOrNull() is APIError.PhotoLimitReached -> break
+                    // Other per-photo failures: skip and keep going (best-effort).
+                }
+            }
+
+            // Onboarding only needs the account to end up with at least one photo.
+            if (serverPhotoCount == 0 && !uploadedThisPass) {
+                _submitError.value = "Please add at least one photo to continue."
+                _isSubmitting.value = false
+                onDone(false)
+                return@launch
             }
 
             _isSubmitting.value = false
