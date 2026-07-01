@@ -127,6 +127,24 @@ class SettingsViewModel: ObservableObject {
         }
     }
 
+    // ── Backend-backed settings ──
+    // The discovery feed applies these (discoverable/age/gender), so persist each
+    // change to PATCH /me. The backend upserts only the provided keys, so a
+    // single-field patch never clobbers other settings.
+    private let api = APIService.shared
+
+    func persistDiscoveryEnabled() {
+        Task { _ = try? await api.updateProfile(["settings": ["discovery_enabled": discoveryEnabled]]) }
+    }
+
+    func persistAgeRange() {
+        Task { _ = try? await api.updateProfile(["settings": ["age_min": Int(ageMin), "age_max": Int(ageMax)]]) }
+    }
+
+    func persistGenderPreference() {
+        Task { _ = try? await api.updateProfile(["settings": ["gender_preference": genderPreference.rawValue]]) }
+    }
+
     enum AppearanceTheme: String, CaseIterable, Identifiable {
         case light, dark, auto
         var id: String { rawValue }

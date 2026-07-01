@@ -135,7 +135,7 @@ fun SettingsScreen(
                 // ── Visibility ──
                 SettingsSection(title = "Visibility", icon = Icons.Default.Visibility) {
                     SettingsToggle("Discovery", "Show your profile in discovery", discoveryEnabled) {
-                        viewModel.discoveryEnabled.value = it
+                        viewModel.setDiscoveryEnabled(it)
                         viewModel.showToast("Discovery ${if (it) "enabled" else "disabled"}")
                     }
                     HorizontalDivider(color = colors.borderSubtle)
@@ -173,7 +173,7 @@ fun SettingsScreen(
                                 FilterChip(
                                     selected = genderPreference == option,
                                     onClick = {
-                                        viewModel.genderPreference.value = option
+                                        viewModel.setGenderPreference(option)
                                         viewModel.showToast("Showing ${option.displayName}")
                                     },
                                     label = { Text(option.displayName) },
@@ -198,8 +198,7 @@ fun SettingsScreen(
                         RangeSlider(
                             value = ageMin.toFloat()..ageMax.toFloat(),
                             onValueChange = { range ->
-                                viewModel.ageMin.value = range.start.toInt()
-                                viewModel.ageMax.value = range.endInclusive.toInt()
+                                viewModel.setAgeRange(range.start.toInt(), range.endInclusive.toInt())
                             },
                             valueRange = 18f..60f,
                             colors = SliderDefaults.colors(

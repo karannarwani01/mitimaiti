@@ -60,6 +60,11 @@ struct SettingsView: View {
         .onChange(of: vm.incognitoMode) { _, newValue in
             vm.showToast(newValue ? "Incognito on" : "Incognito off")
         }
+        // Persist backend-backed discovery settings when they change.
+        .onChange(of: vm.discoveryEnabled) { _, _ in vm.persistDiscoveryEnabled() }
+        .onChange(of: vm.ageMin) { _, _ in vm.persistAgeRange() }
+        .onChange(of: vm.ageMax) { _, _ in vm.persistAgeRange() }
+        .onChange(of: vm.genderPreference) { _, _ in vm.persistGenderPreference() }
     }
 
     // MARK: - Toast
