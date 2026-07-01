@@ -163,7 +163,6 @@ class ChatViewModel: ObservableObject {
                     match?.firstMsgAt = Date()
                 }
 
-                // In demo mode: simulate a reply from the other user
                 // Real replies now arrive via SocketChat (no simulation).
             } catch {
                 self.error = error.localizedDescription

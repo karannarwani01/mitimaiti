@@ -192,8 +192,6 @@ class ChatViewModel : ViewModel() {
 
             APIService.sendMessage(currentMatch.id, text)
             _isSending.value = false
-
-            // Simulate a reply after delay
             // Real replies now arrive via SocketManager (no simulation).
         }
     }

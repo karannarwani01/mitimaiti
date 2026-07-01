@@ -111,13 +111,19 @@ class FamilyViewModel: ObservableObject {
     func likeSuggestion(id: String) {
         guard let suggestion = suggestions.first(where: { $0.id == id }) else { return }
         let name = suggestion.suggestedUser.displayName
+        let userId = suggestion.suggestedUser.id
         suggestions.removeAll { $0.id == id }
         showToast("You liked \(name)!")
+        // Record a real like on the suggested person so it actually reaches them.
+        Task { _ = try? await api.performAction(targetId: userId, type: .like) }
     }
 
     func passSuggestion(id: String) {
+        guard let suggestion = suggestions.first(where: { $0.id == id }) else { return }
+        let userId = suggestion.suggestedUser.id
         suggestions.removeAll { $0.id == id }
         showToast("Passed")
+        Task { _ = try? await api.performAction(targetId: userId, type: .pass) }
     }
 
     // MARK: - Toast

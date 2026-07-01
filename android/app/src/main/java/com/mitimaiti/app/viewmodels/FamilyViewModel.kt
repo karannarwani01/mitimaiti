@@ -63,7 +63,17 @@ class FamilyViewModel : ViewModel() {
     fun disableAllPermissions(memberId: String) { _members.value = _members.value.map { if (it.id == memberId) it.copy(permissions = FamilyPermissions(false, false, false, false, false, false, false, false)) else it }; showToast("All permissions disabled") }
     fun revokeMember(memberId: String) { _members.value = _members.value.map { if (it.id == memberId) it.copy(status = FamilyMemberStatus.REVOKED) else it }; _selectedMemberId.value = null; showToast("Access revoked"); viewModelScope.launch { APIService.updateFamilyMember(memberId, mapOf("is_revoked" to true)) } }
     fun revokeAllMembers() { val anyId = _members.value.firstOrNull()?.id; _members.value = _members.value.map { it.copy(status = FamilyMemberStatus.REVOKED) }; _showRevokeAllModal.value = false; showToast("All access revoked"); anyId?.let { id -> viewModelScope.launch { APIService.updateFamilyMember(id, mapOf("revoke_all" to true)) } } }
-    fun likeSuggestion(id: String) { _suggestions.value = _suggestions.value.filter { it.id != id }; showToast("Added to your feed!") }
-    fun passSuggestion(id: String) { _suggestions.value = _suggestions.value.filter { it.id != id } }
+    fun likeSuggestion(id: String) {
+        val s = _suggestions.value.firstOrNull { it.id == id } ?: return
+        _suggestions.value = _suggestions.value.filter { it.id != id }
+        showToast("Added to your feed!")
+        // Record a real like on the suggested person so it actually reaches them.
+        viewModelScope.launch { APIService.performAction(s.suggestedUser.id, "like") }
+    }
+    fun passSuggestion(id: String) {
+        val s = _suggestions.value.firstOrNull { it.id == id } ?: return
+        _suggestions.value = _suggestions.value.filter { it.id != id }
+        viewModelScope.launch { APIService.performAction(s.suggestedUser.id, "pass") }
+    }
     private fun showToast(message: String) { _toastMessage.value = message; viewModelScope.launch { delay(2000); _toastMessage.value = null } }
 }
