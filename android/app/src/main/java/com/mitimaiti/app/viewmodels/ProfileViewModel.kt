@@ -203,7 +203,48 @@ class ProfileViewModel : ViewModel() {
     fun saveProfile() {
         viewModelScope.launch {
             _isSaving.value = true
-            APIService.updateProfile(mapOf("bio" to editBio.value))
+
+            // Build the nested PATCH /me payload the backend expects. The schema
+            // is .strict(), so only send keys it allows, grouped by section, and
+            // omit blanks/nulls. Enum values are the lowercased enum name, which
+            // matches the backend enums (e.g. NON_VEGETARIAN -> "non_vegetarian").
+            val basics = mutableMapOf<String, Any>()
+            if (editBio.value.isNotBlank()) basics["bio"] = editBio.value.trim()
+            editHeight.value?.let { if (it in 120..240) basics["height_cm"] = it }
+
+            val userFields = mutableMapOf<String, Any>()
+            if (editEducation.value.isNotBlank()) userFields["education"] = editEducation.value.trim()
+            if (editOccupation.value.isNotBlank()) userFields["occupation"] = editOccupation.value.trim()
+            if (editCompany.value.isNotBlank()) userFields["company"] = editCompany.value.trim()
+            if (editReligion.value.isNotBlank()) userFields["religion"] = editReligion.value.trim()
+
+            val sindhi = mutableMapOf<String, Any>()
+            if (editMotherTongue.value.isNotBlank()) sindhi["mother_tongue"] = editMotherTongue.value.trim()
+            if (editDialect.value.isNotBlank()) sindhi["sindhi_dialect"] = editDialect.value.trim()
+            if (editCommunitySubGroup.value.isNotBlank()) sindhi["community_sub_group"] = editCommunitySubGroup.value.trim()
+            if (editGotra.value.isNotBlank()) sindhi["gotra"] = editGotra.value.trim()
+            editFluency.value?.let { sindhi["sindhi_fluency"] = it.name.lowercase() }
+
+            val chatti = mutableMapOf<String, Any>()
+            editFamilyValues.value?.let { chatti["family_values"] = it.name.lowercase() }
+            editFoodPreference.value?.let { chatti["food_preference"] = it.name.lowercase() }
+            if (editFestivals.value.isNotEmpty()) chatti["festivals_celebrated"] = editFestivals.value
+            if (editCuisinePreferences.value.isNotEmpty()) chatti["cuisine_preferences"] = editCuisinePreferences.value
+
+            val personality = mutableMapOf<String, Any>()
+            if (editInterests.value.isNotEmpty()) personality["interests"] = editInterests.value
+            if (editMusicPreferences.value.isNotEmpty()) personality["music_preferences"] = editMusicPreferences.value
+            if (editMovieGenres.value.isNotEmpty()) personality["movie_genres"] = editMovieGenres.value
+            if (editTravelStyle.value.isNotBlank()) personality["travel_style"] = editTravelStyle.value.trim()
+
+            val payload = mutableMapOf<String, Any>()
+            if (basics.isNotEmpty()) payload["basics"] = basics
+            if (userFields.isNotEmpty()) payload["user"] = userFields
+            if (sindhi.isNotEmpty()) payload["sindhi"] = sindhi
+            if (chatti.isNotEmpty()) payload["chatti"] = chatti
+            if (personality.isNotEmpty()) payload["personality"] = personality
+
+            APIService.updateProfile(payload)
                 .onSuccess {
                     _saveSuccess.value = true
                     _user.value = _user.value?.copy(

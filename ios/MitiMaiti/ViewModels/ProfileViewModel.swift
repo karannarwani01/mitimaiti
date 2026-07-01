@@ -106,9 +106,41 @@ class ProfileViewModel: ObservableObject {
 
     func saveProfile() {
         isSaving = true
+
+        // Build the nested PATCH /me payload the backend expects (its schema is
+        // .strict(), so only send allowed keys, grouped by section, omitting
+        // blanks). Enum rawValues match the backend enums. smoking/drinking/
+        // exercise have no PATCH schema home, so they are intentionally omitted.
+        var basics: [String: Any] = [:]
+        let bio = editBio.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !bio.isEmpty { basics["bio"] = bio }
+        if let h = Int(editHeight.trimmingCharacters(in: .whitespaces)), (120...240).contains(h) {
+            basics["height_cm"] = h
+        }
+
+        var userFields: [String: Any] = [:]
+        let edu = editEducation.trimmingCharacters(in: .whitespaces)
+        if !edu.isEmpty { userFields["education"] = edu }
+        let occ = editOccupation.trimmingCharacters(in: .whitespaces)
+        if !occ.isEmpty { userFields["occupation"] = occ }
+        let comp = editCompany.trimmingCharacters(in: .whitespaces)
+        if !comp.isEmpty { userFields["company"] = comp }
+        let rel = editReligion.trimmingCharacters(in: .whitespaces)
+        if !rel.isEmpty { userFields["religion"] = rel }
+
+        var payload: [String: Any] = [
+            "sindhi": ["sindhi_fluency": editFluency.rawValue],
+            "chatti": [
+                "family_values": editFamilyValues.rawValue,
+                "food_preference": editFoodPreference.rawValue,
+            ],
+        ]
+        if !basics.isEmpty { payload["basics"] = basics }
+        if !userFields.isEmpty { payload["user"] = userFields }
+
         Task {
             do {
-                _ = try await api.updateProfile([:])
+                _ = try await api.updateProfile(payload)
                 isSaving = false
                 saveSuccess = true
 
