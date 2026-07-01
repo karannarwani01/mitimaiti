@@ -82,6 +82,14 @@ object APIService {
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
 
+    /** Permanently delete the account server-side (soft-delete, 30-day window). */
+    suspend fun deleteAccount(): Result<Boolean> {
+        return try {
+            val response = api.deleteAccount(mapOf("action" to "delete"))
+            if (response.isSuccessful) Result.success(true) else Result.failure(APIError.ServerError)
+        } catch (e: Exception) { Result.failure(APIError.NetworkError) }
+    }
+
     private suspend fun handleAuthVerifyResponse(
         response: retrofit2.Response<Map<String, Any>>
     ): Result<Pair<User, Boolean>> {

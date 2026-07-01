@@ -57,4 +57,12 @@ class SettingsViewModel : ViewModel() {
             ShowMe.MEN -> "men"; ShowMe.WOMEN -> "women"; ShowMe.EVERYONE -> "everyone"
         }))
     }
+
+    /** Delete the account on the backend, then invoke [onDone] (log out locally). */
+    fun deleteAccount(onDone: () -> Unit) {
+        viewModelScope.launch {
+            APIService.deleteAccount()
+            onDone()
+        }
+    }
 }

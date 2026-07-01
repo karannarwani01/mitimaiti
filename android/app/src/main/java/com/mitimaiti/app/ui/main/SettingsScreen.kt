@@ -652,6 +652,8 @@ fun SettingsScreen(
                         onClick = {
                             viewModel.showDeleteConfirmation.value = false
                             viewModel.showToast("Account deletion scheduled")
+                            // Actually delete server-side, then log out locally.
+                            viewModel.deleteAccount { onLogout() }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.Error)
                     ) {

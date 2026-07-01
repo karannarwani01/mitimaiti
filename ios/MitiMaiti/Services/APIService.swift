@@ -435,6 +435,12 @@ actor APIService {
         let _: EmptyData = try await authedRequest(.post, "/safety/block", body: Body(blockedId: userId))
     }
 
+    /// Permanently delete the account server-side (soft-delete, 30-day window).
+    func deleteAccount() async throws {
+        struct Body: Encodable { let action: String }
+        let _: EmptyData = try await authedRequest(.post, "/auth/delete", body: Body(action: "delete"))
+    }
+
     // MARK: - Authed request helper with 401 → refresh → retry
 
     private func authedRequest<T: Decodable>(

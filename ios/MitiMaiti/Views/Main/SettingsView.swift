@@ -463,7 +463,11 @@ struct SettingsView: View {
 
                 DangerButton(title: "Delete Account", icon: "trash.fill") {
                     vm.showDeleteSheet = false
-                    // Trigger actual deletion
+                    // Delete server-side, then log out locally.
+                    Task {
+                        try? await APIService.shared.deleteAccount()
+                        authVM.logout()
+                    }
                 }
             }
             .padding(.horizontal, 24)
