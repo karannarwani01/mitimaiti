@@ -1059,4 +1059,37 @@ router.delete(
   })
 );
 
+// ─── POST /v1/chat/:matchId/unmatch ─────────────────────────────────────────
+// Dissolve a match. Either participant can unmatch; irreversible. Idempotent.
+router.post(
+  '/:matchId/unmatch',
+  authenticate,
+  rateLimit({ maxRequests: 10, windowSeconds: 60, keyPrefix: 'rl_chat_unmatch' }),
+  asyncHandler(async (req: Request, res: Response) => {
+    const user = (req as AuthenticatedRequest).user;
+    const { matchId } = req.params;
+
+    const { match } = await verifyMatchAccess(matchId, user.id);
+
+    // Already dissolved → treat as success so a retry / double-tap is harmless.
+    if (!(match.is_dissolved || match.status === 'dissolved')) {
+      const { error: updateError } = await supabase
+        .from('matches')
+        .update({
+          status: 'dissolved',
+          is_dissolved: true,
+          dissolved_at: new Date().toISOString(),
+          dissolved_reason: 'unmatched',
+        })
+        .eq('id', matchId);
+
+      if (updateError) {
+        throw new AppError(500, 'Failed to unmatch', 'UNMATCH_FAILED');
+      }
+    }
+
+    res.json({ success: true, data: { matchId, dissolved: true } });
+  })
+);
+
 export default router;

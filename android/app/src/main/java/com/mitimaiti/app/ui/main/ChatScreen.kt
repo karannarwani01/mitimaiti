@@ -579,7 +579,7 @@ fun ChatScreen(
             title = { Text("Unmatch?", fontWeight = FontWeight.Bold) },
             text = { Text("Are you sure you want to unmatch with ${otherUser.displayName}? This cannot be undone.") },
             confirmButton = {
-                TextButton(onClick = { showUnmatchDialog = false; onBack() }) {
+                TextButton(onClick = { showUnmatchDialog = false; viewModel.unmatch { onBack() } }) {
                     Text("Unmatch", color = AppColors.Error)
                 }
             },

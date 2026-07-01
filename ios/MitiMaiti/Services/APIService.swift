@@ -344,6 +344,11 @@ actor APIService {
         let _: EmptyData = try await authedRequest(.delete, "/chat/\(matchId)/messages/\(messageId)")
     }
 
+    /// Dissolve a match (either participant can unmatch; irreversible).
+    func unmatch(matchId: String) async throws {
+        let _: EmptyData = try await authedRequest(.post, "/chat/\(matchId)/unmatch")
+    }
+
     /// Add/replace the current user's reaction on a message.
     func setReaction(matchId: String, messageId: String, emoji: String) async throws {
         struct Body: Encodable { let emoji: String }

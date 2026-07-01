@@ -220,6 +220,13 @@ class ChatViewModel: ObservableObject {
         }
     }
 
+    /// Dissolve this match on the backend and remove it from the inbox locally.
+    func unmatch() {
+        guard let matchId = match?.id else { return }
+        inboxViewModel?.unmatch(matchId: matchId)
+        Task { try? await api.unmatch(matchId: matchId) }
+    }
+
     func deleteMessage(_ message: Message) {
         guard let matchId = match?.id else { return }
         messages.removeAll { $0.id == message.id }

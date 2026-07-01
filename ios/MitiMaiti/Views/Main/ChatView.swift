@@ -8,6 +8,7 @@ struct ChatView: View {
     @StateObject private var chatVM = ChatViewModel()
     @EnvironmentObject private var inboxVM: InboxViewModel
     @Environment(\.adaptiveColors) private var colors
+    @Environment(\.dismiss) private var dismiss
     private let localization = LocalizationManager.shared
     @FocusState private var isInputFocused: Bool
 
@@ -108,7 +109,7 @@ struct ChatView: View {
         }
         // Unmatch confirmation
         .alert("Unmatch with \(match.otherUser.displayName)?", isPresented: $showUnmatchAlert) {
-            Button("Unmatch", role: .destructive) { /* chatVM.unmatch() */ }
+            Button("Unmatch", role: .destructive) { chatVM.unmatch(); dismiss() }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("You'll both lose this conversation and won't be able to rematch.")

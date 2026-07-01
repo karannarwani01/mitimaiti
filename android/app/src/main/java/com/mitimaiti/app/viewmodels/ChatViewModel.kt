@@ -207,6 +207,16 @@ class ChatViewModel : ViewModel() {
         }
     }
 
+    /** Dissolve this match on the backend, then invoke [onDone] (e.g. navigate back). */
+    fun unmatch(onDone: () -> Unit) {
+        val mid = _match.value?.id
+        if (mid == null) { onDone(); return }
+        viewModelScope.launch {
+            APIService.unmatch(mid)
+            onDone()
+        }
+    }
+
     fun sendVoice(mediaUrl: String, durationSeconds: Int) {
         if (isLockedForMe) return
         val currentMatch = _match.value ?: return

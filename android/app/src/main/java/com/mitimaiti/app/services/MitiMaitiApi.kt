@@ -124,6 +124,11 @@ interface MitiMaitiApi {
         @Path("matchId") matchId: String
     ): Response<Map<String, Any>>
 
+    @POST("chat/{matchId}/unmatch")
+    suspend fun unmatch(
+        @Path("matchId") matchId: String
+    ): Response<Map<String, Any>>
+
     @PATCH("chat/{matchId}/messages/{messageId}")
     suspend fun editMessage(
         @Path("matchId") matchId: String,

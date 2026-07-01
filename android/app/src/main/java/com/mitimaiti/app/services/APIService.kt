@@ -307,6 +307,14 @@ object APIService {
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
 
+    /** Dissolve a match (either participant can unmatch; irreversible). */
+    suspend fun unmatch(matchId: String): Result<Boolean> {
+        return try {
+            val response = api.unmatch(matchId)
+            if (response.isSuccessful) Result.success(true) else Result.failure(APIError.ServerError)
+        } catch (e: Exception) { Result.failure(APIError.NetworkError) }
+    }
+
     /** Add/replace the current user's reaction on a message. */
     suspend fun setReaction(matchId: String, messageId: String, emoji: String): Result<Boolean> {
         return try {
