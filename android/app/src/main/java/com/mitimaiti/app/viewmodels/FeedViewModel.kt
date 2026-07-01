@@ -46,7 +46,7 @@ class FeedViewModel : ViewModel() {
     }
 
     fun passUser() { val cur = _cards.value.toMutableList(); if (cur.isEmpty()) return; val card = cur.removeAt(0); passedCards.add(card); _cards.value = cur; viewModelScope.launch { APIService.performAction(card.user.id, "pass"); prefetchIfNeeded() } }
-    fun rewind() { if (passedCards.isEmpty() || _dailyRewindsUsed.value >= MAX_DAILY_REWINDS) return; val card = passedCards.removeAt(passedCards.size - 1); _cards.value = listOf(card) + _cards.value; _dailyRewindsUsed.value++ }
+    fun rewind() { if (passedCards.isEmpty() || _dailyRewindsUsed.value >= MAX_DAILY_REWINDS) return; val card = passedCards.removeAt(passedCards.size - 1); _cards.value = listOf(card) + _cards.value; _dailyRewindsUsed.value++; viewModelScope.launch { APIService.rewind() } }
     fun dismissMatchAlert() { _showMatchAlert.value = false; _matchedUser.value = null }
     fun showScoreBreakdown(card: FeedCard) { _selectedCard.value = card; _showScoreBreakdown.value = true }
     fun hideScoreBreakdown() { _showScoreBreakdown.value = false; _selectedCard.value = null }

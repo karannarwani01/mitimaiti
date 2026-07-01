@@ -74,6 +74,12 @@ class FeedViewModel: ObservableObject {
         guard !cards.isEmpty else { return }
         let card = cards.removeFirst()
         passedCards.append(card)
+        Task {
+            // Record the pass on the backend so the profile isn't re-served in
+            // the feed and rewind has something to undo (matches Android).
+            // Fire-and-forget; a failed pass is non-fatal.
+            _ = try? await api.performAction(targetId: card.user.id, type: .pass)
+        }
         prefetchIfNeeded()
     }
 
@@ -88,6 +94,9 @@ class FeedViewModel: ObservableObject {
         }
         cards.insert(last, at: 0)
         dailyRewindsUsed += 1
+        // Undo the pass on the backend too so the profile's state matches the UI
+        // (matches Android). Fire-and-forget; a failed rewind is non-fatal.
+        Task { _ = try? await api.rewind() }
     }
 
     private func prefetchIfNeeded() {
