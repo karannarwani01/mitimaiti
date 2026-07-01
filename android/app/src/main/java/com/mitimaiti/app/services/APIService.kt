@@ -292,6 +292,22 @@ object APIService {
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
 
+    /** Edit a text message. Backend appends the " [edited]" marker itself. */
+    suspend fun editMessage(matchId: String, messageId: String, content: String): Result<Boolean> {
+        return try {
+            val response = api.editMessage(matchId, messageId, mapOf("content" to content))
+            if (response.isSuccessful) Result.success(true) else Result.failure(APIError.ServerError)
+        } catch (e: Exception) { Result.failure(APIError.NetworkError) }
+    }
+
+    /** Delete a message (sender-only, hard delete on the server). */
+    suspend fun deleteMessage(matchId: String, messageId: String): Result<Boolean> {
+        return try {
+            val response = api.deleteMessage(matchId, messageId)
+            if (response.isSuccessful) Result.success(true) else Result.failure(APIError.ServerError)
+        } catch (e: Exception) { Result.failure(APIError.NetworkError) }
+    }
+
     // ──────────────────── FAMILY ────────────────────
 
     suspend fun fetchFamily(): Result<Pair<List<FamilyMember>, List<FamilySuggestion>>> {

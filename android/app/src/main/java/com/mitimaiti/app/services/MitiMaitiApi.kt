@@ -124,6 +124,19 @@ interface MitiMaitiApi {
         @Path("matchId") matchId: String
     ): Response<Map<String, Any>>
 
+    @PATCH("chat/{matchId}/messages/{messageId}")
+    suspend fun editMessage(
+        @Path("matchId") matchId: String,
+        @Path("messageId") messageId: String,
+        @Body body: Map<String, String>
+    ): Response<Map<String, Any>>
+
+    @DELETE("chat/{matchId}/messages/{messageId}")
+    suspend fun deleteMessage(
+        @Path("matchId") matchId: String,
+        @Path("messageId") messageId: String
+    ): Response<Map<String, Any>>
+
     // ──────────────────── FAMILY (/v1/family) ────────────────────
 
     @POST("family/invite")

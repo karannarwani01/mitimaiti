@@ -170,6 +170,9 @@ class ChatViewModel : ViewModel() {
         // persist
         _match.value?.id?.let { mid ->
             MessageRepository.setMessages(mid, _messages.value)
+            // Persist to the backend so the edit survives a chat reload. Send the
+            // raw text; the server owns the " [edited]" marker.
+            viewModelScope.launch { APIService.editMessage(mid, id, newText) }
         }
         _editingMessageId.value = null
         _messageText.value = ""
@@ -190,6 +193,8 @@ class ChatViewModel : ViewModel() {
         _messages.value = _messages.value.filterNot { it.id == message.id }
         _match.value?.id?.let { mid ->
             MessageRepository.setMessages(mid, _messages.value)
+            // Persist to the backend so the delete survives a chat reload.
+            viewModelScope.launch { APIService.deleteMessage(mid, message.id) }
         }
         if (_editingMessageId.value == message.id) {
             cancelEdit()

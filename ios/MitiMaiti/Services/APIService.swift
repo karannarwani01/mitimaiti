@@ -332,6 +332,17 @@ actor APIService {
         return resp.message
     }
 
+    /// Edit a text message. The backend owns the " [edited]" marker, so send raw text.
+    func editMessage(matchId: String, messageId: String, content: String) async throws {
+        struct Body: Encodable { let content: String }
+        let _: EmptyData = try await authedRequest(.patch, "/chat/\(matchId)/messages/\(messageId)", body: Body(content: content))
+    }
+
+    /// Delete a message (sender-only, hard delete on the server).
+    func deleteMessage(matchId: String, messageId: String) async throws {
+        let _: EmptyData = try await authedRequest(.delete, "/chat/\(matchId)/messages/\(messageId)")
+    }
+
     // MARK: - Family
 
     func fetchFamily() async throws -> (members: [FamilyMember], suggestions: [FamilySuggestion]) {

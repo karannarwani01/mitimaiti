@@ -200,6 +200,9 @@ class ChatViewModel: ObservableObject {
         }
         editingMessageId = nil
         messageText = ""
+        // Persist to the backend so the edit survives a chat reload. Send the
+        // raw text; the server owns the " [edited]" marker.
+        Task { try? await api.editMessage(matchId: matchId, messageId: id, content: trimmed) }
     }
 
     func toggleReaction(_ message: Message, emoji: String) {
@@ -218,6 +221,8 @@ class ChatViewModel: ObservableObject {
         if editingMessageId == message.id {
             cancelEdit()
         }
+        // Persist to the backend so the delete survives a chat reload.
+        Task { try? await api.deleteMessage(matchId: matchId, messageId: message.id) }
     }
 
     func sendVoice(localUrl: String, durationSeconds: Int) {
