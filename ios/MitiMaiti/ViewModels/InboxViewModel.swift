@@ -93,7 +93,10 @@ class InboxViewModel: ObservableObject {
     }
 
     func passLike(likeId: String) {
+        guard let like = likes.first(where: { $0.id == likeId }) else { return }
         likes.removeAll { $0.id == likeId }
+        // Record the pass so this liker doesn't reappear on the next refetch.
+        Task { _ = try? await api.performAction(targetId: like.user.id, type: .pass) }
     }
 
     func unmatch(matchId: String) {

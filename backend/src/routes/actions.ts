@@ -440,19 +440,20 @@ router.get(
       .eq('kind', 'like')
       .order('created_at', { ascending: false });
 
-    // Filter out those I've already liked back (those are matches, not pending likes)
-    const { data: myLikes } = await supabase
+    // Filter out anyone I've already acted on: likes became matches, and passes
+    // were declined — neither should remain a pending like.
+    const { data: myActions } = await supabase
       .from('actions')
       .select('target_id')
       .eq('actor_id', user.id)
-      .eq('kind', 'like');
+      .in('kind', ['like', 'pass']);
 
-    const myLikedIds = new Set<string>(
-      (myLikes || []).map((l: any) => l.target_id),
+    const myActedIds = new Set<string>(
+      (myActions || []).map((l: any) => l.target_id),
     );
 
     const pendingLikes = (incomingLikes || []).filter(
-      (l: any) => !myLikedIds.has(l.actor_id),
+      (l: any) => !myActedIds.has(l.actor_id),
     );
 
     // Enrich pending likes with full profile cards (NOT blurred)

@@ -59,7 +59,12 @@ class InboxViewModel : ViewModel() {
         viewModelScope.launch { APIService.performAction(like.user.id, "like") }
     }
 
-    fun passLike(likeId: String) { _likes.value = _likes.value.filter { it.id != likeId } }
+    fun passLike(likeId: String) {
+        val like = _likes.value.firstOrNull { it.id == likeId } ?: return
+        _likes.value = _likes.value.filter { it.id != likeId }
+        // Record the pass so this liker doesn't reappear on the next refetch.
+        viewModelScope.launch { APIService.performAction(like.user.id, "pass") }
+    }
     fun unmatch(matchId: String) { _matches.value = _matches.value.filter { it.id != matchId } }
 
     /**
