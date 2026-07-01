@@ -69,7 +69,8 @@ data class User(
     val languages: List<String> = emptyList(),
     val isOnline: Boolean = false,
     val lastActive: Long? = null,
-    val profileCompleteness: Int = 0
+    val profileCompleteness: Int = 0,
+    val needsOnboarding: Boolean = false
 ) {
     val age: Int?
         get() = dateOfBirth?.let { Period.between(it, LocalDate.now()).years }

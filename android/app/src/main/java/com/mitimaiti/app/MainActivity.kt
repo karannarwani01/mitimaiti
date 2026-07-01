@@ -72,7 +72,7 @@ class MainActivity : ComponentActivity() {
                                         // fresh session.
                                         APIService.fetchProfile().fold(
                                             onSuccess = { user ->
-                                                val hasOnboarded = user.profileCompleteness >= 50
+                                                val hasOnboarded = !user.needsOnboarding
                                                 authViewModel.bootstrapAuthenticated(user, hasOnboarded)
                                                 if (hasOnboarded) SplashDestination.MAIN
                                                 else SplashDestination.ONBOARDING

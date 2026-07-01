@@ -56,7 +56,10 @@ class AuthViewModel : ViewModel() {
             APIService.verifyOTP(_phone.value, _otpCode.value).onSuccess { (user, isNewUser) ->
                 _currentUser.value = user
                 _isAuthenticated.value = true
-                _hasCompletedOnboarding.value = !isNewUser && user.profileCompleteness >= 50
+                // Route on the server's authoritative needs_onboarding flag
+                // (mirrors iOS). isNewUser guards the case where the flag is
+                // absent for a brand-new account.
+                _hasCompletedOnboarding.value = !isNewUser && !user.needsOnboarding
             }.onFailure { _error.value = "Invalid OTP. Please try again." }
             _isLoading.value = false
         }
@@ -79,7 +82,10 @@ class AuthViewModel : ViewModel() {
             APIService.verifyEmailOTP(_email.value, _otpCode.value).onSuccess { (user, isNewUser) ->
                 _currentUser.value = user
                 _isAuthenticated.value = true
-                _hasCompletedOnboarding.value = !isNewUser && user.profileCompleteness >= 50
+                // Route on the server's authoritative needs_onboarding flag
+                // (mirrors iOS). isNewUser guards the case where the flag is
+                // absent for a brand-new account.
+                _hasCompletedOnboarding.value = !isNewUser && !user.needsOnboarding
             }.onFailure { _error.value = "Invalid code. Please try again." }
             _isLoading.value = false
         }
@@ -97,7 +103,10 @@ class AuthViewModel : ViewModel() {
             APIService.verifyGoogleIdToken(idToken).onSuccess { (user, isNewUser) ->
                 _currentUser.value = user
                 _isAuthenticated.value = true
-                _hasCompletedOnboarding.value = !isNewUser && user.profileCompleteness >= 50
+                // Route on the server's authoritative needs_onboarding flag
+                // (mirrors iOS). isNewUser guards the case where the flag is
+                // absent for a brand-new account.
+                _hasCompletedOnboarding.value = !isNewUser && !user.needsOnboarding
             }.onFailure { _error.value = "Google sign-in failed. Please try again." }
             _isLoading.value = false
         }

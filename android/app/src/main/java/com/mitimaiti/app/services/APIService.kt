@@ -113,9 +113,32 @@ object APIService {
     suspend fun fetchProfile(): Result<User> {
         return try {
             val response = api.getProfile()
-            if (response.isSuccessful) Result.success(parseUser(response.body()))
+            if (response.isSuccessful) Result.success(parseUser(flattenMe(response.body())))
             else Result.failure(APIError.ServerError)
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
+    }
+
+    /**
+     * GET /v1/me returns the profile split across sub-objects
+     * ({ user, basics, sindhi, chatti, personality, settings, photos }),
+     * whereas parseUser expects a single flat map (as returned by the auth
+     * verify endpoints). Merge the sub-objects into one flat map. Each sub-table
+     * carries its own `id`/`user_id` PKs, so merge `user` LAST — its authoritative
+     * id / profile_completeness / needs_onboarding must win any collision — and
+     * keep `photos` as the array parseUser looks for.
+     */
+    private fun flattenMe(body: Map<*, *>?): Map<*, *>? {
+        if (body == null) return null
+        // If the response is already flat (no known sub-objects), pass through.
+        val hasSubObjects = listOf("user", "basics", "sindhi", "chatti", "personality", "settings")
+            .any { body[it] is Map<*, *> }
+        if (!hasSubObjects) return body
+        val flat = mutableMapOf<Any?, Any?>()
+        for (key in listOf("basics", "sindhi", "chatti", "personality", "settings", "user")) {
+            (body[key] as? Map<*, *>)?.forEach { (k, v) -> if (v != null) flat[k] = v }
+        }
+        body["photos"]?.let { flat["photos"] = it }
+        return flat
     }
 
     suspend fun updateProfile(updates: Map<String, Any>): Result<User> {
@@ -340,7 +363,8 @@ object APIService {
             foodPreference = (data["food_preference"] as? String)?.let { f -> FoodPreference.entries.firstOrNull { it.name.equals(f, true) } },
             interests = (data["interests"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
             isOnline = data["is_online"] as? Boolean ?: false,
-            profileCompleteness = (data["profile_completeness"] as? Number)?.toInt() ?: 0
+            profileCompleteness = (data["profile_completeness"] as? Number)?.toInt() ?: 0,
+            needsOnboarding = data["needs_onboarding"] as? Boolean ?: false
         )
     }
 
