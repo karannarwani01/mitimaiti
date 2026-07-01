@@ -72,6 +72,11 @@ class InboxViewModel: ObservableObject {
         )
         matches.insert(match, at: 0)
 
+        // Persist the like so the match is actually created server-side (they
+        // already liked us → mutual match). Without this the match is cosmetic
+        // and vanishes on the next inbox refetch.
+        Task { _ = try? await api.performAction(targetId: like.user.id, type: .like) }
+
         // Trigger match notification
         NotificationManager.shared.addNotification(
             type: .match,

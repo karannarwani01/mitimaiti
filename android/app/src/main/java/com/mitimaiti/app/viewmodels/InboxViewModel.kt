@@ -27,8 +27,9 @@ class InboxViewModel : ViewModel() {
     private var hasLoadedOnce = false
 
     fun loadInbox() {
-        // Don't reload if already loaded — preserves activated matches
-        if (hasLoadedOnce && _matches.value.isNotEmpty()) return
+        // Always refetch from the server (the source of truth for matches +
+        // their activation state), so a new match from a Discover like appears
+        // on the next inbox open. Matches iOS, which has no reload guard.
         viewModelScope.launch {
             _isLoading.value = true
             APIService.fetchInbox().onSuccess { (likes, matches) ->
@@ -52,6 +53,10 @@ class InboxViewModel : ViewModel() {
         val like = _likes.value.firstOrNull { it.id == likeId } ?: return; _likes.value = _likes.value.filter { it.id != likeId }
         _matches.value = listOf(Match(otherUser = like.user, status = MatchStatus.PENDING_FIRST_MESSAGE, matchedAt = System.currentTimeMillis(), expiresAt = System.currentTimeMillis() + 24 * 60 * 60 * 1000L)) + _matches.value
         AppNotificationManager.shared.addNotification(type = NotificationType.MATCH, title = "It's a Match!", body = "You and ${like.user.displayName} liked each other!")
+        // Persist the like so the match is actually created server-side (they
+        // already liked us → mutual match). Without this the match is cosmetic
+        // and vanishes on the next inbox refetch.
+        viewModelScope.launch { APIService.performAction(like.user.id, "like") }
     }
 
     fun passLike(likeId: String) { _likes.value = _likes.value.filter { it.id != likeId } }
