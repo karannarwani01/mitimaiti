@@ -217,6 +217,29 @@ class ChatViewModel : ViewModel() {
         }
     }
 
+    /** Block the other user (auto-unmatches server-side), then invoke [onDone]. */
+    fun block(onDone: () -> Unit) {
+        val otherId = _match.value?.otherUser?.id
+        if (otherId == null) { onDone(); return }
+        viewModelScope.launch {
+            APIService.blockUser(otherId)
+            onDone()
+        }
+    }
+
+    /** Report the other user with a UI reason, mapped to the backend's enum. */
+    fun report(displayReason: String) {
+        val otherId = _match.value?.otherUser?.id ?: return
+        val code = when (displayReason) {
+            "Fake profile" -> "fake"
+            "Inappropriate behavior" -> "harassment"
+            "Spam" -> "spam"
+            "Underage" -> "underage"
+            else -> "safety"
+        }
+        viewModelScope.launch { APIService.reportUser(otherId, code) }
+    }
+
     fun sendVoice(mediaUrl: String, durationSeconds: Int) {
         if (isLockedForMe) return
         val currentMatch = _match.value ?: return

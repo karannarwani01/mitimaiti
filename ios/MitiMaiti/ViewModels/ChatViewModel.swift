@@ -227,6 +227,13 @@ class ChatViewModel: ObservableObject {
         Task { try? await api.unmatch(matchId: matchId) }
     }
 
+    /// Block the other user (auto-unmatches server-side) and drop the match locally.
+    func block() {
+        guard let match else { return }
+        inboxViewModel?.unmatch(matchId: match.id)
+        Task { try? await api.blockUser(userId: match.otherUser.id) }
+    }
+
     func deleteMessage(_ message: Message) {
         guard let matchId = match?.id else { return }
         messages.removeAll { $0.id == message.id }

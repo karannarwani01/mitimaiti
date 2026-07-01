@@ -84,6 +84,7 @@ fun ChatScreen(
     var showMenu by remember { mutableStateOf(false) }
     var showUnmatchDialog by remember { mutableStateOf(false) }
     var showReportSheet by remember { mutableStateOf(false) }
+    var showBlockDialog by remember { mutableStateOf(false) }
 
     // Image viewer state
     var viewerImageUrl by remember { mutableStateOf<String?>(null) }
@@ -371,7 +372,7 @@ fun ChatScreen(
                             )
                             DropdownMenuItem(
                                 text = { Text("Block") },
-                                onClick = { showMenu = false; showUnmatchDialog = true },
+                                onClick = { showMenu = false; showBlockDialog = true },
                                 leadingIcon = { Icon(Icons.Default.Block, null, tint = AppColors.Error) }
                             )
                             DropdownMenuItem(
@@ -591,12 +592,31 @@ fun ChatScreen(
         )
     }
 
+    // ── Block dialog ──
+    if (showBlockDialog) {
+        AlertDialog(
+            onDismissRequest = { showBlockDialog = false },
+            title = { Text("Block ${otherUser.displayName}?", fontWeight = FontWeight.Bold) },
+            text = { Text("They won't be able to message you or see your profile. This also unmatches you.") },
+            confirmButton = {
+                TextButton(onClick = { showBlockDialog = false; viewModel.block { onBack() } }) {
+                    Text("Block", color = AppColors.Error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBlockDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     // ── Report sheet ──
     if (showReportSheet) {
         ReportSheet(
             userName = otherUser.displayName,
             onDismiss = { showReportSheet = false },
-            onReport = { showReportSheet = false; onBack() }
+            onReport = { reason -> showReportSheet = false; viewModel.report(reason); onBack() }
         )
     }
 

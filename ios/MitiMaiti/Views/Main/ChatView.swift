@@ -116,14 +116,14 @@ struct ChatView: View {
         }
         // Block confirmation
         .alert("Block \(match.otherUser.displayName)?", isPresented: $showBlockAlert) {
-            Button("Block", role: .destructive) { /* chatVM.block() */ }
+            Button("Block", role: .destructive) { chatVM.block(); dismiss() }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("They won't be able to message you or see your profile.")
         }
         // Report sheet
         .sheet(isPresented: $showReportSheet) {
-            ReportSheet(userName: match.otherUser.displayName, isPresented: $showReportSheet)
+            ReportSheet(userName: match.otherUser.displayName, userId: match.otherUser.id, isPresented: $showReportSheet)
         }
         // Attachment chooser: Camera or Gallery
         .confirmationDialog("Send a photo", isPresented: $showAttachmentChooser, titleVisibility: .visible) {
@@ -1372,6 +1372,7 @@ private struct ChatInputBar: View {
 
 private struct ReportSheet: View {
     let userName: String
+    let userId: String
     @Binding var isPresented: Bool
     @Environment(\.adaptiveColors) private var colors
 
@@ -1446,7 +1447,17 @@ private struct ReportSheet: View {
             Spacer()
 
             Button {
-                guard selectedReason != nil else { return }
+                guard let reason = selectedReason else { return }
+                // Map the UI reason to the backend's report reason enum and submit.
+                let code: String
+                switch reason {
+                case .inappropriateBehavior: code = "harassment"
+                case .fakeProfile:           code = "fake"
+                case .spam:                  code = "spam"
+                case .underage:              code = "underage"
+                case .other:                 code = "safety"
+                }
+                Task { try? await APIService.shared.reportUser(userId: userId, reason: code, details: nil) }
                 showConfirmation = true
             } label: {
                 Text("Submit Report")
