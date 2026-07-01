@@ -57,10 +57,22 @@ class FamilyViewModel : ViewModel() {
             "canViewSindhi" -> p.copy(canViewSindhi = value); "canViewMatches" -> p.copy(canViewMatches = value); "canSuggest" -> p.copy(canSuggest = value)
             "canViewCulturalScore" -> p.copy(canViewCulturalScore = value); "canViewKundli" -> p.copy(canViewKundli = value); else -> p }) } else m }
         showToast("Permission updated")
+        _members.value.firstOrNull { it.id == memberId }?.let { persistPermissions(memberId, it.permissions) }
     }
 
-    fun enableAllPermissions(memberId: String) { _members.value = _members.value.map { if (it.id == memberId) it.copy(permissions = FamilyPermissions(true, true, true, true, true, true, true, true)) else it }; showToast("All permissions enabled") }
-    fun disableAllPermissions(memberId: String) { _members.value = _members.value.map { if (it.id == memberId) it.copy(permissions = FamilyPermissions(false, false, false, false, false, false, false, false)) else it }; showToast("All permissions disabled") }
+    fun enableAllPermissions(memberId: String) { val all = FamilyPermissions(true, true, true, true, true, true, true, true); _members.value = _members.value.map { if (it.id == memberId) it.copy(permissions = all) else it }; showToast("All permissions enabled"); persistPermissions(memberId, all) }
+    fun disableAllPermissions(memberId: String) { val none = FamilyPermissions(false, false, false, false, false, false, false, false); _members.value = _members.value.map { if (it.id == memberId) it.copy(permissions = none) else it }; showToast("All permissions disabled"); persistPermissions(memberId, none) }
+
+    /** Persist a member's full permissions object (camelCase keys) to the backend. */
+    private fun persistPermissions(memberId: String, p: FamilyPermissions) {
+        val perms = mapOf(
+            "canViewProfile" to p.canViewProfile, "canViewPhotos" to p.canViewPhotos,
+            "canViewBasics" to p.canViewBasics, "canViewSindhi" to p.canViewSindhi,
+            "canViewMatches" to p.canViewMatches, "canSuggest" to p.canSuggest,
+            "canViewCulturalScore" to p.canViewCulturalScore, "canViewKundli" to p.canViewKundli
+        )
+        viewModelScope.launch { APIService.updateFamilyMember(memberId, mapOf("permissions" to perms)) }
+    }
     fun revokeMember(memberId: String) { _members.value = _members.value.map { if (it.id == memberId) it.copy(status = FamilyMemberStatus.REVOKED) else it }; _selectedMemberId.value = null; showToast("Access revoked"); viewModelScope.launch { APIService.updateFamilyMember(memberId, mapOf("is_revoked" to true)) } }
     fun revokeAllMembers() { val anyId = _members.value.firstOrNull()?.id; _members.value = _members.value.map { it.copy(status = FamilyMemberStatus.REVOKED) }; _showRevokeAllModal.value = false; showToast("All access revoked"); anyId?.let { id -> viewModelScope.launch { APIService.updateFamilyMember(id, mapOf("revoke_all" to true)) } } }
     fun likeSuggestion(id: String) {

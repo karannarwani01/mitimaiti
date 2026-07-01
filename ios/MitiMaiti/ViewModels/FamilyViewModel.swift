@@ -75,18 +75,32 @@ class FamilyViewModel: ObservableObject {
     func updatePermission(memberId: String, keyPath: WritableKeyPath<FamilyPermissions, Bool>, value: Bool) {
         guard let idx = members.firstIndex(where: { $0.id == memberId }) else { return }
         members[idx].permissions[keyPath: keyPath] = value
+        persistPermissions(memberId: memberId, members[idx].permissions)
     }
 
     func enableAllPermissions(memberId: String) {
         guard let idx = members.firstIndex(where: { $0.id == memberId }) else { return }
         members[idx].permissions = .allEnabled
         showToast("All permissions enabled for \(members[idx].name)")
+        persistPermissions(memberId: memberId, members[idx].permissions)
     }
 
     func disableAllPermissions(memberId: String) {
         guard let idx = members.firstIndex(where: { $0.id == memberId }) else { return }
         members[idx].permissions = .allDisabled
         showToast("All permissions disabled for \(members[idx].name)")
+        persistPermissions(memberId: memberId, members[idx].permissions)
+    }
+
+    /// Persist a member's full permissions object (camelCase keys) to the backend.
+    private func persistPermissions(memberId: String, _ p: FamilyPermissions) {
+        let perms: [String: Any] = [
+            "canViewProfile": p.canViewProfile, "canViewPhotos": p.canViewPhotos,
+            "canViewBasics": p.canViewBasics, "canViewSindhi": p.canViewSindhi,
+            "canViewMatches": p.canViewMatches, "canSuggest": p.canSuggest,
+            "canViewCulturalScore": p.canViewCulturalScore, "canViewKundli": p.canViewKundli
+        ]
+        Task { try? await api.updateFamilyMember(memberId: memberId, body: ["permissions": perms]) }
     }
 
     // MARK: - Revoke
