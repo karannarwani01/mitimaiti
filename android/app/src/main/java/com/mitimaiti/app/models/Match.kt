@@ -31,6 +31,9 @@ data class Match(
     val lastMessage: String? = null,
     val unreadCount: Int = 0,
     val firstMsgBy: String? = null,
+    /** Server-computed: whether the current user sent the first message. Used
+     *  for the Respect-First lock so we don't compare ids client-side. */
+    val firstMsgByMe: Boolean = false,
     val firstMsgLocked: Boolean = false,
     val firstMsgAt: Long? = null
 ) {
@@ -50,7 +53,7 @@ data class Match(
         get() = firstMsgBy != null
 
     val iSentFirst: Boolean
-        get() = firstMsgBy == "current-user-id"
+        get() = firstMsgByMe
 
     val showCountdown: Boolean
         get() = expiresAt != null && !isExpired

@@ -319,6 +319,10 @@ router.get(
         matchMeta: {
           matchedAt: match.matched_at,
           firstMsgBy: match.first_msg_by || null,
+          // Whether *this* caller sent the first message. Clients use this for
+          // the Respect-First lock instead of comparing first_msg_by to their
+          // own id (which they don't always have on hand).
+          firstMsgByMe: match.first_msg_by != null && match.first_msg_by === user.id,
           firstMsgLocked: match.first_msg_locked ?? false,
           isDissolved: match.is_dissolved ?? (match.status === 'dissolved'),
           expiresAt: match.expires_at || null,

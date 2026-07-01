@@ -426,6 +426,7 @@ object APIService {
             lastMessage = data["last_message"] as? String,
             unreadCount = (data["unread_count"] as? Number)?.toInt() ?: 0,
             firstMsgBy = data["first_msg_by"] as? String,
+            firstMsgByMe = data["first_msg_by_me"] as? Boolean ?: false,
             firstMsgLocked = data["first_msg_locked"] as? Boolean ?: false,
             firstMsgAt = (data["first_msg_at"] as? Number)?.toLong()
         )

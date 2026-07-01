@@ -37,7 +37,7 @@ class ChatViewModel : ViewModel() {
     var onMatchActivated: ((String, String) -> Unit)? = null
 
     fun updateMessageText(value: String) { _messageText.value = value }
-    val isLockedForMe: Boolean get() = _match.value?.let { it.firstMsgLocked && it.firstMsgBy == "current-user-id" } ?: false
+    val isLockedForMe: Boolean get() = _match.value?.let { it.firstMsgLocked && it.firstMsgByMe } ?: false
     val awaitingFirstMessage: Boolean get() = _match.value?.let { it.firstMsgBy == null } ?: true
     val showCountdown: Boolean get() = _match.value?.showCountdown ?: false
     val inputDisabled: Boolean get() = isLockedForMe
@@ -90,7 +90,7 @@ class ChatViewModel : ViewModel() {
                 MessageRepository.addMessage(currentMatch.id, msg)
                 if (currentMatch.firstMsgBy == null) {
                     _match.value = currentMatch.copy(
-                        firstMsgBy = "current-user-id",
+                        firstMsgBy = "current-user-id", firstMsgByMe = true,
                         firstMsgLocked = true,
                         firstMsgAt = System.currentTimeMillis()
                     )
@@ -126,7 +126,7 @@ class ChatViewModel : ViewModel() {
             // Mark as first message if none sent yet
             if (currentMatch.firstMsgBy == null) {
                 _match.value = currentMatch.copy(
-                    firstMsgBy = "current-user-id",
+                    firstMsgBy = "current-user-id", firstMsgByMe = true,
                     firstMsgLocked = true,
                     firstMsgAt = System.currentTimeMillis()
                 )
@@ -217,7 +217,7 @@ class ChatViewModel : ViewModel() {
 
             if (currentMatch.firstMsgBy == null) {
                 _match.value = currentMatch.copy(
-                    firstMsgBy = "current-user-id",
+                    firstMsgBy = "current-user-id", firstMsgByMe = true,
                     firstMsgLocked = true,
                     firstMsgAt = System.currentTimeMillis()
                 )
@@ -248,7 +248,7 @@ class ChatViewModel : ViewModel() {
 
             if (currentMatch.firstMsgBy == null) {
                 _match.value = currentMatch.copy(
-                    firstMsgBy = "current-user-id",
+                    firstMsgBy = "current-user-id", firstMsgByMe = true,
                     firstMsgLocked = true,
                     firstMsgAt = System.currentTimeMillis()
                 )

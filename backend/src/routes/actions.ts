@@ -664,6 +664,9 @@ router.get(
           matched_at: match.matched_at || match.created_at,
           expires_at: match.expires_at || null,
           first_msg_by: match.first_msg_by || null,
+          // Server-computed: did the current user send the first message?
+          // Clients use this for the Respect-First lock instead of comparing ids.
+          first_msg_by_me: match.first_msg_by != null && match.first_msg_by === user.id,
           first_msg_locked: match.first_msg_locked || false,
           first_msg_at: match.first_msg_at || null,
           countdown,

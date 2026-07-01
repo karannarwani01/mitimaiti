@@ -52,6 +52,11 @@ struct Match: Identifiable, Codable, Hashable {
     var lastMessage: Message?
     var unreadCount: Int
     var firstMsgBy: String?
+    /// Server-computed: whether the current user sent the first message. Used
+    /// for the Respect-First lock instead of comparing firstMsgBy to our own id
+    /// (which the client doesn't reliably have). Optional so older/partial
+    /// payloads that omit it decode cleanly (treated as false).
+    var firstMsgByMe: Bool?
     var firstMsgLocked: Bool
     var firstMsgAt: Date?
 
@@ -86,7 +91,7 @@ struct Match: Identifiable, Codable, Hashable {
 
     /// Whether the current user sent the first message
     var iSentFirst: Bool {
-        firstMsgBy == "current-user-id"
+        firstMsgByMe ?? false
     }
 
     /// Whether the countdown timer should be visible
@@ -115,6 +120,7 @@ struct Match: Identifiable, Codable, Hashable {
         lastMessage: Message? = nil,
         unreadCount: Int = 0,
         firstMsgBy: String? = nil,
+        firstMsgByMe: Bool? = nil,
         firstMsgLocked: Bool = false,
         firstMsgAt: Date? = nil
     ) {
@@ -126,6 +132,7 @@ struct Match: Identifiable, Codable, Hashable {
         self.lastMessage = lastMessage
         self.unreadCount = unreadCount
         self.firstMsgBy = firstMsgBy
+        self.firstMsgByMe = firstMsgByMe
         self.firstMsgLocked = firstMsgLocked
         self.firstMsgAt = firstMsgAt
     }

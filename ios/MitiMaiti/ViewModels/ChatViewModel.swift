@@ -29,8 +29,9 @@ class ChatViewModel: ObservableObject {
     /// - Current user CANNOT send another message until they reply
     var isLockedForMe: Bool {
         guard let match else { return false }
-        // If match says locked AND I'm the one who sent first → I'm blocked
-        return match.firstMsgLocked && match.firstMsgBy == currentUserId
+        // If match says locked AND I'm the one who sent first → I'm blocked.
+        // iSentFirst uses the server-computed firstMsgByMe flag.
+        return match.firstMsgLocked && match.iSentFirst
     }
 
     /// Whether the other user needs to send the first message
@@ -54,12 +55,12 @@ class ChatViewModel: ObservableObject {
             return ("Send the first message!", "Break the ice before the timer runs out")
         }
 
-        if match.firstMsgLocked && match.firstMsgBy == currentUserId {
+        if match.firstMsgLocked && match.iSentFirst {
             // I sent first, waiting for their reply
             return ("Waiting for reply...", "Your message has been sent. You can send another message once \(match.otherUser.displayName) replies.")
         }
 
-        if match.firstMsgLocked && match.firstMsgBy != currentUserId {
+        if match.firstMsgLocked && !match.iSentFirst {
             // They sent first, I need to reply
             return ("\(match.otherUser.displayName) sent the first message!", "Reply to keep the conversation going")
         }
@@ -155,7 +156,7 @@ class ChatViewModel: ObservableObject {
 
                 if isFirstMessage {
                     // Lock engaged: I sent first, now waiting for their reply
-                    match?.firstMsgBy = currentUserId
+                    match?.firstMsgBy = currentUserId; match?.firstMsgByMe = true
                     match?.firstMsgLocked = true
                     match?.firstMsgAt = Date()
                 }
@@ -241,7 +242,7 @@ class ChatViewModel: ObservableObject {
         MessageRepository.shared.setMessages(matchId: matchId, msgs: messages)
 
         if isFirstMessage {
-            match?.firstMsgBy = currentUserId
+            match?.firstMsgBy = currentUserId; match?.firstMsgByMe = true
             match?.firstMsgLocked = true
             match?.firstMsgAt = Date()
         }
@@ -270,7 +271,7 @@ class ChatViewModel: ObservableObject {
         MessageRepository.shared.setMessages(matchId: matchId, msgs: messages)
 
         if isFirstMessage {
-            match?.firstMsgBy = currentUserId
+            match?.firstMsgBy = currentUserId; match?.firstMsgByMe = true
             match?.firstMsgLocked = true
             match?.firstMsgAt = Date()
         }
@@ -300,7 +301,7 @@ class ChatViewModel: ObservableObject {
                 MessageRepository.shared.setMessages(matchId: matchId, msgs: messages)
                 isSending = false
                 if isFirstMessage {
-                    match?.firstMsgBy = currentUserId
+                    match?.firstMsgBy = currentUserId; match?.firstMsgByMe = true
                     match?.firstMsgLocked = true
                     match?.firstMsgAt = Date()
                 }
@@ -343,7 +344,7 @@ class ChatViewModel: ObservableObject {
                 MessageRepository.shared.setMessages(matchId: matchId, msgs: messages)
 
                 if isFirstMessage {
-                    match?.firstMsgBy = currentUserId
+                    match?.firstMsgBy = currentUserId; match?.firstMsgByMe = true
                     match?.firstMsgLocked = true
                     match?.firstMsgAt = Date()
                 }
