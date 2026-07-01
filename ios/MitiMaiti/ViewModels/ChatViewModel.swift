@@ -209,8 +209,14 @@ class ChatViewModel: ObservableObject {
         guard Message.allowedReactions.contains(emoji) else { return }
         guard let matchId = match?.id else { return }
         if let idx = messages.firstIndex(where: { $0.id == message.id }) {
-            messages[idx].reaction = (messages[idx].reaction == emoji) ? nil : emoji
+            let removing = messages[idx].reaction == emoji
+            messages[idx].reaction = removing ? nil : emoji
             MessageRepository.shared.setMessages(matchId: matchId, msgs: messages)
+            // Persist to the backend so the reaction survives a chat reload.
+            Task {
+                if removing { try? await api.clearReaction(matchId: matchId, messageId: message.id) }
+                else { try? await api.setReaction(matchId: matchId, messageId: message.id, emoji: emoji) }
+            }
         }
     }
 

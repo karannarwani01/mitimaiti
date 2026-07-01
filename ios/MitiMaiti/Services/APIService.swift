@@ -343,6 +343,17 @@ actor APIService {
         let _: EmptyData = try await authedRequest(.delete, "/chat/\(matchId)/messages/\(messageId)")
     }
 
+    /// Add/replace the current user's reaction on a message.
+    func setReaction(matchId: String, messageId: String, emoji: String) async throws {
+        struct Body: Encodable { let emoji: String }
+        let _: EmptyData = try await authedRequest(.post, "/chat/\(matchId)/messages/\(messageId)/reaction", body: Body(emoji: emoji))
+    }
+
+    /// Remove the current user's reaction from a message.
+    func clearReaction(matchId: String, messageId: String) async throws {
+        let _: EmptyData = try await authedRequest(.delete, "/chat/\(matchId)/messages/\(messageId)/reaction")
+    }
+
     // MARK: - Family
 
     func fetchFamily() async throws -> (members: [FamilyMember], suggestions: [FamilySuggestion]) {

@@ -308,6 +308,22 @@ object APIService {
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
 
+    /** Add/replace the current user's reaction on a message. */
+    suspend fun setReaction(matchId: String, messageId: String, emoji: String): Result<Boolean> {
+        return try {
+            val response = api.addReaction(matchId, messageId, mapOf("emoji" to emoji))
+            if (response.isSuccessful) Result.success(true) else Result.failure(APIError.ServerError)
+        } catch (e: Exception) { Result.failure(APIError.NetworkError) }
+    }
+
+    /** Remove the current user's reaction from a message. */
+    suspend fun clearReaction(matchId: String, messageId: String): Result<Boolean> {
+        return try {
+            val response = api.removeReaction(matchId, messageId)
+            if (response.isSuccessful) Result.success(true) else Result.failure(APIError.ServerError)
+        } catch (e: Exception) { Result.failure(APIError.NetworkError) }
+    }
+
     // ──────────────────── FAMILY ────────────────────
 
     suspend fun fetchFamily(): Result<Pair<List<FamilyMember>, List<FamilySuggestion>>> {

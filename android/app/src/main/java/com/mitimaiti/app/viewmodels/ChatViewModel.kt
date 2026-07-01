@@ -181,12 +181,18 @@ class ChatViewModel : ViewModel() {
     fun toggleReaction(message: Message, emoji: String) {
         if (!Message.ALLOWED_REACTIONS.contains(emoji)) return
         val mid = _match.value?.id ?: return
+        val removing = message.reaction == emoji
         _messages.value = _messages.value.map { m ->
             if (m.id == message.id) {
                 m.copy(reaction = if (m.reaction == emoji) null else emoji)
             } else m
         }
         MessageRepository.setMessages(mid, _messages.value)
+        // Persist to the backend so the reaction survives a chat reload.
+        viewModelScope.launch {
+            if (removing) APIService.clearReaction(mid, message.id)
+            else APIService.setReaction(mid, message.id, emoji)
+        }
     }
 
     fun deleteMessage(message: Message) {
