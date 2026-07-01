@@ -119,6 +119,14 @@ interface MitiMaitiApi {
         @Part media: MultipartBody.Part
     ): Response<Map<String, Any>>
 
+    @Multipart
+    @POST("chat/{matchId}/audio")
+    suspend fun sendAudio(
+        @Path("matchId") matchId: String,
+        @Part audio: MultipartBody.Part,
+        @Part("duration") duration: okhttp3.RequestBody
+    ): Response<Map<String, Any>>
+
     @POST("chat/{matchId}/extend")
     suspend fun extendMatch(
         @Path("matchId") matchId: String

@@ -274,7 +274,10 @@ class ChatViewModel: ObservableObject {
             match?.firstMsgAt = Date()
         }
 
-        // Real replies now arrive via SocketChat (no simulation).
+        // Upload the recorded clip so it actually reaches the other user.
+        if let url = URL(string: localUrl), let data = try? Data(contentsOf: url) {
+            Task { _ = try? await api.sendChatVoice(matchId: matchId, audioData: data, durationSeconds: durationSeconds) }
+        }
     }
 
     func sendImage(localUrl: String) {
@@ -303,7 +306,12 @@ class ChatViewModel: ObservableObject {
             match?.firstMsgAt = Date()
         }
 
-        // Real replies now arrive via SocketChat (no simulation).
+        // Upload the picked file so it actually reaches the other user (the
+        // camera/gallery path passes a local file URL; PhotosPicker uses
+        // sendPhoto(imageData:) which already uploads).
+        if let url = URL(string: localUrl), let data = try? Data(contentsOf: url) {
+            Task { _ = try? await api.sendChatMedia(matchId: matchId, imageData: data) }
+        }
     }
 
     /// Real-backend photo upload (added on the Mac side via APIService.sendChatMedia).

@@ -326,6 +326,43 @@ actor APIService {
         return resp.message
     }
 
+    /// Upload a chat voice clip (m4a/AAC) with its duration in seconds.
+    func sendChatVoice(matchId: String, audioData: Data, durationSeconds: Int, mimeType: String = "audio/mp4") async throws -> Message {
+        let boundary = UUID().uuidString
+        var body = Data()
+        body.append("--\(boundary)\r\nContent-Disposition: form-data; name=\"audio\"; filename=\"voice.m4a\"\r\nContent-Type: \(mimeType)\r\n\r\n".data(using: .utf8)!)
+        body.append(audioData)
+        body.append("\r\n--\(boundary)\r\nContent-Disposition: form-data; name=\"duration\"\r\n\r\n\(durationSeconds)\r\n".data(using: .utf8)!)
+        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+
+        let url = URL(string: AppConfig.baseURL + "/chat/\(matchId)/audio")!
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        if let token = accessToken {
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        req.httpBody = body
+
+        let (data, response) = try await URLSession.shared.data(for: req)
+        guard let http = response as? HTTPURLResponse else { throw APIError.networkError }
+        guard (200..<300).contains(http.statusCode) else {
+            if http.statusCode == 401 {
+                try await refresh()
+                return try await sendChatVoice(matchId: matchId, audioData: audioData, durationSeconds: durationSeconds, mimeType: mimeType)
+            }
+            throw APIError.serverError("Chat voice upload failed: HTTP \(http.statusCode)")
+        }
+
+        struct Resp: Decodable { let message: Message }
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        decoder.dateDecodingStrategy = .iso8601
+        let envelope = try decoder.decode(APIEnvelope<Resp>.self, from: data)
+        guard let resp = envelope.data else { throw APIError.serverError("Empty response") }
+        return resp.message
+    }
+
     func sendMessage(matchId: String, content: String, type: MessageType = .text) async throws -> Message {
         struct Body: Encodable { let content: String; let type: String }
         struct Resp: Decodable { let message: Message }

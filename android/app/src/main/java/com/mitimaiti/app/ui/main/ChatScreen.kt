@@ -202,7 +202,7 @@ fun ChatScreen(
             Toast.makeText(context, "Image must be under 15MB", Toast.LENGTH_SHORT).show()
             return@rememberLauncherForActivityResult
         }
-        viewModel.sendImage(uri.toString())
+        viewModel.sendImage(context, uri)
     }
 
     // Live camera capture — writes to a FileProvider URI we hand it
@@ -212,7 +212,7 @@ fun ChatScreen(
         val uri = pendingCameraUri.value
         pendingCameraUri.value = null
         if (!success || uri == null) return@rememberLauncherForActivityResult
-        viewModel.sendImage(uri.toString())
+        viewModel.sendImage(context, uri)
     }
 
     val cameraPermissionLauncher = rememberLauncherForActivityResult(

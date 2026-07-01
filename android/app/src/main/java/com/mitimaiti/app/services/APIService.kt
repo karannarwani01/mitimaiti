@@ -291,6 +291,18 @@ object APIService {
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
 
+    /** Upload a chat voice clip (m4a/AAC) with its duration in seconds. */
+    suspend fun sendChatAudio(matchId: String, bytes: ByteArray, durationSeconds: Int): Result<Message> {
+        return try {
+            val body = bytes.toRequestBody("audio/mp4".toMediaTypeOrNull())
+            val part = MultipartBody.Part.createFormData("audio", "voice.m4a", body)
+            val durationBody = durationSeconds.toString().toRequestBody("text/plain".toMediaTypeOrNull())
+            val response = api.sendAudio(matchId, part, durationBody)
+            if (response.isSuccessful) Result.success(parseMessage(response.body()?.get("message") as? Map<*, *>))
+            else Result.failure(APIError.ServerError)
+        } catch (e: Exception) { Result.failure(APIError.NetworkError) }
+    }
+
     /** Edit a text message. Backend appends the " [edited]" marker itself. */
     suspend fun editMessage(matchId: String, messageId: String, content: String): Result<Boolean> {
         return try {

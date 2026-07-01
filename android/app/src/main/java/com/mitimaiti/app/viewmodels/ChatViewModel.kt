@@ -1,11 +1,14 @@
 package com.mitimaiti.app.viewmodels
 
+import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mitimaiti.app.models.*
 import com.mitimaiti.app.services.APIService
 import com.mitimaiti.app.services.MessageRepository
 import com.mitimaiti.app.services.SocketManager
+import com.mitimaiti.app.utils.ImageCompression
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -322,12 +325,16 @@ class ChatViewModel : ViewModel() {
                 )
             }
 
+            // Upload the recorded clip so it actually reaches the other user.
+            val bytes = runCatching { java.io.File(Uri.parse(mediaUrl).path ?: "").readBytes() }.getOrNull()
+            if (bytes != null) APIService.sendChatAudio(currentMatch.id, bytes, durationSeconds)
+
             _isSending.value = false
             // Real replies now arrive via SocketManager (no simulation).
         }
     }
 
-    fun sendImage(mediaUrl: String) {
+    fun sendImage(context: Context, uri: Uri) {
         if (isLockedForMe) return
         val currentMatch = _match.value ?: return
 
@@ -338,7 +345,7 @@ class ChatViewModel : ViewModel() {
                 matchId = currentMatch.id,
                 senderId = "current-user-id",
                 content = "",
-                mediaUrl = mediaUrl,
+                mediaUrl = uri.toString(),
                 msgType = MessageType.PHOTO,
                 status = MessageStatus.SENT
             )
@@ -352,6 +359,10 @@ class ChatViewModel : ViewModel() {
                     firstMsgAt = System.currentTimeMillis()
                 )
             }
+
+            // Upload the picked image so it actually reaches the other user.
+            val bytes = ImageCompression.compressForUpload(context, uri)
+            if (bytes != null) APIService.sendChatMedia(currentMatch.id, bytes)
 
             _isSending.value = false
             // Real replies now arrive via SocketManager (no simulation).
