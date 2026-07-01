@@ -63,7 +63,7 @@ const appleVerifySchema = z.object({
 });
 
 const refreshSchema = z.object({
-  refreshToken: z.string().min(1, 'Refresh token is required'),
+  refresh_token: z.string().min(1, 'Refresh token is required'),
 });
 
 const deleteSchema = z.object({
@@ -1056,7 +1056,7 @@ router.post(
   strictRateLimit,
   validate(refreshSchema),
   asyncHandler(async (req: Request, res: Response) => {
-    const { refreshToken } = req.body;
+    const { refresh_token: refreshToken } = req.body;
 
     const {
       data: { session },

@@ -199,7 +199,7 @@ object APIService {
 
     suspend fun joinFamily(code: String, roleTag: String): Result<Boolean> {
         return try {
-            val response = api.joinFamily(mapOf("code" to code, "roleTag" to roleTag))
+            val response = api.joinFamily(mapOf("code" to code, "role_tag" to roleTag))
             if (response.isSuccessful) Result.success(true) else Result.failure(APIError.ServerError)
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }

@@ -67,7 +67,7 @@ object HttpClient {
     private suspend fun refreshToken(): String? {
         val refreshToken = tokenManager?.getRefreshToken() ?: return null
         return try {
-            val response = refreshApi.refreshToken(mapOf("refreshToken" to refreshToken))
+            val response = refreshApi.refreshToken(mapOf("refresh_token" to refreshToken))
             if (response.isSuccessful) {
                 val body = response.body()
                 val newAccess = body?.get("access_token") as? String

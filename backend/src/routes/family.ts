@@ -40,7 +40,7 @@ const joinSchema = z.object({
   code: z
     .string()
     .regex(/^MM-[A-Z0-9]{6}$/, 'Invalid invite code format (expected MM-XXXXXX)'),
-  roleTag: z.string().max(50, 'Role tag must be 50 characters or less'),
+  role_tag: z.string().max(50, 'Role tag must be 50 characters or less'),
 });
 
 const updateMemberSchema = z.object({
@@ -223,7 +223,7 @@ router.post(
   validate(joinSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const user = (req as AuthenticatedRequest).user;
-    const { code, roleTag } = req.body;
+    const { code, role_tag: roleTag } = req.body;
 
     // Find the pending invite by code
     const { data: invite, error } = await supabase
