@@ -179,7 +179,10 @@ class MainActivity : ComponentActivity() {
                                 onLogout = {
                                     authViewModel.logout()
                                     navController.navigate(Screen.Welcome.route) { popUpTo(0) { inclusive = true } }
-                                }
+                                },
+                                onOpenTerms = { navController.navigate(Screen.Terms.route) },
+                                onOpenPrivacy = { navController.navigate(Screen.Privacy.route) },
+                                onOpenGuidelines = { navController.navigate(Screen.Guidelines.route) }
                             )
                         }
                         composable(Screen.Guidelines.route) {

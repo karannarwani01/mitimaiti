@@ -475,9 +475,15 @@ struct SettingsView: View {
     private var aboutSection: some View {
         settingsSection(title: "ABOUT", icon: "info.circle.fill") {
             aboutRow(icon: "app.badge", title: localization.t("settings.appVersion"), detail: "2.0.0")
-            settingsLinkRow(icon: "doc.text.fill", title: localization.t("settings.termsOfService"))
-            settingsLinkRow(icon: "hand.raised.fill", title: localization.t("settings.privacyPolicy"))
-            settingsLinkRow(icon: "shield.lefthalf.filled", title: localization.t("settings.communityGuidelines"))
+            NavigationLink { LegalView(page: .terms) } label: {
+                settingsLinkRow(icon: "doc.text.fill", title: localization.t("settings.termsOfService"))
+            }
+            NavigationLink { LegalView(page: .privacy) } label: {
+                settingsLinkRow(icon: "hand.raised.fill", title: localization.t("settings.privacyPolicy"))
+            }
+            NavigationLink { LegalView(page: .guidelines) } label: {
+                settingsLinkRow(icon: "shield.lefthalf.filled", title: localization.t("settings.communityGuidelines"))
+            }
         }
     }
 

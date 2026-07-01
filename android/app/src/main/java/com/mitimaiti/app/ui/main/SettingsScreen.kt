@@ -36,7 +36,10 @@ fun SettingsScreen(
     themeManager: ThemeManager,
     localizationManager: LocalizationManager? = null,
     onBack: () -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onOpenTerms: () -> Unit = {},
+    onOpenPrivacy: () -> Unit = {},
+    onOpenGuidelines: () -> Unit = {}
 ) {
     val colors = LocalAdaptiveColors.current
     val scrollState = rememberScrollState()
@@ -497,7 +500,7 @@ fun SettingsScreen(
                 SettingsSection(title = "About", icon = Icons.Default.Info) {
                     // Terms of Service
                     TextButton(
-                        onClick = { viewModel.showToast("Opening Terms of Service") },
+                        onClick = onOpenTerms,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
                     ) {
                         Row(
@@ -514,7 +517,7 @@ fun SettingsScreen(
                     HorizontalDivider(color = colors.borderSubtle)
                     // Privacy Policy
                     TextButton(
-                        onClick = { viewModel.showToast("Opening Privacy Policy") },
+                        onClick = onOpenPrivacy,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
                     ) {
                         Row(
@@ -531,7 +534,7 @@ fun SettingsScreen(
                     HorizontalDivider(color = colors.borderSubtle)
                     // Community Guidelines
                     TextButton(
-                        onClick = { viewModel.showToast("Opening Community Guidelines") },
+                        onClick = onOpenGuidelines,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
                     ) {
                         Row(

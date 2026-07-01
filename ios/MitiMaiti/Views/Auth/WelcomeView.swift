@@ -22,6 +22,7 @@ struct WelcomeView: View {
                     heroSection
                     ctaButtons
                     howItWorksSection
+                    legalFooter
                     Spacer().frame(height: 40)
                 }
             }
@@ -112,6 +113,23 @@ struct WelcomeView: View {
             }
         }
         .padding(.horizontal, AppTheme.spacingMD)
+    }
+
+    // MARK: - Legal Footer (Terms · Privacy · Guidelines)
+
+    private var legalFooter: some View {
+        HStack(spacing: 20) {
+            NavigationLink { LegalView(page: .terms) } label: {
+                Text("Terms").font(.system(size: 13)).foregroundColor(colors.textMuted)
+            }
+            NavigationLink { LegalView(page: .privacy) } label: {
+                Text("Privacy").font(.system(size: 13)).foregroundColor(colors.textMuted)
+            }
+            NavigationLink { LegalView(page: .guidelines) } label: {
+                Text("Guidelines").font(.system(size: 13)).foregroundColor(colors.textMuted)
+            }
+        }
+        .padding(.top, 8)
     }
 
     private func stepCard(
