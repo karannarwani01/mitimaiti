@@ -5,11 +5,14 @@ import androidx.lifecycle.viewModelScope
 import com.mitimaiti.app.models.*
 import com.mitimaiti.app.services.APIService
 import com.mitimaiti.app.services.MessageRepository
+import com.mitimaiti.app.services.SocketManager
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 import java.util.UUID
 
 class ChatViewModel : ViewModel() {
@@ -55,8 +58,60 @@ class ChatViewModel : ViewModel() {
         }
     }
 
+    private var typingResetJob: Job? = null
+
+    init {
+        // Real-time: consume live socket events for the currently open match.
+        // Incoming messages: accept only the OTHER user's messages (our own are
+        // already shown optimistically, and the backend echoes them to us).
+        viewModelScope.launch {
+            SocketManager.shared.incomingMessages.collect { json ->
+                val mid = _match.value?.id ?: return@collect
+                if (json.optString("matchId") != mid) return@collect
+                val otherId = _match.value?.otherUser?.id ?: return@collect
+                if (json.optString("senderId") != otherId) return@collect
+                val msg = parseSocketMessage(json)
+                if (_messages.value.any { it.id == msg.id && msg.id.isNotEmpty() }) return@collect
+                _isOtherTyping.value = false
+                receiveMessage(msg)
+            }
+        }
+        viewModelScope.launch {
+            SocketManager.shared.typingEvents.collect { json ->
+                if (json.optString("matchId") != _match.value?.id) return@collect
+                _isOtherTyping.value = true
+                typingResetJob?.cancel()
+                typingResetJob = viewModelScope.launch { delay(5000); _isOtherTyping.value = false }
+            }
+        }
+        viewModelScope.launch {
+            SocketManager.shared.readReceipts.collect { json ->
+                if (json.optString("matchId") != _match.value?.id) return@collect
+                _messages.value = _messages.value.map {
+                    if (it.isFromMe && it.status != MessageStatus.READ) it.copy(status = MessageStatus.READ) else it
+                }
+            }
+        }
+    }
+
+    /** Parse a socket new_msg payload (camelCase keys, not the REST snake_case). */
+    private fun parseSocketMessage(json: JSONObject): Message {
+        val typeStr = json.optString("msgType", "text")
+        return Message(
+            id = json.optString("id"),
+            matchId = json.optString("matchId"),
+            senderId = json.optString("senderId"),
+            content = json.optString("content", ""),
+            mediaUrl = json.optString("mediaUrl").ifEmpty { null },
+            msgType = MessageType.entries.firstOrNull { it.value == typeStr } ?: MessageType.TEXT,
+            status = MessageStatus.DELIVERED,
+            createdAt = json.optLong("createdAt", System.currentTimeMillis())
+        )
+    }
+
     fun loadMessages(match: Match) {
         _match.value = match
+        SocketManager.shared.enterChat(match.id)
         // Check MessageRepository first (persists across navigation)
         val cached = MessageRepository.getMessages(match.id)
         if (cached.isNotEmpty()) {
@@ -136,7 +191,7 @@ class ChatViewModel : ViewModel() {
             _isSending.value = false
 
             // Simulate a reply after delay
-            simulateReply(currentMatch.id)
+            // Real replies now arrive via SocketManager (no simulation).
         }
     }
 
@@ -268,7 +323,7 @@ class ChatViewModel : ViewModel() {
             }
 
             _isSending.value = false
-            simulateReply(currentMatch.id)
+            // Real replies now arrive via SocketManager (no simulation).
         }
     }
 
@@ -299,7 +354,7 @@ class ChatViewModel : ViewModel() {
             }
 
             _isSending.value = false
-            simulateReply(currentMatch.id)
+            // Real replies now arrive via SocketManager (no simulation).
         }
     }
 
@@ -350,32 +405,6 @@ class ChatViewModel : ViewModel() {
                 delay(3000)
                 _chatUnlocked.value = false
             }
-        }
-    }
-
-    private fun simulateReply(matchId: String) {
-        viewModelScope.launch {
-            delay(3000)
-            _isOtherTyping.value = true
-            delay(2000)
-            _isOtherTyping.value = false
-            val replies = listOf(
-                "That's so sweet! Tell me more about yourself",
-                "Haha I love that! What else are you into?",
-                "Oh wow, we have so much in common!",
-                "That's interesting! I'd love to hear more",
-                "You seem really cool! What do you do for fun?"
-            )
-            val replyText = replies.random()
-            receiveMessage(
-                Message(
-                    id = UUID.randomUUID().toString(),
-                    matchId = matchId,
-                    senderId = _match.value?.otherUser?.id ?: "other",
-                    content = replyText,
-                    status = MessageStatus.DELIVERED
-                )
-            )
         }
     }
 

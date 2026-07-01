@@ -88,6 +88,8 @@ class ChatViewModel: ObservableObject {
 
     func loadMessages(for match: Match) {
         self.match = match
+        startRealtime()
+        SocketChat.shared.enterChat(matchId: match.id)
 
         // Serve from cache immediately — avoids blank screen on re-navigation
         let cached = MessageRepository.shared.getMessages(matchId: match.id)
@@ -162,7 +164,7 @@ class ChatViewModel: ObservableObject {
                 }
 
                 // In demo mode: simulate a reply from the other user
-                simulateReply(matchId: matchId)
+                // Real replies now arrive via SocketChat (no simulation).
             } catch {
                 self.error = error.localizedDescription
                 isSending = false
@@ -272,7 +274,7 @@ class ChatViewModel: ObservableObject {
             match?.firstMsgAt = Date()
         }
 
-        simulateReply(matchId: matchId)
+        // Real replies now arrive via SocketChat (no simulation).
     }
 
     func sendImage(localUrl: String) {
@@ -301,7 +303,7 @@ class ChatViewModel: ObservableObject {
             match?.firstMsgAt = Date()
         }
 
-        simulateReply(matchId: matchId)
+        // Real replies now arrive via SocketChat (no simulation).
     }
 
     /// Real-backend photo upload (added on the Mac side via APIService.sendChatMedia).
@@ -374,7 +376,7 @@ class ChatViewModel: ObservableObject {
                     match?.firstMsgAt = Date()
                 }
 
-                simulateReply(matchId: matchId)
+                // Real replies now arrive via SocketChat (no simulation).
             } catch {
                 self.error = error.localizedDescription
             }
@@ -451,40 +453,71 @@ class ChatViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Simulate Reply (Demo Mode)
+    // MARK: - Real-time (SocketChat)
 
-    private func simulateReply(matchId: String) {
-        let otherUserId = match?.otherUser.id ?? "other"
+    private var didStartRealtime = false
+    private var typingResetTask: Task<Void, Never>?
 
-        Task {
-            // Show typing after 1-2 seconds
-            try? await Task.sleep(nanoseconds: UInt64.random(in: 1_000_000_000...2_000_000_000))
-            isOtherTyping = true
+    /// Subscribe once to the live socket streams for message/typing/read events.
+    private func startRealtime() {
+        guard !didStartRealtime else { return }
+        didStartRealtime = true
 
-            // Send reply after 2-4 seconds
-            try? await Task.sleep(nanoseconds: UInt64.random(in: 2_000_000_000...4_000_000_000))
-            isOtherTyping = false
-
-            let replies = [
-                "That's so sweet! Tell me more about yourself",
-                "Haha I love that! What else do you enjoy?",
-                "Same here! We have so much in common",
-                "That's really interesting. I'd love to hear more!",
-                "You seem like such a great person!",
-                "I was thinking the same thing!",
-                "Sai bhaani! So glad we matched!",
-                "My family would love to hear about this!"
-            ]
-
-            let reply = Message(
-                matchId: matchId,
-                senderId: otherUserId,
-                content: replies.randomElement()!,
-                status: .delivered
-            )
-
-            // Use receiveMessage to properly handle unlock
-            receiveMessage(reply)
+        // Note: the socket exposes single-consumer AsyncStreams, so break out of
+        // each loop once this view model is gone to free the stream for the next
+        // chat's view model (rather than silently draining its events).
+        Task { @MainActor [weak self] in
+            for await payload in SocketChat.shared.incomingMessages.stream {
+                guard let self else { break }
+                self.handleIncoming(payload)
+            }
         }
+        Task { @MainActor [weak self] in
+            for await payload in SocketChat.shared.typingEvents.stream {
+                guard let self else { break }
+                guard payload["matchId"] as? String == self.match?.id else { continue }
+                self.isOtherTyping = true
+                self.typingResetTask?.cancel()
+                self.typingResetTask = Task { @MainActor [weak self] in
+                    try? await Task.sleep(nanoseconds: 5_000_000_000)
+                    self?.isOtherTyping = false
+                }
+            }
+        }
+        Task { @MainActor [weak self] in
+            for await payload in SocketChat.shared.readReceipts.stream {
+                guard let self else { break }
+                guard payload["matchId"] as? String == self.match?.id else { continue }
+                for i in self.messages.indices where self.messages[i].isFromMe {
+                    self.messages[i].status = .read
+                }
+            }
+        }
+    }
+
+    /// Accept only the OTHER user's messages — our own are already shown
+    /// optimistically and the backend echoes them back to us.
+    private func handleIncoming(_ payload: [String: Any]) {
+        guard let mid = match?.id, payload["matchId"] as? String == mid else { return }
+        guard let otherId = match?.otherUser.id, payload["senderId"] as? String == otherId else { return }
+        let msg = parseSocketMessage(payload)
+        if messages.contains(where: { $0.id == msg.id }) { return }
+        isOtherTyping = false
+        receiveMessage(msg)
+    }
+
+    /// Parse a socket new_msg payload (camelCase keys, not the REST snake_case).
+    private func parseSocketMessage(_ p: [String: Any]) -> Message {
+        let typeStr = p["msgType"] as? String ?? "text"
+        return Message(
+            id: p["id"] as? String ?? UUID().uuidString,
+            matchId: p["matchId"] as? String ?? "",
+            senderId: p["senderId"] as? String ?? "",
+            content: p["content"] as? String ?? "",
+            mediaUrl: p["mediaUrl"] as? String,
+            msgType: MessageType(rawValue: typeStr) ?? .text,
+            status: .delivered,
+            createdAt: Date()
+        )
     }
 }
