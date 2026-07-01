@@ -244,9 +244,10 @@ actor APIService {
     // MARK: - Actions
 
     func performAction(targetId: String, type: ActionType) async throws -> (isMatch: Bool, matchId: String?) {
-        struct Body: Encodable { let targetId: String; let type: String }
+        // Field name snake-cases to target_user_id (what the backend expects).
+        struct Body: Encodable { let targetUserId: String; let type: String }
         struct Resp: Decodable { let isMatch: Bool; let matchId: String? }
-        let resp: Resp = try await authedRequest(.post, "/action", body: Body(targetId: targetId, type: String(describing: type)))
+        let resp: Resp = try await authedRequest(.post, "/action", body: Body(targetUserId: targetId, type: String(describing: type)))
         return (resp.isMatch, resp.matchId)
     }
 
@@ -374,13 +375,15 @@ actor APIService {
     // MARK: - Safety
 
     func reportUser(userId: String, reason: String, details: String?) async throws {
-        struct Body: Encodable { let targetUserId: String; let reason: String; let details: String? }
-        let _: EmptyData = try await authedRequest(.post, "/safety/report", body: Body(targetUserId: userId, reason: reason, details: details))
+        // Field name snake-cases to reported_id (what the backend expects).
+        struct Body: Encodable { let reportedId: String; let reason: String; let details: String? }
+        let _: EmptyData = try await authedRequest(.post, "/safety/report", body: Body(reportedId: userId, reason: reason, details: details))
     }
 
     func blockUser(userId: String) async throws {
-        struct Body: Encodable { let targetUserId: String }
-        let _: EmptyData = try await authedRequest(.post, "/safety/block", body: Body(targetUserId: userId))
+        // Field name snake-cases to blocked_id (what the backend expects).
+        struct Body: Encodable { let blockedId: String }
+        let _: EmptyData = try await authedRequest(.post, "/safety/block", body: Body(blockedId: userId))
     }
 
     // MARK: - Authed request helper with 401 → refresh → retry

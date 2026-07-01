@@ -16,13 +16,13 @@ const AUTO_HIDE_THRESHOLD = 5;
 // ─── Schemas ────────────────────────────────────────────────────────────────
 
 const reportSchema = z.object({
-  reportedId: z.string().uuid('Invalid user ID'),
+  reported_id: z.string().uuid('Invalid user ID'),
   reason: z.enum(['fake', 'harassment', 'spam', 'photos', 'underage', 'safety'] as const),
   details: z.string().max(1000, 'Details must be 1000 characters or less').optional(),
 });
 
 const blockSchema = z.object({
-  blockedId: z.string().uuid('Invalid user ID'),
+  blocked_id: z.string().uuid('Invalid user ID'),
 });
 
 const appealSchema = z.object({
@@ -53,7 +53,7 @@ router.post(
   validate(reportSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const user = (req as AuthenticatedRequest).user;
-    const { reportedId, reason, details } = req.body;
+    const { reported_id: reportedId, reason, details } = req.body;
 
     // Cannot report yourself
     if (reportedId === user.id) {
@@ -155,7 +155,7 @@ router.post(
   validate(blockSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const user = (req as AuthenticatedRequest).user;
-    const { blockedId } = req.body;
+    const { blocked_id: blockedId } = req.body;
 
     // Cannot block yourself
     if (blockedId === user.id) {

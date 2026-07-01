@@ -20,7 +20,7 @@ const MATCH_EXPIRY_HOURS = 24;
 // ─── Schemas ────────────────────────────────────────────────────────────────────
 
 const actionSchema = z.object({
-  targetUserId: z.string().uuid('Invalid target user ID'),
+  target_user_id: z.string().uuid('Invalid target user ID'),
   type: z.enum(['like', 'pass']),
 });
 
@@ -114,7 +114,7 @@ router.post(
   validate(actionSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const user = (req as AuthenticatedRequest).user;
-    const { targetUserId, type } = req.body as { targetUserId: string; type: ActionType };
+    const { target_user_id: targetUserId, type } = req.body as { target_user_id: string; type: ActionType };
 
     // Self-action guard
     if (targetUserId === user.id) {

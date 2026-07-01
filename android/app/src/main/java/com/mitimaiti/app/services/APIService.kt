@@ -229,7 +229,7 @@ object APIService {
      *  with { is_match, match_id, ... } — there is no full `match` object here. */
     suspend fun performAction(targetId: String, type: String): Result<Boolean> {
         return try {
-            val response = api.performAction(mapOf("targetUserId" to targetId, "type" to type))
+            val response = api.performAction(mapOf("target_user_id" to targetId, "type" to type))
             if (response.isSuccessful) {
                 Result.success(response.body()?.get("is_match") as? Boolean ?: false)
             } else Result.failure(APIError.ServerError)
@@ -355,14 +355,14 @@ object APIService {
 
     suspend fun reportUser(userId: String, reason: String): Result<Boolean> {
         return try {
-            val response = api.reportUser(mapOf("reported_user_id" to userId, "reason" to reason))
+            val response = api.reportUser(mapOf("reported_id" to userId, "reason" to reason))
             Result.success(response.isSuccessful)
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
 
     suspend fun blockUser(userId: String): Result<Boolean> {
         return try {
-            val response = api.blockUser(mapOf("blocked_user_id" to userId))
+            val response = api.blockUser(mapOf("blocked_id" to userId))
             Result.success(response.isSuccessful)
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
