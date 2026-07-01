@@ -223,7 +223,8 @@ fun OnboardingScreen(onComplete: () -> Unit, onNavigateToEditProfile: () -> Unit
                         )
                         OnboardingStep.LOCATION -> LocationStep(
                             location = selectedCity,
-                            onLocationChange = { viewModel.selectedCity.value = it }
+                            onLocationChange = { viewModel.selectedCity.value = it },
+                            onCountryChange = { viewModel.selectedCountry.value = it }
                         )
                         OnboardingStep.READY -> {
                             val profileCompleteness = remember(firstName, selectedGender, selectedIntent, selectedShowMe, selectedCity, selectedPhotos) {
@@ -808,7 +809,7 @@ private fun ShowMeStep(selected: ShowMe?, onSelect: (ShowMe) -> Unit) {
 
 @SuppressLint("MissingPermission")
 @Composable
-private fun LocationStep(location: String, onLocationChange: (String) -> Unit) {
+private fun LocationStep(location: String, onLocationChange: (String) -> Unit, onCountryChange: (String) -> Unit = {}) {
     val colors = LocalAdaptiveColors.current
     val context = LocalContext.current
     var isLocating by remember { mutableStateOf(false) }
@@ -831,6 +832,7 @@ private fun LocationStep(location: String, onLocationChange: (String) -> Unit) {
                         val city = result?.first ?: "Unknown"
                         val country = result?.second ?: ""
                         onLocationChange(city)
+                        onCountryChange(country)
                         detectedCity = city
                         detectedCountry = country
                     }
@@ -921,6 +923,7 @@ private fun LocationStep(location: String, onLocationChange: (String) -> Unit) {
             value = location,
             onValueChange = {
                 onLocationChange(it)
+                onCountryChange("")
                 detectedCity = ""
                 detectedCountry = ""
             },
@@ -970,6 +973,7 @@ private fun LocationStep(location: String, onLocationChange: (String) -> Unit) {
                         color = AppColors.Rose,
                         modifier = Modifier.clickable {
                             onLocationChange("")
+                            onCountryChange("")
                             detectedCity = ""
                             detectedCountry = ""
                         }

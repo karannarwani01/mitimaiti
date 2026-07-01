@@ -36,6 +36,7 @@ class OnboardingViewModel : ViewModel() {
     val selectedPhotos: StateFlow<List<Uri>> = PhotoRepository.photos
     val selectedIntent = MutableStateFlow<Intent?>(null); val selectedShowMe = MutableStateFlow<ShowMe?>(null)
     val selectedCity = MutableStateFlow("")
+    val selectedCountry = MutableStateFlow("")
 
     val age: Int? get() {
         val y = birthYear.value.toIntOrNull() ?: return null; val m = birthMonth.value.toIntOrNull() ?: return null; val d = birthDay.value.toIntOrNull() ?: return null
@@ -80,6 +81,7 @@ class OnboardingViewModel : ViewModel() {
                 }
             }
             if (selectedCity.value.isNotBlank()) basics["city"] = selectedCity.value.trim()
+            if (selectedCountry.value.isNotBlank()) basics["country"] = selectedCountry.value.trim()
 
             val userFields = mutableMapOf<String, Any>()
             selectedIntent.value?.let { i ->

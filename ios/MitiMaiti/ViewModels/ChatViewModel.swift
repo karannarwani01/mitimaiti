@@ -392,7 +392,7 @@ class ChatViewModel: ObservableObject {
 
     // MARK: - Receive Message (from other user)
 
-    /// Called when a message arrives from the other user (via socket or simulation)
+    /// Called when a message arrives from the other user (via the socket)
     func receiveMessage(_ message: Message) {
         messages.append(message)
         if let matchId = match?.id {
