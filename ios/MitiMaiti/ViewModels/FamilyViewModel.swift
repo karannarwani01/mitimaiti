@@ -94,13 +94,16 @@ class FamilyViewModel: ObservableObject {
     func revokeMember(memberId: String) {
         guard let idx = members.firstIndex(where: { $0.id == memberId }) else { return }
         members[idx].status = .revoked
+        Task { try? await api.updateFamilyMember(memberId: memberId, body: ["is_revoked": true]) }
     }
 
     func revokeAllMembers() {
+        let anyId = members.first?.id
         for idx in members.indices {
             members[idx].permissions = .allDisabled
         }
         showToast("All family access revoked")
+        if let anyId { Task { try? await api.updateFamilyMember(memberId: anyId, body: ["revoke_all": true]) } }
     }
 
     // MARK: - Suggestions

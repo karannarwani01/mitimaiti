@@ -377,6 +377,13 @@ actor APIService {
         return resp.invite
     }
 
+    /// Update a family member (permissions / is_revoked / revoke_all). Raw JSON
+    /// body so keys pass through verbatim (permission keys are camelCase).
+    func updateFamilyMember(memberId: String, body: [String: Any]) async throws {
+        let data = try JSONSerialization.data(withJSONObject: body)
+        let _: EmptyData = try await authedRequest(.patch, "/family/\(memberId)", rawBody: data)
+    }
+
     // MARK: - Safety
 
     func reportUser(userId: String, reason: String, details: String?) async throws {

@@ -359,6 +359,14 @@ object APIService {
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
 
+    /** Update a family member (permissions, is_revoked, or revoke_all). */
+    suspend fun updateFamilyMember(memberId: String, body: Map<String, Any>): Result<Boolean> {
+        return try {
+            val response = api.updateFamilyMember(memberId, body)
+            if (response.isSuccessful) Result.success(true) else Result.failure(APIError.ServerError)
+        } catch (e: Exception) { Result.failure(APIError.NetworkError) }
+    }
+
     // ──────────────────── SAFETY ────────────────────
 
     suspend fun reportUser(userId: String, reason: String): Result<Boolean> {
