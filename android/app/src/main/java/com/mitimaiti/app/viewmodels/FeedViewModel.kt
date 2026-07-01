@@ -42,7 +42,7 @@ class FeedViewModel : ViewModel() {
     fun likeUser() {
         val cur = _cards.value.toMutableList(); if (cur.isEmpty() || _dailyLikesUsed.value >= MAX_DAILY_LIKES) return
         val card = cur.removeAt(0); _cards.value = cur; _dailyLikesUsed.value++
-        viewModelScope.launch { APIService.performAction(card.user.id, "like").onSuccess { match -> if (match != null) { _matchedUser.value = card.user; _showMatchAlert.value = true; AppNotificationManager.shared.addNotification(type = NotificationType.MATCH, title = "It's a Match!", body = "You and ${card.user.displayName} liked each other!") } }; prefetchIfNeeded() }
+        viewModelScope.launch { APIService.performAction(card.user.id, "like").onSuccess { isMatch -> if (isMatch) { _matchedUser.value = card.user; _showMatchAlert.value = true; AppNotificationManager.shared.addNotification(type = NotificationType.MATCH, title = "It's a Match!", body = "You and ${card.user.displayName} liked each other!") } }; prefetchIfNeeded() }
     }
 
     fun passUser() { val cur = _cards.value.toMutableList(); if (cur.isEmpty()) return; val card = cur.removeAt(0); passedCards.add(card); _cards.value = cur; viewModelScope.launch { APIService.performAction(card.user.id, "pass"); prefetchIfNeeded() } }

@@ -225,14 +225,13 @@ object APIService {
 
     // ──────────────────── ACTIONS ────────────────────
 
-    suspend fun performAction(targetId: String, type: String): Result<Match?> {
+    /** Returns true when the like produced a mutual match. The backend responds
+     *  with { is_match, match_id, ... } — there is no full `match` object here. */
+    suspend fun performAction(targetId: String, type: String): Result<Boolean> {
         return try {
             val response = api.performAction(mapOf("targetUserId" to targetId, "type" to type))
             if (response.isSuccessful) {
-                val body = response.body()
-                val matchData = body?.get("match") as? Map<*, *>
-                if (matchData != null) Result.success(parseMatch(matchData))
-                else Result.success(null)
+                Result.success(response.body()?.get("is_match") as? Boolean ?: false)
             } else Result.failure(APIError.ServerError)
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
