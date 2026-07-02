@@ -70,6 +70,35 @@ class ProfileViewModel : ViewModel() {
     // Prompts editing
     val editPrompts = MutableStateFlow<List<UserPrompt>>(emptyList())
 
+    // ── Selfie verification ──
+    val isVerifying = MutableStateFlow(false)
+    val verifyMessage = MutableStateFlow<String?>(null)
+
+    /** Upload a selfie for face verification against the primary photo. */
+    fun verifySelfie(bytes: ByteArray) {
+        viewModelScope.launch {
+            isVerifying.value = true
+            APIService.verifySelfie(bytes).onSuccess { result ->
+                if (result.verified) {
+                    _user.value = _user.value?.copy(isVerified = true)
+                    verifyMessage.value = "You're verified! Your profile now shows the blue badge."
+                } else {
+                    verifyMessage.value = result.message
+                }
+            }.onFailure { err ->
+                verifyMessage.value = when (err) {
+                    is com.mitimaiti.app.services.APIError.DailyLimitReached ->
+                        "You've used all 3 verification attempts for today. Try again tomorrow."
+                    is com.mitimaiti.app.services.APIError.MessageRejected -> err.reason
+                    else -> "Verification failed. Check your connection and try again."
+                }
+            }
+            isVerifying.value = false
+        }
+    }
+
+    fun dismissVerifyMessage() { verifyMessage.value = null }
+
     // Photos from PhotoRepository (shared with onboarding)
     val userPhotos: StateFlow<List<Uri>> = PhotoRepository.photos
     val primaryPhotoUri: Uri? get() = PhotoRepository.primaryPhotoUri

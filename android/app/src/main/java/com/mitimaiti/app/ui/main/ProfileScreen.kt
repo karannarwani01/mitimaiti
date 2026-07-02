@@ -1,6 +1,12 @@
 @file:Suppress("DEPRECATION")
 package com.mitimaiti.app.ui.main
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -21,10 +27,14 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import coil.compose.AsyncImage
+import com.mitimaiti.app.utils.ImageCompression
 import com.mitimaiti.app.models.Intent
 import com.mitimaiti.app.models.User
 import com.mitimaiti.app.services.PhotoRepository
@@ -43,11 +53,61 @@ fun ProfileScreen(
     onLogout: () -> Unit
 ) {
     val colors = LocalAdaptiveColors.current
+    val context = LocalContext.current
     val user by viewModel.user.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val repoPhotos by PhotoRepository.photos.collectAsState()
     val completeness by viewModel.completenessFlow.collectAsState()
     var showPhotoPicker by remember { mutableStateOf(false) }
+
+    // ── Selfie verification camera flow ──
+    val isVerifying by viewModel.isVerifying.collectAsState()
+    val verifyMessage by viewModel.verifyMessage.collectAsState()
+    val pendingSelfieUri = remember { mutableStateOf<Uri?>(null) }
+
+    val selfieLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success: Boolean ->
+        val uri = pendingSelfieUri.value
+        pendingSelfieUri.value = null
+        if (!success || uri == null) return@rememberLauncherForActivityResult
+        val bytes = ImageCompression.compressForUpload(context, uri)
+        if (bytes != null) viewModel.verifySelfie(bytes)
+        else Toast.makeText(context, "Couldn't read the selfie. Please try again.", Toast.LENGTH_SHORT).show()
+    }
+
+    fun launchSelfieCamera() {
+        val photoFile = java.io.File(context.cacheDir, "verify_selfie_${System.currentTimeMillis()}.jpg")
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", photoFile)
+        pendingSelfieUri.value = uri
+        selfieLauncher.launch(uri)
+    }
+
+    val selfiePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) launchSelfieCamera()
+        else Toast.makeText(context, "Camera permission is needed to take a verification selfie", Toast.LENGTH_SHORT).show()
+    }
+
+    fun startVerification() {
+        val granted = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.CAMERA
+        ) == PackageManager.PERMISSION_GRANTED
+        if (granted) launchSelfieCamera() else selfiePermissionLauncher.launch(Manifest.permission.CAMERA)
+    }
+
+    // Verification result dialog
+    verifyMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissVerifyMessage() },
+            title = { Text(if (user?.isVerified == true) "Verified! ✅" else "Verification") },
+            text = { Text(message) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.dismissVerifyMessage() }) { Text("OK", color = AppColors.Rose) }
+            }
+        )
+    }
 
     if (isLoading || user == null) {
         Column(
@@ -261,6 +321,63 @@ fun ProfileScreen(
         }
 
         Spacer(modifier = Modifier.height(12.dp))
+
+        // Get Verified card (Bumble-style photo verification)
+        if (!profile.isVerified) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                shape = RoundedCornerShape(AppTheme.radiusMd),
+                color = colors.surface,
+                shadowElevation = 2.dp
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Verified, null,
+                        tint = AppColors.Info,
+                        modifier = Modifier.size(32.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Get Verified",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.textPrimary
+                        )
+                        Text(
+                            "Take a quick selfie to earn the blue badge. Your selfie is never stored.",
+                            fontSize = 12.sp,
+                            color = colors.textMuted
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = { startVerification() },
+                        enabled = !isVerifying,
+                        shape = RoundedCornerShape(AppTheme.radiusFull),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Rose),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
+                    ) {
+                        if (isVerifying) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text("Verify", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+        }
 
         // Stats row — three separate cards with circular icon badges (matches web design)
         Row(

@@ -214,6 +214,40 @@ object APIService {
             .getAsJsonObject("error")?.get("code")?.asString
     } catch (e: Exception) { null }
 
+    data class VerifyResult(val verified: Boolean, val similarity: Int?, val message: String?)
+
+    /** Selfie verification: the backend compares the selfie to the primary
+     *  photo via AWS Rekognition. The selfie is never stored server-side.
+     *  Max 3 attempts/day (429 after that). */
+    suspend fun verifySelfie(bytes: ByteArray): Result<VerifyResult> {
+        return try {
+            val body = bytes.toRequestBody("image/jpeg".toMediaTypeOrNull())
+            val part = MultipartBody.Part.createFormData("selfie", "selfie.jpg", body)
+            val response = api.verifySelfie(part)
+            if (response.isSuccessful) {
+                // Success payload: { is_verified: true, similarity }. A failed
+                // match also returns 200, but without is_verified.
+                val b = response.body()
+                val verified = b?.get("is_verified") as? Boolean ?: false
+                Result.success(VerifyResult(
+                    verified = verified,
+                    similarity = (b?.get("similarity") as? Number)?.toInt(),
+                    message = if (verified) null
+                    else "The selfie didn't match your photo closely enough. Try better lighting and a clearer angle."
+                ))
+            } else if (response.code() == 429) {
+                Result.failure(APIError.DailyLimitReached)
+            } else {
+                Result.failure(APIError.MessageRejected(when (errorCodeOf(response)) {
+                    "NO_PRIMARY_PHOTO" -> "Add a profile photo before verifying."
+                    "ALREADY_VERIFIED" -> "Your profile is already verified!"
+                    "FACE_NOT_DETECTED" -> "Couldn't detect a face. Use a clear, well-lit selfie."
+                    else -> "Verification failed. Please try again."
+                }))
+            }
+        } catch (e: Exception) { Result.failure(APIError.NetworkError) }
+    }
+
     suspend fun deletePhoto(id: String): Result<Boolean> {
         return try {
             val response = api.deletePhoto(id)

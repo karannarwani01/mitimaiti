@@ -16,6 +16,9 @@ struct ProfileView: View {
     @State private var showUploadedPhotosPicker = false
     @State private var avatarPickerItem: PhotosPickerItem? = nil
 
+    // MARK: - Selfie verification state
+    @State private var showVerifyCamera = false
+
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
@@ -25,6 +28,10 @@ struct ProfileView: View {
                         .sectionFadeIn(appeared: appeared, delay: 0.05)
                     completenessCard
                         .sectionFadeIn(appeared: appeared, delay: 0.1)
+                    if !profileVM.user.isVerified {
+                        getVerifiedCard
+                            .sectionFadeIn(appeared: appeared, delay: 0.12)
+                    }
                     statsRow
                         .sectionFadeIn(appeared: appeared, delay: 0.15)
                     bioSection
@@ -95,7 +102,72 @@ struct ProfileView: View {
                     showUploadedPhotosPicker = false
                 }
             }
+            // Selfie verification camera + result alert
+            .sheet(isPresented: $showVerifyCamera) {
+                CameraGalleryPicker(sourceType: .camera) { url in
+                    if let data = try? Data(contentsOf: url) {
+                        profileVM.verifySelfie(imageData: data)
+                    }
+                }
+                .ignoresSafeArea()
+            }
+            .alert(
+                profileVM.user.isVerified ? "Verified! ✅" : "Verification",
+                isPresented: Binding(
+                    get: { profileVM.verifyMessage != nil },
+                    set: { if !$0 { profileVM.verifyMessage = nil } }
+                )
+            ) {
+                Button("OK", role: .cancel) { profileVM.verifyMessage = nil }
+            } message: {
+                Text(profileVM.verifyMessage ?? "")
+            }
         }
+    }
+
+    // MARK: - Get Verified card (Bumble-style photo verification)
+
+    private var getVerifiedCard: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "checkmark.seal.fill")
+                .font(.system(size: 28))
+                .foregroundColor(AppTheme.info)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Get Verified")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(colors.textPrimary)
+                Text("Take a quick selfie to earn the blue badge. Your selfie is never stored.")
+                    .font(.system(size: 12))
+                    .foregroundColor(colors.textMuted)
+            }
+
+            Spacer()
+
+            Button {
+                showVerifyCamera = true
+            } label: {
+                if profileVM.isVerifying {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .scaleEffect(0.7)
+                        .frame(width: 52, height: 28)
+                } else {
+                    Text("Verify")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 7)
+                }
+            }
+            .background(Capsule().fill(AppTheme.rose))
+            .disabled(profileVM.isVerifying)
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(colors.surface)
+        )
     }
 
     // MARK: - Header

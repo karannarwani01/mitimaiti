@@ -209,6 +209,80 @@ actor APIService {
         )
     }
 
+    // MARK: - Verification
+
+    struct VerifyResult {
+        let verified: Bool
+        let similarity: Int?
+        let message: String?
+    }
+
+    /// Selfie verification: the backend compares the selfie to the primary
+    /// photo via AWS Rekognition. The selfie is never stored server-side.
+    /// Max 3 attempts/day (429 after that).
+    func verifySelfie(imageData: Data) async throws -> VerifyResult {
+        let boundary = UUID().uuidString
+        var body = Data()
+        body.append("--\(boundary)\r\nContent-Disposition: form-data; name=\"selfie\"; filename=\"selfie.jpg\"\r\nContent-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
+        body.append(imageData)
+        body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
+
+        let url = URL(string: AppConfig.baseURL + "/me/verify")!
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        if let token = accessToken {
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        req.httpBody = body
+
+        let (data, response) = try await URLSession.shared.data(for: req)
+        guard let http = response as? HTTPURLResponse else { throw APIError.networkError }
+
+        if http.statusCode == 401 {
+            try await refresh()
+            return try await verifySelfie(imageData: imageData)
+        }
+        if http.statusCode == 429 { throw APIError.rateLimited }
+
+        struct Payload: Decodable {
+            let isVerified: Bool?
+            let similarity: Int?
+        }
+        struct ErrorBody: Decodable { let code: String?; let message: String? }
+        struct Envelope: Decodable {
+            let success: Bool
+            let data: Payload?
+            let error: ErrorBody?
+            let message: String?
+        }
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let envelope = try decoder.decode(Envelope.self, from: data)
+
+        guard (200..<300).contains(http.statusCode) else {
+            let friendly: String
+            switch envelope.error?.code {
+            case "NO_PRIMARY_PHOTO": friendly = "Add a profile photo before verifying."
+            case "ALREADY_VERIFIED": friendly = "Your profile is already verified!"
+            case "FACE_NOT_DETECTED": friendly = "Couldn't detect a face. Use a clear, well-lit selfie."
+            default: friendly = envelope.error?.message ?? "Verification failed. Please try again."
+            }
+            throw APIError.serverError(friendly)
+        }
+
+        // A failed match also returns 200, with success:false + similarity
+        if envelope.success, envelope.data?.isVerified == true {
+            return VerifyResult(verified: true, similarity: envelope.data?.similarity, message: nil)
+        }
+        return VerifyResult(
+            verified: false,
+            similarity: envelope.data?.similarity,
+            message: envelope.error?.message
+                ?? "The selfie didn't match your photo closely enough. Try better lighting and a clearer angle."
+        )
+    }
+
     // MARK: - Profile
 
     func fetchProfile() async throws -> User {

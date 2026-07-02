@@ -16,6 +16,33 @@ class ProfileViewModel: ObservableObject {
     @Published var isSaving = false
     @Published var saveSuccess = false
 
+    // ── Selfie verification ──
+    @Published var isVerifying = false
+    @Published var verifyMessage: String?
+
+    /// Upload a selfie for face verification against the primary photo.
+    func verifySelfie(imageData: Data) {
+        isVerifying = true
+        Task {
+            do {
+                let result = try await api.verifySelfie(imageData: imageData)
+                if result.verified {
+                    user.isVerified = true
+                    verifyMessage = "You're verified! Your profile now shows the blue badge."
+                } else {
+                    verifyMessage = result.message
+                }
+            } catch APIError.rateLimited {
+                verifyMessage = "You've used all 3 verification attempts for today. Try again tomorrow."
+            } catch APIError.serverError(let msg) {
+                verifyMessage = msg
+            } catch {
+                verifyMessage = "Verification failed. Check your connection and try again."
+            }
+            isVerifying = false
+        }
+    }
+
     // Edit fields
     @Published var editBio = ""
     @Published var editHeight = ""
