@@ -166,7 +166,7 @@ struct ProfileView: View {
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(colors.surface)
+                .fill(colors.surfaceMedium)
         )
     }
 

@@ -92,24 +92,10 @@ struct SettingsView: View {
             vm.showToast(newValue ? "Incognito on" : "Incognito off")
         }
         // Persist backend-backed discovery settings when they change.
-        .onChange(of: vm.discoveryEnabled) { _, _ in vm.persistDiscoveryEnabled() }
-        .onChange(of: vm.ageMin) { _, _ in vm.persistAgeRange() }
-        .onChange(of: vm.ageMax) { _, _ in vm.persistAgeRange() }
-        .onChange(of: vm.genderPreference) { _, _ in vm.persistGenderPreference() }
-        .onChange(of: vm.incognitoMode) { _, _ in vm.persistIncognitoMode() }
-        .onChange(of: vm.showFullName) { _, _ in vm.persistShowFullName() }
-        .onChange(of: vm.isSnoozed) { _, _ in vm.persistSnoozed() }
-        .onChange(of: vm.verifiedOnly) { _, _ in vm.persistVerifiedOnly() }
-        .onChange(of: vm.heightMin) { _, _ in vm.persistHeightRange() }
-        .onChange(of: vm.heightMax) { _, _ in vm.persistHeightRange() }
-        .onChange(of: vm.intentFilter) { _, _ in vm.persistIntentFilter() }
-        .onChange(of: vm.religionFilter) { _, _ in vm.persistReligionFilter() }
-        .onChange(of: vm.educationFilter) { _, _ in vm.persistEducationFilter() }
-        .onChange(of: vm.smokingFilter) { _, _ in vm.persistSmokingFilter() }
-        .onChange(of: vm.drinkingFilter) { _, _ in vm.persistDrinkingFilter() }
-        .onChange(of: vm.fluencyFilter) { _, _ in vm.persistFluencyFilter() }
-        .onChange(of: vm.gotraFilter) { _, _ in vm.persistGotraFilter() }
-        .onChange(of: vm.dietaryFilter) { _, _ in vm.persistDietaryFilter() }
+        // Split into two ViewModifiers — 19 chained onChange calls in one
+        // expression exceeded the Swift type-checker's time budget.
+        .modifier(VisibilityPersistence(vm: vm))
+        .modifier(FilterPersistence(vm: vm))
     }
 
     // MARK: - Toast
@@ -726,4 +712,42 @@ enum PickerSheetType: String, Identifiable {
     case education, smoking, drinking, familyPlans
 
     var id: String { rawValue }
+}
+
+// MARK: - Persistence modifiers
+// Split so no single expression carries 19 onChange handlers (type-check
+// time-out in the Swift compiler).
+
+private struct VisibilityPersistence: ViewModifier {
+    @ObservedObject var vm: SettingsViewModel
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: vm.discoveryEnabled) { _, _ in vm.persistDiscoveryEnabled() }
+            .onChange(of: vm.ageMin) { _, _ in vm.persistAgeRange() }
+            .onChange(of: vm.ageMax) { _, _ in vm.persistAgeRange() }
+            .onChange(of: vm.genderPreference) { _, _ in vm.persistGenderPreference() }
+            .onChange(of: vm.incognitoMode) { _, _ in vm.persistIncognitoMode() }
+            .onChange(of: vm.showFullName) { _, _ in vm.persistShowFullName() }
+            .onChange(of: vm.isSnoozed) { _, _ in vm.persistSnoozed() }
+            .onChange(of: vm.verifiedOnly) { _, _ in vm.persistVerifiedOnly() }
+            .onChange(of: vm.heightMin) { _, _ in vm.persistHeightRange() }
+            .onChange(of: vm.heightMax) { _, _ in vm.persistHeightRange() }
+    }
+}
+
+private struct FilterPersistence: ViewModifier {
+    @ObservedObject var vm: SettingsViewModel
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: vm.intentFilter) { _, _ in vm.persistIntentFilter() }
+            .onChange(of: vm.religionFilter) { _, _ in vm.persistReligionFilter() }
+            .onChange(of: vm.educationFilter) { _, _ in vm.persistEducationFilter() }
+            .onChange(of: vm.smokingFilter) { _, _ in vm.persistSmokingFilter() }
+            .onChange(of: vm.drinkingFilter) { _, _ in vm.persistDrinkingFilter() }
+            .onChange(of: vm.fluencyFilter) { _, _ in vm.persistFluencyFilter() }
+            .onChange(of: vm.gotraFilter) { _, _ in vm.persistGotraFilter() }
+            .onChange(of: vm.dietaryFilter) { _, _ in vm.persistDietaryFilter() }
+    }
 }
