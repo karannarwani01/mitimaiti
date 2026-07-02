@@ -266,6 +266,7 @@ actor APIService {
             case "NO_PRIMARY_PHOTO": friendly = "Add a profile photo before verifying."
             case "ALREADY_VERIFIED": friendly = "Your profile is already verified!"
             case "FACE_NOT_DETECTED": friendly = "Couldn't detect a face. Use a clear, well-lit selfie."
+            case "VERIFICATION_UNAVAILABLE": friendly = "Selfie verification is coming soon — hang tight!"
             default: friendly = envelope.error?.message ?? "Verification failed. Please try again."
             }
             throw APIError.serverError(friendly)

@@ -256,6 +256,7 @@ object APIService {
                     "NO_PRIMARY_PHOTO" -> "Add a profile photo before verifying."
                     "ALREADY_VERIFIED" -> "Your profile is already verified!"
                     "FACE_NOT_DETECTED" -> "Couldn't detect a face. Use a clear, well-lit selfie."
+                    "VERIFICATION_UNAVAILABLE" -> "Selfie verification is coming soon — hang tight!"
                     else -> "Verification failed. Please try again."
                 }))
             }

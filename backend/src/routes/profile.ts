@@ -1092,6 +1092,16 @@ router.post(
     const user = (req as AuthenticatedRequest).user;
     const selfieFile = req.file;
 
+    // Face comparison runs on AWS Rekognition — without credentials the
+    // feature is cleanly "coming soon" rather than a scary failure.
+    if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
+      throw new AppError(
+        503,
+        'Selfie verification is coming soon — hang tight!',
+        'VERIFICATION_UNAVAILABLE'
+      );
+    }
+
     if (!selfieFile) {
       throw new AppError(400, 'Selfie image is required', 'NO_SELFIE');
     }
