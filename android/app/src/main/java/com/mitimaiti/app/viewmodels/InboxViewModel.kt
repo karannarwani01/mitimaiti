@@ -26,6 +26,34 @@ class InboxViewModel : ViewModel() {
 
     private var hasLoadedOnce = false
 
+    init {
+        // Real-time: the backend emits new_match / match_update over the
+        // socket. Refresh the inbox and surface an in-app notification even
+        // when the user isn't on the Discover screen.
+        viewModelScope.launch {
+            com.mitimaiti.app.services.SocketManager.shared.newMatches.collect { json ->
+                val name = json.optString("displayName").ifEmpty { "Someone" }
+                AppNotificationManager.shared.addNotification(
+                    type = NotificationType.MATCH,
+                    title = "It's a Match!",
+                    body = "You and $name liked each other!"
+                )
+                loadInbox()
+            }
+        }
+        viewModelScope.launch {
+            com.mitimaiti.app.services.SocketManager.shared.matchUpdates.collect { json ->
+                val matchId = json.optString("matchId")
+                if (matchId.isNotEmpty() && json.optString("status") == "active") {
+                    _matches.value = _matches.value.map { m ->
+                        if (m.id == matchId) m.copy(status = MatchStatus.ACTIVE, expiresAt = null, firstMsgLocked = false)
+                        else m
+                    }
+                }
+            }
+        }
+    }
+
     fun loadInbox() {
         // Always refetch from the server (the source of truth for matches +
         // their activation state), so a new match from a Discover like appears

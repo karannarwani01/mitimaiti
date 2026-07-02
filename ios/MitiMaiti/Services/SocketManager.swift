@@ -19,6 +19,10 @@ final class SocketChat: ObservableObject {
     private(set) var readReceipts = AsyncStream<[String: Any]>.makeStream()
     private(set) var matchUpdates = AsyncStream<[String: Any]>.makeStream()
     private(set) var newMatches = AsyncStream<[String: Any]>.makeStream()
+    /// Fires on RE-connects (not the initial connect) so open chats can
+    /// backfill messages that arrived during the outage.
+    private(set) var reconnects = AsyncStream<Void>.makeStream()
+    private var wasEverConnected = false
 
     func connect(token: String) {
         if socket?.status == .connected { return }
@@ -36,8 +40,11 @@ final class SocketChat: ObservableObject {
         socket = manager?.defaultSocket
 
         socket?.on(clientEvent: .connect) { [weak self] _, _ in
-            self?.isConnected = true
-            self?.socket?.emit("heartbeat")
+            guard let self else { return }
+            self.isConnected = true
+            self.socket?.emit("heartbeat")
+            if self.wasEverConnected { self.reconnects.continuation.yield(()) }
+            self.wasEverConnected = true
         }
         socket?.on(clientEvent: .disconnect) { [weak self] _, _ in
             self?.isConnected = false

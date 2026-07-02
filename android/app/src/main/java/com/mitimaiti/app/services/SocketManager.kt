@@ -51,6 +51,12 @@ class SocketManager private constructor() {
     private val _newMatches = MutableSharedFlow<JSONObject>(extraBufferCapacity = 16)
     val newMatches: SharedFlow<JSONObject> = _newMatches.asSharedFlow()
 
+    /** Fires on RE-connects (not the initial connect) so open chats can
+     *  backfill messages that arrived during the outage. */
+    private val _reconnects = MutableSharedFlow<Unit>(extraBufferCapacity = 4)
+    val reconnects: SharedFlow<Unit> = _reconnects.asSharedFlow()
+    private var wasEverConnected = false
+
     fun init(getToken: suspend () -> String?) {
         this.tokenProvider = getToken
     }
@@ -72,6 +78,8 @@ class SocketManager private constructor() {
             on(Socket.EVENT_CONNECT) {
                 _isConnected.value = true
                 emit("heartbeat", JSONObject())
+                if (wasEverConnected) _reconnects.tryEmit(Unit)
+                wasEverConnected = true
             }
 
             on(Socket.EVENT_DISCONNECT) {

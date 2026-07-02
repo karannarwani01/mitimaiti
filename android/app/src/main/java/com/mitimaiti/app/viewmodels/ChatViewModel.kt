@@ -109,6 +109,20 @@ class ChatViewModel : ViewModel() {
                 }
             }
         }
+        // Backfill after a network blip: messages the other person sent while
+        // the socket was down were never delivered and never re-sent. Re-join
+        // the chat room and refetch the thread from the server.
+        viewModelScope.launch {
+            SocketManager.shared.reconnects.collect {
+                val cm = _match.value ?: return@collect
+                SocketManager.shared.enterChat(cm.id)
+                APIService.fetchMessages(cm.id).onSuccess { fresh ->
+                    val sorted = fresh.sortedBy { it.createdAt }
+                    _messages.value = sorted
+                    MessageRepository.setMessages(cm.id, sorted)
+                }
+            }
+        }
     }
 
     /** Parse a socket new_msg payload (camelCase keys, not the REST snake_case). */

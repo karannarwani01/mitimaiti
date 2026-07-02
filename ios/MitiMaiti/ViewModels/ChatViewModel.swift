@@ -527,6 +527,21 @@ class ChatViewModel: ObservableObject {
                 }
             }
         }
+        // Backfill after a network blip: messages the other person sent while
+        // the socket was down were never delivered and never re-sent. Re-join
+        // the chat room and refetch the thread from the server.
+        Task { @MainActor [weak self] in
+            for await _ in SocketChat.shared.reconnects.stream {
+                guard let self else { break }
+                guard let matchId = self.match?.id else { continue }
+                SocketChat.shared.enterChat(matchId: matchId)
+                if let fresh = try? await self.api.fetchMessages(matchId: matchId) {
+                    let sorted = fresh.sorted { $0.createdAt < $1.createdAt }
+                    self.messages = sorted
+                    MessageRepository.shared.setMessages(matchId: matchId, msgs: sorted)
+                }
+            }
+        }
     }
 
     /// Accept only the OTHER user's messages — our own are already shown

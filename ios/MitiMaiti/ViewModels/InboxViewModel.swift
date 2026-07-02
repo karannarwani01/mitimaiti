@@ -15,6 +15,34 @@ class InboxViewModel: ObservableObject {
 
     private var previousLikeIds: Set<String> = []
 
+    init() {
+        // Real-time: the backend emits new_match / match_update over the
+        // socket. Refresh the inbox and surface an in-app notification even
+        // when the user isn't on the Discover screen. (These streams are
+        // single-consumer; InboxViewModel is their only subscriber.)
+        Task { @MainActor [weak self] in
+            for await payload in SocketChat.shared.newMatches.stream {
+                guard let self else { break }
+                let name = (payload["displayName"] as? String) ?? "Someone"
+                NotificationManager.shared.addNotification(
+                    type: .match,
+                    title: "New Match!",
+                    body: "You and \(name) matched! Say hi before the timer runs out.",
+                    actionData: payload["userId"] as? String
+                )
+                self.loadInbox()
+            }
+        }
+        Task { @MainActor [weak self] in
+            for await payload in SocketChat.shared.matchUpdates.stream {
+                guard let self else { break }
+                guard let matchId = payload["matchId"] as? String,
+                      (payload["status"] as? String) == "active" else { continue }
+                self.activateMatch(id: matchId)
+            }
+        }
+    }
+
     func loadInbox() {
         guard !isLoading else { return }
         isLoading = true
