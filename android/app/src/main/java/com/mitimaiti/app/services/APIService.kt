@@ -128,6 +128,12 @@ object APIService {
         tokenManager?.saveTokens(token, refresh, userId)
         Message.currentUserId = userId
         SocketManager.shared.connect(token)
+        // The launch-time FCM sync fires before login exists — re-register
+        // now that we have a session. No-ops when Firebase isn't configured.
+        try {
+            com.google.firebase.messaging.FirebaseMessaging.getInstance().token
+                .addOnSuccessListener { fcm -> FcmTokenRegistrar.register(fcm) }
+        } catch (e: Exception) { /* Firebase not configured in this build */ }
         return Result.success(Pair(parseUser(userMap), isNew))
     }
 

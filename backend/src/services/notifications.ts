@@ -5,21 +5,43 @@ import { NotificationType, SAFETY_NOTIFICATION_TYPES } from '../types';
 
 // ─── Firebase Admin Init ─────────────────────────────────────────────────────
 
+// A malformed credential must disable pushes with a clear log line — NOT
+// crash the whole backend at boot (which also blocks every future deploy).
+let firebaseReady = false;
+
 if (!admin.apps.length) {
-  const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-  if (serviceAccount) {
-    admin.initializeApp({
-      credential: admin.credential.cert(JSON.parse(serviceAccount)),
-    });
-  } else {
-    // Falls back to GOOGLE_APPLICATION_CREDENTIALS env var
-    admin.initializeApp({
-      credential: admin.credential.applicationDefault(),
-    });
+  try {
+    const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+    if (serviceAccount) {
+      const parsed = JSON.parse(serviceAccount);
+      if (!parsed.project_id || !parsed.private_key || !parsed.client_email) {
+        throw new Error(
+          'FIREBASE_SERVICE_ACCOUNT_JSON is not a full service-account file ' +
+            '(expected the ENTIRE downloaded JSON, starting with "{")',
+        );
+      }
+      admin.initializeApp({
+        credential: admin.credential.cert(parsed),
+      });
+      firebaseReady = true;
+    } else {
+      // Falls back to GOOGLE_APPLICATION_CREDENTIALS env var
+      admin.initializeApp({
+        credential: admin.credential.applicationDefault(),
+      });
+      firebaseReady = true;
+    }
+  } catch (err: any) {
+    console.error(
+      '[Notifications] Firebase Admin init FAILED — push notifications are DISABLED:',
+      err.message,
+    );
   }
+} else {
+  firebaseReady = true;
 }
 
-const messaging = admin.messaging();
+const messaging = firebaseReady ? admin.messaging() : (null as unknown as admin.messaging.Messaging);
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -60,6 +82,7 @@ export async function sendPush(
   type: NotificationType,
   data: Record<string, string> = {}
 ): Promise<boolean> {
+  if (!firebaseReady) return false;
   try {
     // 1. Skip push if user is currently online (they'll get a socket toast)
     const isOnline = await redis.exists(`online:${userId}`);
