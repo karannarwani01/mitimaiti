@@ -95,6 +95,10 @@ object HttpClient {
 
     private val gson = GsonBuilder()
         .setDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
+        // Explicit nulls must reach the backend: sending {"religion_filter":null}
+        // is how a discovery filter gets CLEARED. Without this Gson drops null
+        // map entries and filters could never be un-set.
+        .serializeNulls()
         .create()
 
     val retrofit: Retrofit = Retrofit.Builder()

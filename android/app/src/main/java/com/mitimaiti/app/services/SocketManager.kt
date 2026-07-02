@@ -90,7 +90,8 @@ class SocketManager private constructor() {
                 }
             }
 
-            on("msg_read") { args ->
+            // Backend emits 'messages_read' (payload { matchId, readBy, readAt })
+            on("messages_read") { args ->
                 if (args.isNotEmpty()) {
                     _readReceipts.tryEmit(args[0] as JSONObject)
                 }
@@ -125,11 +126,26 @@ class SocketManager private constructor() {
 
     // ── Send events ──
 
-    fun sendMessage(matchId: String, content: String, msgType: String = "text") {
+    /**
+     * Send a message and surface the server ack. The backend rejects messages
+     * via the ack (rate limit, moderation block, Respect-First lock) — without
+     * reading it, rejected messages would silently look sent.
+     */
+    fun sendMessage(
+        matchId: String,
+        content: String,
+        msgType: String = "text",
+        onResult: ((success: Boolean, error: String?, messageId: String?) -> Unit)? = null
+    ) {
         socket?.emit("send_msg", JSONObject().apply {
             put("matchId", matchId)
             put("content", content)
             put("msgType", msgType)
+        }, io.socket.client.Ack { args ->
+            val ack = args.firstOrNull() as? JSONObject
+            val error = ack?.optString("error")?.takeIf { it.isNotBlank() }
+            val messageId = ack?.optString("messageId")?.takeIf { it.isNotBlank() }
+            onResult?.invoke(error == null, error, messageId)
         })
     }
 

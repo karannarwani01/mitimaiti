@@ -42,7 +42,21 @@ class ChatViewModel : ViewModel() {
      */
     var onMatchActivated: ((String, String) -> Unit)? = null
 
-    fun updateMessageText(value: String) { _messageText.value = value }
+    private var lastTypingEmit = 0L
+
+    fun updateMessageText(value: String) {
+        _messageText.value = value
+        // Let the other side see "typing…" — throttled to one emit per 2s
+        // (the backend debounces with a 3s Redis TTL).
+        val mid = _match.value?.id
+        if (value.isNotBlank() && mid != null) {
+            val now = System.currentTimeMillis()
+            if (now - lastTypingEmit > 2000) {
+                lastTypingEmit = now
+                SocketManager.shared.sendTyping(mid)
+            }
+        }
+    }
     val isLockedForMe: Boolean get() = _match.value?.let { it.firstMsgLocked && it.firstMsgByMe } ?: false
     val awaitingFirstMessage: Boolean get() = _match.value?.let { it.firstMsgBy == null } ?: true
     val showCountdown: Boolean get() = _match.value?.showCountdown ?: false
@@ -190,10 +204,27 @@ class ChatViewModel : ViewModel() {
                 )
             }
 
-            APIService.sendMessage(currentMatch.id, text)
+            APIService.sendMessage(currentMatch.id, text).onFailure { err ->
+                // Server rejected it (moderation, Respect-First lock, rate
+                // limit) — remove the optimistic bubble and tell the user.
+                _messages.value = _messages.value.filterNot { it.id == newMsg.id }
+                MessageRepository.setMessages(currentMatch.id, _messages.value)
+                if (currentMatch.firstMsgBy == null) {
+                    // Roll back the optimistic first-message lock
+                    _match.value = currentMatch
+                }
+                _error.value = (err as? com.mitimaiti.app.services.APIError.MessageRejected)?.reason
+                    ?: "Message could not be sent"
+            }
             _isSending.value = false
             // Real replies now arrive via SocketManager (no simulation).
         }
+    }
+
+    /** Tell the backend we left this chat so push notifications resume.
+     *  Without this the server suppresses pushes for up to an hour. */
+    fun leaveChat() {
+        _match.value?.id?.let { SocketManager.shared.leaveChat(it) }
     }
 
     fun sendIcebreaker(question: String) {
@@ -397,11 +428,14 @@ class ChatViewModel : ViewModel() {
 
     private fun checkAndUnlockIfReplied() {
         val cm = _match.value ?: return
+        // Server-loaded messages carry real UUID sender ids, so identify the
+        // other person's messages by their actual user id.
+        val otherId = cm.otherUser.id
         if ((cm.firstMsgLocked || cm.status == MatchStatus.PENDING_FIRST_MESSAGE) &&
-            cm.firstMsgBy == "current-user-id" &&
-            _messages.value.any { it.senderId != "current-user-id" }
+            cm.firstMsgByMe &&
+            _messages.value.any { it.senderId == otherId }
         ) {
-            val lastReply = _messages.value.lastOrNull { it.senderId != "current-user-id" }
+            val lastReply = _messages.value.lastOrNull { it.senderId == otherId }
             _match.value = cm.copy(
                 firstMsgLocked = false,
                 status = MatchStatus.ACTIVE,

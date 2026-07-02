@@ -117,21 +117,27 @@ router.post(
       );
     }
 
-    // Check total report count on this user (all time)
-    const { count: totalReportCount } = await supabase
+    // Check how many DISTINCT users have reported this user (all time).
+    // Counting raw reports would let one malicious reporter reach the
+    // threshold alone by filing repeat reports over several hours.
+    const { data: reporterRows } = await supabase
       .from('reports')
-      .select('*', { count: 'exact', head: true })
+      .select('reporter_id')
       .eq('reported_id', reportedId);
 
-    // Auto-hide if 5+ reports on this user
-    if (totalReportCount && totalReportCount >= AUTO_HIDE_THRESHOLD && !target.is_hidden) {
+    const distinctReporters = new Set(
+      (reporterRows || []).map((r: any) => r.reporter_id),
+    ).size;
+
+    // Auto-hide if 5+ distinct reporters on this user
+    if (distinctReporters >= AUTO_HIDE_THRESHOLD && !target.is_hidden) {
       await supabase
         .from('users')
         .update({ is_hidden: true })
         .eq('id', reportedId);
 
       console.warn(
-        `[Safety] AUTO-HIDE: User ${reportedId} received ${totalReportCount} total reports, setting is_hidden=true`
+        `[Safety] AUTO-HIDE: User ${reportedId} reported by ${distinctReporters} distinct users, setting is_hidden=true`
       );
     }
 

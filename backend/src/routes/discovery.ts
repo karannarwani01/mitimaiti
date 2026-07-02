@@ -32,7 +32,8 @@ const WEIGHT = {
   freshness: 0.05,
 };
 
-// Gold (90%+) interleave target positions
+// Gold (85%+, matching assignBadge in services/scoring) interleave target positions
+const GOLD_THRESHOLD = 85;
 const GOLD_POSITIONS = [0, 4, 9, 14, 19];
 
 // ─── Schemas ────────────────────────────────────────────────────────────────────
@@ -214,7 +215,7 @@ function interleaveFeed(candidates: ScoredCandidate[]): ScoredCandidate[] {
   const normal: ScoredCandidate[] = [];
 
   for (const c of candidates) {
-    if (c.culturalScore >= 90) gold.push(c);
+    if (c.culturalScore >= GOLD_THRESHOLD) gold.push(c);
     else if (c.culturalScore >= 65) great.push(c);
     else normal.push(c);
   }
@@ -293,8 +294,8 @@ router.get(
     } catch {
       // Check DB fallback
       if (mySettings?.passport_city) {
-        const passportExpiry = mySettings.passport_expires_at
-          ? new Date(mySettings.passport_expires_at)
+        const passportExpiry = mySettings.passport_expires
+          ? new Date(mySettings.passport_expires)
           : null;
         if (passportExpiry && passportExpiry > new Date()) {
           discoveryCity = mySettings.passport_city;
@@ -526,10 +527,12 @@ router.get(
 
     // Apply soft filters from additional settings (drinking, smoking, kids, fluency, gotra, etc.)
     // These require joining sindhi_profiles and personality_profiles
+    // Include the current user so gotra_filter='exclude_same' can compare
+    // against MY gotra (candidates-only meant it always no-oped).
     const { data: sindhiProfiles } = await supabase
       .from('sindhi_profiles')
       .select('user_id, sindhi_fluency, gotra')
-      .in('user_id', candidateIds);
+      .in('user_id', [...candidateIds, user.id]);
 
     const sindhiMap = new Map<string, any>();
     (sindhiProfiles || []).forEach((s: any) => sindhiMap.set(s.user_id, s));
@@ -567,16 +570,22 @@ router.get(
       // Soft filter: verified only
       if (verifiedOnly && !meta.is_verified) continue;
 
-      // Soft filter: smoking
+      // Soft filter: smoking (case-insensitive — clients send display casing)
       if (mySettings?.smoking_filter) {
         const personality = personalityMap.get(cId);
-        if (personality && personality.smoking && personality.smoking !== mySettings.smoking_filter) continue;
+        if (
+          personality?.smoking &&
+          personality.smoking.toLowerCase() !== mySettings.smoking_filter.toLowerCase()
+        ) continue;
       }
 
-      // Soft filter: drinking
+      // Soft filter: drinking (case-insensitive)
       if (mySettings?.drinking_filter) {
         const personality = personalityMap.get(cId);
-        if (personality && personality.drinking && personality.drinking !== mySettings.drinking_filter) continue;
+        if (
+          personality?.drinking &&
+          personality.drinking.toLowerCase() !== mySettings.drinking_filter.toLowerCase()
+        ) continue;
       }
 
       // Soft filter: fluency minimum
@@ -588,11 +597,15 @@ router.get(
         if (candidateFluency < minFluency) continue;
       }
 
-      // Soft filter: gotra exclusion (same gotra = traditionally incompatible)
+      // Soft filter: gotra. 'exclude_same' hides same-gotra profiles
+      // (traditionally incompatible); any other value shows only that gotra.
       if (mySettings?.gotra_filter === 'exclude_same') {
         const sindhi = sindhiMap.get(cId);
         const mySindhiData = sindhiMap.get(user.id);
         if (sindhi?.gotra && mySindhiData?.gotra && sindhi.gotra === mySindhiData.gotra) continue;
+      } else if (mySettings?.gotra_filter) {
+        const sindhi = sindhiMap.get(cId);
+        if (!sindhi?.gotra || sindhi.gotra.toLowerCase() !== mySettings.gotra_filter.toLowerCase()) continue;
       }
 
       // Soft filter: dietary
@@ -713,14 +726,49 @@ router.get(
       const { data: exploreCandidates } = await exploreQuery.limit(exploreCount * 3);
 
       if (exploreCandidates && exploreCandidates.length > 0) {
-        const exploreFiltered = exploreCandidates.filter((c: any) => !allExcludeIds.has(c.user_id));
+        const exploreFiltered = exploreCandidates.filter(
+          (c: any) => !allExcludeIds.has(c.user_id) && !snoozedIds.has(c.user_id),
+        );
 
-        for (const ec of exploreFiltered.slice(0, exploreCount)) {
+        // Re-apply the same safety gates as the main feed: banned, hidden,
+        // inactive 30d+, and incognito users must never surface via explore.
+        const exploreIds = exploreFiltered.map((c: any) => c.user_id);
+        const exploreMetaMap = new Map<string, any>();
+        const exploreIncognito = new Set<string>();
+
+        if (exploreIds.length > 0) {
+          const [{ data: exploreMeta }, { data: exploreSettings }] = await Promise.all([
+            supabase
+              .from('users')
+              .select('id, is_banned, is_hidden, is_verified, is_online, profile_completeness, last_active, created_at')
+              .in('id', exploreIds),
+            supabase
+              .from('user_settings')
+              .select('user_id, incognito_mode')
+              .in('user_id', exploreIds),
+          ]);
+          (exploreMeta || []).forEach((u: any) => exploreMetaMap.set(u.id, u));
+          (exploreSettings || []).forEach((s: any) => {
+            if (s.incognito_mode === true) exploreIncognito.add(s.user_id);
+          });
+        }
+
+        const exploreSafe = exploreFiltered.filter((c: any) => {
+          const meta = exploreMetaMap.get(c.user_id);
+          if (!meta) return false;
+          if (meta.is_banned || meta.is_hidden) return false;
+          if (meta.last_active && new Date(meta.last_active) < new Date(inactiveThreshold)) return false;
+          if (exploreIncognito.has(c.user_id) && !incognitoExceptionIds.has(c.user_id)) return false;
+          return true;
+        });
+
+        for (const ec of exploreSafe.slice(0, exploreCount)) {
           const { total: cs, badge: cb } = await getCachedCulturalScore(user.id, ec.user_id);
+          const meta = exploreMetaMap.get(ec.user_id);
           exploreCards.push({
             userId: ec.user_id,
             profile: ec,
-            userMeta: { is_verified: false, profile_completeness: 0 },
+            userMeta: meta || { is_verified: false, profile_completeness: 0 },
             culturalScore: cs,
             culturalBadge: cb,
             kundliScore: null,
@@ -757,10 +805,11 @@ router.get(
       { data: prompts },
       { data: interests },
       { data: dailyPromptAnswers },
+      { data: nameSettings },
     ] = await Promise.all([
       supabase
         .from('photos')
-        .select('user_id, url_medium, url_original, sort_order')
+        .select('user_id, url_medium, url_original, url_thumb, sort_order, is_primary, is_verified, is_video')
         .in('user_id', allPageIds)
         .order('sort_order')
         .limit(allPageIds.length * 6),
@@ -778,7 +827,17 @@ router.get(
         .from('users')
         .select('id, daily_prompt_answer')
         .in('id', allPageIds),
+      supabase
+        .from('user_settings')
+        .select('user_id, show_full_name')
+        .in('user_id', allPageIds),
     ]);
+
+    // Users who disabled "Show Full Name" appear as first name only
+    const hideFullNameIds = new Set<string>();
+    (nameSettings || []).forEach((s: any) => {
+      if (s.show_full_name === false) hideFullNameIds.add(s.user_id);
+    });
 
     const photoMap = new Map<string, any[]>();
     (photos || []).forEach((p: any) => {
@@ -843,10 +902,13 @@ router.get(
       const chattiData = chattiCardMap.get(c.userId);
       const basicsData = basicsCardMap.get(c.userId);
 
+      const firstName = c.profile.display_name?.split(' ')[0] || 'Unknown';
+      const hideFullName = hideFullNameIds.has(c.userId);
+
       return {
         id: c.userId,
-        first_name: c.profile.display_name?.split(' ')[0] || 'Unknown',
-        display_name: c.profile.display_name || 'Unknown',
+        first_name: firstName,
+        display_name: hideFullName ? firstName : (c.profile.display_name || 'Unknown'),
         age: calculateAge(c.profile.date_of_birth),
         city: c.profile.city,
         state: c.profile.state || null,
@@ -972,7 +1034,7 @@ router.post(
       .update({
         passport_city: city,
         passport_country: country,
-        passport_expires_at: expiresAt.toISOString(),
+        passport_expires: expiresAt.toISOString(),
       })
       .eq('user_id', user.id);
 

@@ -1158,6 +1158,11 @@ private struct ReadyStepContent: View {
     // out after onboarding. nil until the GET /me fetch resolves.
     @State private var realCompleteness: Int?
 
+    // Whether the onboarding profile PATCH has completed — gates "Go to
+    // Discover" so the save can't be cancelled by navigation.
+    @State private var profileSaved = false
+    @State private var savingBeforeExit = false
+
     private var completenessFraction: Double {
         Double(min(max(realCompleteness ?? 0, 0), 100)) / 100.0
     }
@@ -1198,15 +1203,38 @@ private struct ReadyStepContent: View {
                     }
                 }
 
-                // Go to Discover button
+                // Go to Discover button. Disabled until the profile PATCH
+                // resolves: navigating away tears down this view and cancels
+                // the in-flight save, which lost the whole onboarding profile
+                // and bounced users back into onboarding on next launch.
                 Button {
-                    onComplete()
+                    if profileSaved {
+                        onComplete()
+                    } else {
+                        Task {
+                            savingBeforeExit = true
+                            if let submitted = await vm.submitProfile() {
+                                realCompleteness = submitted
+                                profileSaved = true
+                            }
+                            savingBeforeExit = false
+                            if profileSaved { onComplete() }
+                        }
+                    }
                 } label: {
                     HStack(spacing: 8) {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 16, weight: .semibold))
-                        Text("✨ Go to Discover")
-                            .font(.system(size: 17, weight: .semibold))
+                        if savingBeforeExit || !profileSaved {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .scaleEffect(0.8)
+                            Text(savingBeforeExit ? "Saving your profile…" : "Finishing up…")
+                                .font(.system(size: 17, weight: .semibold))
+                        } else {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 16, weight: .semibold))
+                            Text("✨ Go to Discover")
+                                .font(.system(size: 17, weight: .semibold))
+                        }
                     }
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
@@ -1216,6 +1244,7 @@ private struct ReadyStepContent: View {
                             .fill(AppTheme.roseGradient)
                     )
                 }
+                .disabled(savingBeforeExit)
             }
 
             // Confetti overlay
@@ -1240,6 +1269,7 @@ private struct ReadyStepContent: View {
             // single source of truth used for matching / shown on ProfileView.
             if let submitted = await vm.submitProfile() {
                 realCompleteness = submitted
+                profileSaved = true
             } else if let user = try? await APIService.shared.fetchProfile() {
                 realCompleteness = user.profileCompleteness
             }

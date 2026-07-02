@@ -70,10 +70,12 @@ data class User(
     val isOnline: Boolean = false,
     val lastActive: Long? = null,
     val profileCompleteness: Int = 0,
-    val needsOnboarding: Boolean = false
+    val needsOnboarding: Boolean = false,
+    /** Server-computed age. Feed/inbox cards send `age` without a date of birth. */
+    val ageYears: Int? = null
 ) {
     val age: Int?
-        get() = dateOfBirth?.let { Period.between(it, LocalDate.now()).years }
+        get() = ageYears ?: dateOfBirth?.let { Period.between(it, LocalDate.now()).years }
 
     val primaryPhoto: UserPhoto?
         get() = photos.firstOrNull { it.isPrimary } ?: photos.firstOrNull()

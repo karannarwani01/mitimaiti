@@ -147,8 +147,15 @@ export function createSocketServer(httpServer?: HttpServer): Server {
           return ack?.({ error: 'Not authorized' });
         }
 
-        // Check match is still active
-        if (match.status !== 'active' || match.dissolved_at) {
+        // Check match is still live. Matches are created as
+        // 'pending_first_message' and only become 'active' after the first
+        // reply, so both statuses must be able to send here — requiring
+        // 'active' would reject every first message sent over the socket.
+        if (
+          match.dissolved_at ||
+          match.status === 'dissolved' ||
+          match.status === 'expired'
+        ) {
           return ack?.({ error: 'Match is no longer active' });
         }
 
@@ -204,9 +211,24 @@ export function createSocketServer(httpServer?: HttpServer): Server {
             if (match.first_msg_locked) {
               await supabase
                 .from('matches')
-                .update({ first_msg_locked: false })
+                .update({
+                  first_msg_locked: false,
+                  status: 'active',
+                  expires_at: null, // Clear timer once both have messaged
+                })
                 .eq('id', matchId);
             }
+          } else if (match.first_msg_locked && match.first_msg_by !== userId) {
+            // The receiver is replying to the first message — this unlocks
+            // the conversation and activates the match (same as the REST path).
+            await supabase
+              .from('matches')
+              .update({
+                first_msg_locked: false,
+                status: 'active',
+                expires_at: null, // Clear timer once both have messaged
+              })
+              .eq('id', matchId);
           }
         }
 
@@ -364,12 +386,12 @@ export function createSocketServer(httpServer?: HttpServer): Server {
           .eq('sender_id', otherId)
           .eq('is_read', false);
 
-        // Emit read receipt to other user with timestamp
-        io.to(`user:${otherId}`).emit('messages_read', {
-          matchId,
-          readBy: userId,
-          readAt,
-        });
+        // Emit read receipt to other user with timestamp.
+        // 'msg_read' is a legacy alias — clients installed before the event
+        // rename still listen for it.
+        const readPayload = { matchId, readBy: userId, readAt };
+        io.to(`user:${otherId}`).emit('messages_read', readPayload);
+        io.to(`user:${otherId}`).emit('msg_read', readPayload);
       } catch (err) {
         console.error('[Socket] enter_chat error:', err);
       }

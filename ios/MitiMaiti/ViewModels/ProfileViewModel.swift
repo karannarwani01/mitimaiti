@@ -26,9 +26,12 @@ class ProfileViewModel: ObservableObject {
     @Published var editSmoking = ""
     @Published var editDrinking = ""
     @Published var editExercise = ""
-    @Published var editFluency: SindhiFluency = .fluent
-    @Published var editFamilyValues: FamilyValues = .moderate
-    @Published var editFoodPreference: FoodPreference = .vegetarian
+    // Optional: nil means "user never set this" — sending a default value for
+    // an unset field would silently write fake cultural data to the profile
+    // (and skew the cultural compatibility score).
+    @Published var editFluency: SindhiFluency?
+    @Published var editFamilyValues: FamilyValues?
+    @Published var editFoodPreference: FoodPreference?
 
     private let api = APIService.shared
 
@@ -99,9 +102,9 @@ class ProfileViewModel: ObservableObject {
         editSmoking = user.smoking ?? ""
         editDrinking = user.drinking ?? ""
         editExercise = user.exercise ?? ""
-        editFluency = user.sindhiFluency ?? .fluent
-        editFamilyValues = user.familyValues ?? .moderate
-        editFoodPreference = user.foodPreference ?? .vegetarian
+        editFluency = user.sindhiFluency
+        editFamilyValues = user.familyValues
+        editFoodPreference = user.foodPreference
     }
 
     func saveProfile() {
@@ -128,15 +131,42 @@ class ProfileViewModel: ObservableObject {
         let rel = editReligion.trimmingCharacters(in: .whitespaces)
         if !rel.isEmpty { userFields["religion"] = rel }
 
-        var payload: [String: Any] = [
-            "sindhi": ["sindhi_fluency": editFluency.rawValue],
-            "chatti": [
-                "family_values": editFamilyValues.rawValue,
-                "food_preference": editFoodPreference.rawValue,
-            ],
-        ]
+        var payload: [String: Any] = [:]
+
+        // Only send cultural fields the user actually chose — defaults for
+        // unset fields would fabricate profile data. EditProfileView applies
+        // its edits into `user` before calling saveProfile, so `user` carries
+        // the freshest values for the extended Sindhi/personality fields.
+        var sindhi: [String: Any] = [:]
+        if let fluency = editFluency ?? user.sindhiFluency { sindhi["sindhi_fluency"] = fluency.rawValue }
+        if let v = user.motherTongue, !v.isEmpty { sindhi["mother_tongue"] = v }
+        if let v = user.sindhiDialect, !v.isEmpty { sindhi["sindhi_dialect"] = v }
+        if let v = user.communitySubGroup, !v.isEmpty { sindhi["community_sub_group"] = v }
+        if let v = user.gotra, !v.isEmpty { sindhi["gotra"] = v }
+        if !sindhi.isEmpty { payload["sindhi"] = sindhi }
+
+        var chatti: [String: Any] = [:]
+        if let values = editFamilyValues ?? user.familyValues { chatti["family_values"] = values.rawValue }
+        if let food = editFoodPreference ?? user.foodPreference { chatti["food_preference"] = food.rawValue }
+        if let v = user.festivalsCelebrated, !v.isEmpty { chatti["festivals_celebrated"] = v }
+        if let v = user.cuisinePreferences, !v.isEmpty { chatti["cuisine_preferences"] = v }
+        if let v = user.culturalActivities, !v.isEmpty { chatti["cultural_activities"] = v }
+        if !chatti.isEmpty { payload["chatti"] = chatti }
+
+        var personality: [String: Any] = [:]
+        if !user.interests.isEmpty { personality["interests"] = user.interests }
+        if let v = user.musicPreferences, !v.isEmpty { personality["music_preferences"] = v }
+        if let v = user.movieGenres, !v.isEmpty { personality["movie_genres"] = v }
+        if let v = user.travelStyle, !v.isEmpty { personality["travel_style"] = v }
+        if !personality.isEmpty { payload["personality"] = personality }
+
         if !basics.isEmpty { payload["basics"] = basics }
         if !userFields.isEmpty { payload["user"] = userFields }
+        guard !payload.isEmpty else {
+            isSaving = false
+            saveSuccess = true
+            return
+        }
 
         Task {
             do {

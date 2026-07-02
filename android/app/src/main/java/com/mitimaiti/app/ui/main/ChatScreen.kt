@@ -247,6 +247,12 @@ fun ChatScreen(
 
     LaunchedEffect(match) { viewModel.loadMessages(match) }
 
+    // Tell the backend when we leave this chat so push notifications for it
+    // resume (enter_chat suppresses them for up to an hour otherwise).
+    DisposableEffect(match.id) {
+        onDispose { viewModel.leaveChat() }
+    }
+
     // 1-hour expiry warning — fires once per match per session
     LaunchedEffect(match.id, match.expiresAt) {
         val expiresAt = match.expiresAt ?: return@LaunchedEffect

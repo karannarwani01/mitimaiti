@@ -97,6 +97,11 @@ struct ChatView: View {
             chatVM.loadMessages(for: match)
             chatVM.markUnreadMessagesAsRead()
         }
+        .onDisappear {
+            // Resume push notifications for this chat (enter_chat suppresses
+            // them server-side for up to an hour otherwise)
+            chatVM.leaveChat()
+        }
         .onChange(of: chatVM.chatUnlocked) { _, unlocked in
             if unlocked {
                 withAnimation(.spring(response: 0.4)) {

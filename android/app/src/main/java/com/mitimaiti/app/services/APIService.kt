@@ -112,6 +112,7 @@ object APIService {
             ?.let { UserPrefs.setFirstName(it) }
         setTokens(token, refresh)
         tokenManager?.saveTokens(token, refresh, userId)
+        Message.currentUserId = userId
         SocketManager.shared.connect(token)
         return Result.success(Pair(parseUser(userMap), isNew))
     }
@@ -121,8 +122,13 @@ object APIService {
     suspend fun fetchProfile(): Result<User> {
         return try {
             val response = api.getProfile()
-            if (response.isSuccessful) Result.success(parseUser(flattenMe(response.body())))
-            else Result.failure(APIError.ServerError)
+            if (response.isSuccessful) {
+                val user = parseUser(flattenMe(response.body()))
+                // Session restore path: make sure message ownership checks know
+                // who "me" is even when the auth verify flow didn't run.
+                if (user.id.isNotEmpty()) Message.currentUserId = user.id
+                Result.success(user)
+            } else Result.failure(APIError.ServerError)
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
 
@@ -147,6 +153,23 @@ object APIService {
         }
         body["photos"]?.let { flat["photos"] = it }
         return flat
+    }
+
+    /** Raw user_settings row + user status flags from GET /v1/me, for the
+     *  Settings screen to seed its state from the server instead of hardcoded
+     *  defaults. */
+    suspend fun fetchSettings(): Result<Map<String, Any?>> {
+        return try {
+            val response = api.getProfile()
+            if (response.isSuccessful) {
+                val body = response.body()
+                val merged = mutableMapOf<String, Any?>()
+                (body?.get("settings") as? Map<*, *>)?.forEach { (k, v) -> if (k is String) merged[k] = v }
+                // is_snoozed lives on the users table
+                (body?.get("user") as? Map<*, *>)?.get("is_snoozed")?.let { merged["is_snoozed"] = it }
+                Result.success(merged)
+            } else Result.failure(APIError.ServerError)
+        } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
 
     suspend fun updateProfile(updates: Map<String, Any>): Result<User> {
@@ -258,8 +281,12 @@ object APIService {
             val response = api.getInbox()
             if (response.isSuccessful) {
                 val body = response.body() ?: return Result.success(Pair(emptyList(), emptyList()))
-                val likes = parseLikes(body["liked_you"] as? List<*>)
-                val matches = parseMatches(body["matches"] as? List<*>)
+                // Backend shape: { liked_you: { count, profiles: [...] },
+                //                  matches:   { count, profiles: [...] } }
+                val likedYouObj = body["liked_you"] as? Map<*, *>
+                val matchesObj = body["matches"] as? Map<*, *>
+                val likes = parseLikes(likedYouObj?.get("profiles") as? List<*>)
+                val matches = parseMatches(matchesObj?.get("profiles") as? List<*>)
                 Result.success(Pair(likes, matches))
             } else Result.failure(APIError.ServerError)
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
@@ -279,14 +306,48 @@ object APIService {
 
     suspend fun sendMessage(matchId: String, content: String, type: MessageType = MessageType.TEXT): Result<Message> {
         if (SocketManager.shared.isConnected.value) {
-            SocketManager.shared.sendMessage(matchId, content, type.value)
-            return Result.success(Message(matchId = matchId, senderId = tokenManager?.getUserId().toString(), content = content, msgType = type, status = MessageStatus.SENDING))
+            val senderId = tokenManager?.getUserId().toString()
+            // Await the server ack — rejections (moderation, Respect-First lock,
+            // rate limit) arrive only through it.
+            val ack = kotlinx.coroutines.withTimeoutOrNull(10_000) {
+                kotlinx.coroutines.suspendCancellableCoroutine<Pair<String?, String?>> { cont ->
+                    SocketManager.shared.sendMessage(matchId, content, type.value) { _, error, messageId ->
+                        if (cont.isActive) cont.resume(Pair(error, messageId), null)
+                    }
+                }
+            }
+            return when {
+                // No ack within 10s — keep the optimistic bubble; the server
+                // most likely got it and the socket was just slow.
+                ack == null -> Result.success(Message(matchId = matchId, senderId = senderId, content = content, msgType = type, status = MessageStatus.SENT))
+                ack.first != null -> Result.failure(APIError.MessageRejected(ack.first!!))
+                else -> Result.success(Message(
+                    id = ack.second ?: java.util.UUID.randomUUID().toString(),
+                    matchId = matchId, senderId = senderId, content = content,
+                    msgType = type, status = MessageStatus.SENT
+                ))
+            }
         }
         return try {
-            val response = api.sendMessage(matchId, mapOf("content" to content, "msgType" to type.value))
+            val response = api.sendMessage(matchId, mapOf("content" to content, "type" to type.value))
             if (response.isSuccessful) Result.success(parseMessage(response.body()?.get("message") as? Map<*, *>))
             else Result.failure(APIError.ServerError)
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
+    }
+
+    /** Media/audio uploads return a FLAT payload:
+     *  { message_id, msg_type, media_url, media_type, created_at[, duration_seconds] } */
+    private fun parseMediaSendResponse(matchId: String, body: Map<*, *>?): Message {
+        return Message(
+            id = body?.get("message_id") as? String ?: java.util.UUID.randomUUID().toString(),
+            matchId = matchId,
+            senderId = Message.currentUserId ?: "current-user-id",
+            mediaUrl = body?.get("media_url") as? String,
+            msgType = (body?.get("msg_type") as? String)?.let { t -> MessageType.entries.firstOrNull { it.value == t } } ?: MessageType.PHOTO,
+            status = MessageStatus.SENT,
+            createdAt = parseTimestamp(body?.get("created_at")) ?: System.currentTimeMillis(),
+            durationSeconds = (body?.get("duration_seconds") as? Number)?.toInt() ?: 0
+        )
     }
 
     suspend fun sendChatMedia(matchId: String, bytes: ByteArray, mimeType: String = "image/jpeg"): Result<Message> {
@@ -294,7 +355,7 @@ object APIService {
             val body = bytes.toRequestBody(mimeType.toMediaTypeOrNull())
             val part = MultipartBody.Part.createFormData("media", "chat.jpg", body)
             val response = api.sendMedia(matchId, part)
-            if (response.isSuccessful) Result.success(parseMessage(response.body()?.get("message") as? Map<*, *>))
+            if (response.isSuccessful) Result.success(parseMediaSendResponse(matchId, response.body()))
             else Result.failure(APIError.ServerError)
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
@@ -306,7 +367,7 @@ object APIService {
             val part = MultipartBody.Part.createFormData("audio", "voice.m4a", body)
             val durationBody = durationSeconds.toString().toRequestBody("text/plain".toMediaTypeOrNull())
             val response = api.sendAudio(matchId, part, durationBody)
-            if (response.isSuccessful) Result.success(parseMessage(response.body()?.get("message") as? Map<*, *>))
+            if (response.isSuccessful) Result.success(parseMediaSendResponse(matchId, response.body()))
             else Result.failure(APIError.ServerError)
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
@@ -359,7 +420,13 @@ object APIService {
             if (response.isSuccessful) {
                 val body = response.body() ?: return Result.success(Pair(emptyList(), emptyList()))
                 val members = parseFamilyMembers(body["members"] as? List<*>)
-                val suggestions = parseFamilySuggestions(body["suggestions"] as? List<*>)
+                // Suggestions live on a separate endpoint (GET /family/suggestions)
+                val suggestions = try {
+                    val sugResponse = api.getFamilySuggestions()
+                    if (sugResponse.isSuccessful) {
+                        parseFamilySuggestions(sugResponse.body()?.get("suggestions") as? List<*>)
+                    } else emptyList()
+                } catch (e: Exception) { emptyList() }
                 Result.success(Pair(members, suggestions))
             } else Result.failure(APIError.ServerError)
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
@@ -405,6 +472,24 @@ object APIService {
 
     // ──────────────────── PARSERS ────────────────────
 
+    /** Backend sends ISO-8601 strings for timestamps; some older paths sent epoch millis. */
+    private fun parseTimestamp(value: Any?): Long? = when (value) {
+        is Number -> value.toLong()
+        is String -> try { java.time.Instant.parse(value).toEpochMilli() } catch (e: Exception) {
+            try { java.time.OffsetDateTime.parse(value).toInstant().toEpochMilli() } catch (e2: Exception) { null }
+        }
+        else -> null
+    }
+
+    private fun parseCulturalBadge(value: Any?, score: Int): CulturalBadge =
+        when ((value as? String)?.lowercase()) {
+            "gold" -> CulturalBadge.GOLD
+            "green", "great" -> CulturalBadge.GREEN
+            "orange" -> CulturalBadge.ORANGE
+            "none" -> CulturalBadge.NONE
+            else -> when { score >= 85 -> CulturalBadge.GOLD; score >= 65 -> CulturalBadge.GREEN; score >= 40 -> CulturalBadge.ORANGE; else -> CulturalBadge.NONE }
+        }
+
     private fun parseUser(data: Map<*, *>?): User {
         if (data == null) return User(id = "", phone = "")
         return User(
@@ -443,7 +528,9 @@ object APIService {
             interests = (data["interests"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
             isOnline = data["is_online"] as? Boolean ?: false,
             profileCompleteness = (data["profile_completeness"] as? Number)?.toInt() ?: 0,
-            needsOnboarding = data["needs_onboarding"] as? Boolean ?: false
+            needsOnboarding = data["needs_onboarding"] as? Boolean ?: false,
+            // Feed/inbox cards send a computed `age` and no date_of_birth
+            ageYears = (data["age"] as? Number)?.toInt()
         )
     }
 
@@ -469,11 +556,13 @@ object APIService {
         return data?.mapNotNull { item ->
             val like = item as? Map<*, *> ?: return@mapNotNull null
             val score = (like["cultural_score"] as? Number)?.toInt() ?: 0
+            // Inbox liked_you items are FLAT cards (user fields at top level)
             LikedYouCard(
                 id = like["id"] as? String ?: "",
-                user = parseUser(like["user"] as? Map<*, *>),
+                user = parseUser(like),
                 culturalScore = score,
-                culturalBadge = when { score >= 85 -> CulturalBadge.GOLD; score >= 65 -> CulturalBadge.GREEN; else -> CulturalBadge.ORANGE }
+                culturalBadge = parseCulturalBadge(like["cultural_badge"], score),
+                likedAt = parseTimestamp(like["liked_at"]) ?: System.currentTimeMillis()
             )
         } ?: emptyList()
     }
@@ -484,18 +573,38 @@ object APIService {
 
     private fun parseMatch(data: Map<*, *>?): Match {
         if (data == null) return Match(otherUser = User(id = "", phone = ""))
+        // Inbox match items are FLAT: match_id, user_id, display_name, age,
+        // city, is_verified, photo {url,url_thumb,url_medium}, ISO timestamps,
+        // and last_message as an object {content, sent_at, is_you, msg_type}.
+        val photo = data["photo"] as? Map<*, *>
+        val otherUser = User(
+            id = data["user_id"] as? String ?: "",
+            displayName = data["display_name"] as? String ?: "",
+            city = data["city"] as? String ?: "",
+            isVerified = data["is_verified"] as? Boolean ?: false,
+            ageYears = (data["age"] as? Number)?.toInt(),
+            photos = photo?.let {
+                listOf(UserPhoto(
+                    url = it["url"] as? String ?: "",
+                    urlThumb = it["url_thumb"] as? String,
+                    urlMedium = it["url_medium"] as? String,
+                    isPrimary = true
+                ))
+            } ?: emptyList()
+        )
+        val lastMsg = data["last_message"] as? Map<*, *>
         return Match(
-            id = data["id"] as? String ?: "",
-            otherUser = parseUser(data["other_user"] as? Map<*, *>),
+            id = data["match_id"] as? String ?: data["id"] as? String ?: "",
+            otherUser = otherUser,
             status = (data["status"] as? String)?.let { s -> MatchStatus.entries.firstOrNull { it.value == s } } ?: MatchStatus.PENDING_FIRST_MESSAGE,
-            matchedAt = (data["matched_at"] as? Number)?.toLong() ?: System.currentTimeMillis(),
-            expiresAt = (data["expires_at"] as? Number)?.toLong(),
-            lastMessage = data["last_message"] as? String,
+            matchedAt = parseTimestamp(data["matched_at"]) ?: System.currentTimeMillis(),
+            expiresAt = parseTimestamp(data["expires_at"]),
+            lastMessage = lastMsg?.get("content") as? String,
             unreadCount = (data["unread_count"] as? Number)?.toInt() ?: 0,
             firstMsgBy = data["first_msg_by"] as? String,
             firstMsgByMe = data["first_msg_by_me"] as? Boolean ?: false,
             firstMsgLocked = data["first_msg_locked"] as? Boolean ?: false,
-            firstMsgAt = (data["first_msg_at"] as? Number)?.toLong()
+            firstMsgAt = parseTimestamp(data["first_msg_at"])
         )
     }
 
@@ -513,7 +622,7 @@ object APIService {
             mediaUrl = data["media_url"] as? String,
             msgType = (data["msg_type"] as? String)?.let { t -> MessageType.entries.firstOrNull { it.value == t } } ?: MessageType.TEXT,
             status = if (data["is_read"] as? Boolean == true) MessageStatus.READ else MessageStatus.DELIVERED,
-            createdAt = (data["created_at"] as? Number)?.toLong() ?: System.currentTimeMillis()
+            createdAt = parseTimestamp(data["created_at"]) ?: parseTimestamp(data["sent_at"]) ?: System.currentTimeMillis()
         )
     }
 
@@ -544,11 +653,29 @@ object APIService {
     private fun parseFamilySuggestions(data: List<*>?): List<FamilySuggestion> {
         return data?.mapNotNull { item ->
             val s = item as? Map<*, *> ?: return@mapNotNull null
+            // Backend shape: { id, suggested_user_id, suggested_by: { user_id,
+            // display_name }, suggested_profile: { display_name, city, country,
+            // age, photo }, note, status, created_at }
+            val by = s["suggested_by"] as? Map<*, *>
+            val profile = s["suggested_profile"] as? Map<*, *>
             FamilySuggestion(
                 id = s["id"] as? String ?: "",
-                suggestedBy = parseFamilyMembers(listOf(s["suggested_by"])).firstOrNull() ?: return@mapNotNull null,
-                suggestedUser = parseUser(s["suggested_user"] as? Map<*, *>),
-                note = s["note"] as? String
+                suggestedBy = FamilyMember(
+                    id = by?.get("user_id") as? String ?: "",
+                    name = by?.get("display_name") as? String ?: "Family Member"
+                ),
+                suggestedUser = User(
+                    id = s["suggested_user_id"] as? String ?: "",
+                    displayName = profile?.get("display_name") as? String ?: "",
+                    city = profile?.get("city") as? String ?: "",
+                    country = profile?.get("country") as? String ?: "",
+                    ageYears = (profile?.get("age") as? Number)?.toInt(),
+                    photos = (profile?.get("photo") as? String)?.let {
+                        listOf(UserPhoto(url = it, urlThumb = it, isPrimary = true))
+                    } ?: emptyList()
+                ),
+                note = s["note"] as? String,
+                suggestedAt = parseTimestamp(s["created_at"]) ?: System.currentTimeMillis()
             )
         } ?: emptyList()
     }
@@ -562,4 +689,6 @@ sealed class APIError : Exception() {
     object ServerError : APIError()
     /** Server's 6-photo cap (400 MAX_PHOTOS). Treated as non-fatal in onboarding. */
     object PhotoLimitReached : APIError()
+    /** Server rejected a chat message (moderation, Respect-First lock, rate limit). */
+    data class MessageRejected(val reason: String) : APIError()
 }

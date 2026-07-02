@@ -39,6 +39,41 @@ class FeedViewModel : ViewModel() {
 
     fun loadFeed() { viewModelScope.launch { _isLoading.value = true; APIService.fetchFeed().onSuccess { _cards.value = it }.onFailure { _error.value = "Failed to load profiles" }; _isLoading.value = false } }
 
+    /**
+     * Persist the Discover filter sheet to the backend (user_settings drives
+     * the feed query server-side), then reload the deck. Previously "Show
+     * Results" only mutated local state and the feed never changed.
+     */
+    fun applyFilters(state: com.mitimaiti.app.ui.components.FilterState) {
+        viewModelScope.launch {
+            val settings = mutableMapOf<String, Any?>(
+                "age_min" to state.ageMin,
+                "age_max" to state.ageMax,
+                "height_min" to state.heightMin,
+                "height_max" to state.heightMax,
+                "gender_preference" to when (state.genderPreference) {
+                    ShowMe.MEN -> "men"; ShowMe.WOMEN -> "women"; ShowMe.EVERYONE -> "everyone"
+                },
+                "verified_only" to state.verifiedOnly,
+                "intent_filter" to state.intentFilter?.name?.lowercase(),
+                "religion_filter" to state.religionFilter,
+                "fluency_filter" to state.fluencyFilter?.name?.lowercase(),
+                "gotra_filter" to state.gotraFilter,
+                "dietary_filter" to state.dietaryFilter?.name?.lowercase(),
+                "education_filter" to state.educationFilter,
+                "smoking_filter" to state.smokingFilter,
+                "drinking_filter" to state.drinkingFilter,
+            )
+            APIService.updateProfile(mapOf("settings" to settings))
+            // Refetch with the new filters applied server-side
+            _isLoading.value = true
+            APIService.fetchFeed()
+                .onSuccess { _cards.value = it }
+                .onFailure { _error.value = "Failed to load profiles" }
+            _isLoading.value = false
+        }
+    }
+
     fun likeUser() {
         val cur = _cards.value.toMutableList(); if (cur.isEmpty() || _dailyLikesUsed.value >= MAX_DAILY_LIKES) return
         val card = cur.removeAt(0); _cards.value = cur; _dailyLikesUsed.value++

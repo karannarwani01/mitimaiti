@@ -141,12 +141,35 @@ const settingsSchema = z
     discovery_enabled: z.boolean().optional(),
     show_online_status: z.boolean().optional(),
     show_distance: z.boolean().optional(),
+    show_full_name: z.boolean().optional(),
     push_notifications: z.boolean().optional(),
     email_notifications: z.boolean().optional(),
     age_min: z.number().int().min(18).max(99).optional(),
     age_max: z.number().int().min(18).max(99).optional(),
     distance_km: z.number().int().min(1).max(500).optional(),
     gender_preference: z.enum(['men', 'women', 'everyone']).optional(),
+    incognito_mode: z.boolean().optional(),
+    // Discovery filters (null clears a filter; discovery.ts reads these names)
+    verified_only: z.boolean().optional(),
+    intent_filter: z.enum(['casual', 'serious', 'open', 'marriage']).nullable().optional(),
+    religion_filter: z.string().max(100).nullable().optional(),
+    height_min: z.number().int().min(120).max(240).nullable().optional(),
+    height_max: z.number().int().min(120).max(240).nullable().optional(),
+    education_filter: z.string().max(100).nullable().optional(),
+    smoking_filter: z.string().max(50).nullable().optional(),
+    drinking_filter: z.string().max(50).nullable().optional(),
+    fluency_filter: z
+      .enum(['native', 'fluent', 'conversational', 'basic', 'learning', 'none'])
+      .nullable()
+      .optional(),
+    // 'exclude_same' hides same-gotra profiles (traditional incompatibility);
+    // any other value shows only candidates of that specific gotra.
+    gotra_filter: z.string().max(100).nullable().optional(),
+    dietary_filter: z
+      .enum(['vegetarian', 'non_vegetarian', 'vegan', 'jain', 'eggetarian'])
+      .nullable()
+      .optional(),
+    kundli_min: z.number().int().min(0).max(36).optional(),
   })
   .strict();
 
@@ -159,6 +182,8 @@ const userSchema = z
     occupation: z.string().max(100).optional(),
     company: z.string().max(100).optional(),
     religion: z.string().max(100).optional(),
+    // Snooze pauses discovery without hiding the account permanently
+    is_snoozed: z.boolean().optional(),
   })
   .strict();
 
@@ -636,7 +661,7 @@ router.patch(
     // userFields splits between users (intent) and basic_profiles (education,
     // occupation, company, religion).
     if (userFields && Object.keys(userFields).length > 0) {
-      const USER_TABLE_KEYS = new Set(['intent']);
+      const USER_TABLE_KEYS = new Set(['intent', 'is_snoozed']);
       const usersUpdate: Record<string, any> = {};
       const basicProfilesUpdate: Record<string, any> = {};
       for (const [k, v] of Object.entries(userFields)) {

@@ -91,7 +91,11 @@ struct User: Identifiable, Codable, Hashable {
     var isOnline: Bool
     var lastActive: Date?
 
+    /// Server-computed age. Feed/inbox cards send `age` without a date of birth.
+    var ageYears: Int?
+
     var age: Int {
+        if let ageYears { return ageYears }
         guard let dob = dateOfBirth else { return 0 }
         return Calendar.current.dateComponents([.year], from: dob, to: Date()).year ?? 0
     }
@@ -148,7 +152,8 @@ struct User: Identifiable, Codable, Hashable {
         petPreference: String? = nil,
         languages: [String]? = nil,
         isOnline: Bool = false,
-        lastActive: Date? = nil
+        lastActive: Date? = nil,
+        ageYears: Int? = nil
     ) {
         self.id = id
         self.phone = phone
@@ -198,5 +203,6 @@ struct User: Identifiable, Codable, Hashable {
         self.languages = languages
         self.isOnline = isOnline
         self.lastActive = lastActive
+        self.ageYears = ageYears
     }
 }

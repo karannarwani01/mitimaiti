@@ -140,17 +140,17 @@ fun SettingsScreen(
                     }
                     HorizontalDivider(color = colors.borderSubtle)
                     SettingsToggle("Incognito Mode", "Browse without being seen", incognitoMode) {
-                        viewModel.incognitoMode.value = it
+                        viewModel.setIncognitoMode(it)
                         viewModel.showToast("Incognito ${if (it) "enabled" else "disabled"}")
                     }
                     HorizontalDivider(color = colors.borderSubtle)
                     SettingsToggle("Show Full Name", "Display your full name on profile", showFullName) {
-                        viewModel.showFullName.value = it
+                        viewModel.setShowFullName(it)
                         viewModel.showToast("Full name ${if (it) "shown" else "hidden"}")
                     }
                     HorizontalDivider(color = colors.borderSubtle)
                     SettingsToggle("Snooze", "Pause all activity temporarily", isSnoozed) {
-                        viewModel.isSnoozed.value = it
+                        viewModel.setSnoozed(it)
                         viewModel.showToast(if (it) "Profile snoozed" else "Welcome back!")
                     }
                 }
@@ -220,8 +220,7 @@ fun SettingsScreen(
                         RangeSlider(
                             value = heightMin.toFloat()..heightMax.toFloat(),
                             onValueChange = { range ->
-                                viewModel.heightMin.value = range.start.toInt()
-                                viewModel.heightMax.value = range.endInclusive.toInt()
+                                viewModel.setHeightRange(range.start.toInt(), range.endInclusive.toInt())
                             },
                             valueRange = 140f..210f,
                             colors = SliderDefaults.colors(
@@ -242,7 +241,7 @@ fun SettingsScreen(
 
                     // Verified Only toggle
                     SettingsToggle("Verified Only", "Only show verified profiles", verifiedOnly) {
-                        viewModel.verifiedOnly.value = it
+                        viewModel.setVerifiedOnly(it)
                         viewModel.showToast(if (it) "Showing verified only" else "Showing all profiles")
                     }
                 }
@@ -703,7 +702,7 @@ fun SettingsScreen(
                 options = listOf("Any") + SindhiFluency.entries.map { it.displayName },
                 selected = fluencyFilter?.displayName ?: "Any",
                 onSelect = { value ->
-                    viewModel.fluencyFilter.value = SindhiFluency.entries.firstOrNull { it.displayName == value }
+                    viewModel.setFluencyFilter(SindhiFluency.entries.firstOrNull { it.displayName == value })
                     viewModel.showToast("Fluency: $value")
                     showFluencyPicker = false
                 },
@@ -729,7 +728,7 @@ fun SettingsScreen(
                 options = listOf("Any", "Hindu", "Muslim", "Sikh", "Jain", "Christian", "Other"),
                 selected = religionFilter ?: "Any",
                 onSelect = { value ->
-                    viewModel.religionFilter.value = if (value == "Any") null else value
+                    viewModel.setReligionFilter(if (value == "Any") null else value)
                     viewModel.showToast("Religion: $value")
                     showReligionPicker = false
                 },
@@ -739,10 +738,18 @@ fun SettingsScreen(
         if (showGotraPicker) {
             PickerSheet(
                 title = "Gotra",
-                options = listOf("Any", "Advani", "Bijlani", "Chandiramani", "Daswani", "Gidwani", "Keswani", "Lalwani", "Makhija", "Motwani", "Tolani", "Wadhwa", "Other"),
-                selected = gotraFilter ?: "Any",
+                options = listOf("Any", "Exclude same gotra", "Advani", "Bijlani", "Chandiramani", "Daswani", "Gidwani", "Keswani", "Lalwani", "Makhija", "Motwani", "Tolani", "Wadhwa", "Other"),
+                selected = when (gotraFilter) {
+                    null -> "Any"
+                    "exclude_same" -> "Exclude same gotra"
+                    else -> gotraFilter ?: "Any"
+                },
                 onSelect = { value ->
-                    viewModel.gotraFilter.value = if (value == "Any") null else value
+                    viewModel.setGotraFilter(when (value) {
+                        "Any" -> null
+                        "Exclude same gotra" -> "exclude_same"
+                        else -> value
+                    })
                     viewModel.showToast("Gotra: $value")
                     showGotraPicker = false
                 },
@@ -755,7 +762,7 @@ fun SettingsScreen(
                 options = listOf("Any") + FoodPreference.entries.map { it.displayName },
                 selected = dietaryFilter?.displayName ?: "Any",
                 onSelect = { value ->
-                    viewModel.dietaryFilter.value = FoodPreference.entries.firstOrNull { it.displayName == value }
+                    viewModel.setDietaryFilter(FoodPreference.entries.firstOrNull { it.displayName == value })
                     viewModel.showToast("Diet: $value")
                     showDietaryPicker = false
                 },
@@ -768,7 +775,7 @@ fun SettingsScreen(
                 options = listOf("Any", "High School", "Bachelor's", "Master's", "Doctorate", "Professional"),
                 selected = educationFilter ?: "Any",
                 onSelect = { value ->
-                    viewModel.educationFilter.value = if (value == "Any") null else value
+                    viewModel.setEducationFilter(if (value == "Any") null else value)
                     viewModel.showToast("Education: $value")
                     showEducationPicker = false
                 },
@@ -781,7 +788,7 @@ fun SettingsScreen(
                 options = listOf("Any", "Never", "Sometimes", "Regularly"),
                 selected = smokingFilter ?: "Any",
                 onSelect = { value ->
-                    viewModel.smokingFilter.value = if (value == "Any") null else value
+                    viewModel.setSmokingFilter(if (value == "Any") null else value)
                     viewModel.showToast("Smoking: $value")
                     showSmokingPicker = false
                 },
@@ -794,7 +801,7 @@ fun SettingsScreen(
                 options = listOf("Any", "Never", "Socially", "Regularly"),
                 selected = drinkingFilter ?: "Any",
                 onSelect = { value ->
-                    viewModel.drinkingFilter.value = if (value == "Any") null else value
+                    viewModel.setDrinkingFilter(if (value == "Any") null else value)
                     viewModel.showToast("Drinking: $value")
                     showDrinkingPicker = false
                 },
@@ -820,7 +827,7 @@ fun SettingsScreen(
                 options = listOf("Any") + Intent.entries.map { it.displayName },
                 selected = intentFilter?.displayName ?: "Any",
                 onSelect = { value ->
-                    viewModel.intentFilter.value = Intent.entries.firstOrNull { it.displayName == value }
+                    viewModel.setIntentFilter(Intent.entries.firstOrNull { it.displayName == value })
                     viewModel.showToast("Intent: $value")
                     showIntentPicker = false
                 },

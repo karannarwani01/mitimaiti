@@ -279,9 +279,17 @@ fun DiscoverScreen(viewModel: FeedViewModel, onNavigateToEditProfile: () -> Unit
         if (showFilters) {
             FilterSheet(
                 filterState = filterState,
-                onFilterChanged = { filterState = it },
+                onFilterChanged = {
+                    filterState = it
+                    // Persist to the backend and reload the deck — the feed
+                    // query applies these filters server-side.
+                    viewModel.applyFilters(it)
+                },
                 onDismiss = { showFilters = false },
-                onReset = { filterState = FilterState() }
+                onReset = {
+                    filterState = FilterState()
+                    viewModel.applyFilters(FilterState())
+                }
             )
         }
     }

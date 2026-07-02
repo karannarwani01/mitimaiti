@@ -26,6 +26,7 @@ struct DiscoverView: View {
             }
             .sheet(isPresented: $showFilters) {
                 FilterSheetView()
+                    .environmentObject(feedVM)
             }
             .sheet(isPresented: $showNotifications) {
                 NotificationPanelView()
@@ -905,6 +906,7 @@ private struct DimensionProgressRow: View {
 struct FilterSheetView: View {
     @Environment(\.dismiss) var dismiss
     @Environment(\.adaptiveColors) private var colors
+    @EnvironmentObject var feedVM: FeedViewModel
 
     // MARK: - Tab
     @State private var selectedTab: Int = 0
@@ -1295,6 +1297,7 @@ struct FilterSheetView: View {
 
     private var showResultsButton: some View {
         Button {
+            applyFilters()
             dismiss()
         } label: {
             Text("Show Results")
@@ -1306,6 +1309,45 @@ struct FilterSheetView: View {
                     Capsule().fill(AppTheme.rose)
                 )
         }
+    }
+
+    /// Persist the chosen filters to the backend and reload the deck. The
+    /// backend filters are single-valued, so multi-select chips send their
+    /// first selection (NSNull clears a filter).
+    private func applyFilters() {
+        func single(_ set: Set<String>, transform: (String) -> String = { $0 }) -> Any {
+            set.first.map(transform) ?? NSNull()
+        }
+
+        let intentMap = [
+            "Marriage": "marriage",
+            "Open to anything": "open",
+            "Something casual": "casual",
+            "Something serious": "serious",
+        ]
+        let dietaryMap = [
+            "Veg": "vegetarian",
+            "Non-Veg": "non_vegetarian",
+            "Vegan": "vegan",
+            "Jain": "jain",
+        ]
+
+        let settings: [String: Any] = [
+            "age_min": Int(ageMin),
+            "age_max": Int(ageMax),
+            "height_min": Int(heightMin),
+            "height_max": Int(heightMax),
+            "verified_only": verifiedOnly,
+            "intent_filter": selectedIntents.first.flatMap { intentMap[$0] } ?? NSNull(),
+            "religion_filter": single(selectedReligion),
+            "dietary_filter": selectedDietary.first.flatMap { dietaryMap[$0] } ?? NSNull(),
+            "gotra_filter": single(selectedGotra),
+            "fluency_filter": single(selectedFluency) { $0.lowercased() },
+            "education_filter": single(selectedEducation),
+            "smoking_filter": single(selectedSmoking),
+            "drinking_filter": single(selectedDrinking),
+        ]
+        feedVM.applyFilters(settings)
     }
 
     // MARK: - Reusable sub-views

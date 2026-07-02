@@ -37,6 +37,25 @@ class FeedViewModel: ObservableObject {
         }
     }
 
+    /// Persist the Discover filter sheet to the backend (user_settings drives
+    /// the feed query server-side), then reload the deck. Previously "Show
+    /// Results" only dismissed the sheet and the feed never changed.
+    func applyFilters(_ settings: [String: Any]) {
+        Task {
+            _ = try? await api.patchMe(["settings": settings])
+            isLoading = true
+            error = nil
+            do {
+                let feed = try await api.fetchFeed()
+                cards = feed
+                isLoading = false
+            } catch {
+                self.error = error.localizedDescription
+                isLoading = false
+            }
+        }
+    }
+
     func likeUser() {
         guard !cards.isEmpty else { return }
         guard dailyLikesUsed < maxDailyLikes else {

@@ -6,7 +6,21 @@ class AuthViewModel: ObservableObject {
     @Published var isAuthenticated = false
     @Published var hasCompletedOnboarding = false
     @Published var phone = ""
+    /// Dial code from the country picker. The backend requires E.164
+    /// (+<country><number>) — sending the bare national number 400s every
+    /// phone OTP request.
+    @Published var countryCode = "+91"
     @Published var email = ""
+
+    /// Full E.164 number composed from the picker's dial code and the typed
+    /// number. A typed leading + is trusted as a complete number.
+    var e164Phone: String {
+        let trimmed = phone.trimmingCharacters(in: .whitespaces)
+        if trimmed.hasPrefix("+") { return "+" + trimmed.filter { $0.isNumber } }
+        var digits = trimmed.filter { $0.isNumber }
+        while digits.hasPrefix("0") { digits.removeFirst() }
+        return countryCode + digits
+    }
     @Published var otpCode = ""
     @Published var isLoading = false
     @Published var error: String?
@@ -27,7 +41,7 @@ class AuthViewModel: ObservableObject {
 
         Task {
             do {
-                let success = try await api.sendOTP(phone: phone)
+                let success = try await api.sendOTP(phone: e164Phone)
                 isLoading = false
                 if success {
                     otpSent = true
@@ -51,7 +65,7 @@ class AuthViewModel: ObservableObject {
 
         Task {
             do {
-                let result = try await api.verifyOTP(phone: phone, code: otpCode)
+                let result = try await api.verifyOTP(phone: e164Phone, code: otpCode)
                 isLoading = false
                 hasCompletedOnboarding = !result.needsOnboarding
                 isAuthenticated = true

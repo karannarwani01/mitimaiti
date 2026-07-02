@@ -52,7 +52,8 @@ final class SocketChat: ObservableObject {
                 self?.typingEvents.continuation.yield(payload)
             }
         }
-        socket?.on("msg_read") { [weak self] data, _ in
+        // Backend emits 'messages_read' (payload { matchId, readBy, readAt })
+        socket?.on("messages_read") { [weak self] data, _ in
             if let payload = data.first as? [String: Any] {
                 self?.readReceipts.continuation.yield(payload)
             }

@@ -32,12 +32,36 @@ actor HTTPClient {
 
         self.decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
-        decoder.dateDecodingStrategy = .iso8601
+        // Supabase timestamps carry fractional seconds ("…T12:15:47.069+00:00")
+        // which the plain .iso8601 strategy cannot parse — every Date field
+        // (chat history, inbox timestamps) would throw. Try fractional first.
+        decoder.dateDecodingStrategy = .custom { d in
+            let container = try d.singleValueContainer()
+            let raw = try container.decode(String.self)
+            if let date = HTTPClient.isoFractional.date(from: raw) { return date }
+            if let date = HTTPClient.isoPlain.date(from: raw) { return date }
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Unparseable date: \(raw)"
+            )
+        }
 
         self.encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
         encoder.dateEncodingStrategy = .iso8601
     }
+
+    static let isoFractional: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
+    static let isoPlain: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
 
     func request<T: Decodable>(
         _ method: HTTPMethod,

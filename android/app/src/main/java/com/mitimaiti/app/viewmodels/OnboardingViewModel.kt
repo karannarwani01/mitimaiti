@@ -45,7 +45,9 @@ class OnboardingViewModel : ViewModel() {
     val isAgeValid: Boolean get() = (age ?: 0) >= 18
     val progress: Float get() = (OnboardingStep.entries.indexOf(_currentStep.value) + 1).toFloat() / OnboardingStep.entries.size
     val canProceed: Boolean get() = when (_currentStep.value) {
-        OnboardingStep.NAME -> firstName.value.isNotBlank(); OnboardingStep.BIRTHDAY -> isAgeValid
+        // Backend requires display_name >= 2 chars — gate here so the final
+        // PATCH can't 400 with no way forward (iOS already requires >= 2)
+        OnboardingStep.NAME -> firstName.value.trim().length >= 2; OnboardingStep.BIRTHDAY -> isAgeValid
         OnboardingStep.GENDER -> selectedGender.value != null; OnboardingStep.PHOTOS -> selectedPhotos.value.isNotEmpty()
         OnboardingStep.INTENT -> selectedIntent.value != null; OnboardingStep.SHOW_ME -> selectedShowMe.value != null
         OnboardingStep.LOCATION -> selectedCity.value.isNotBlank(); OnboardingStep.READY -> true

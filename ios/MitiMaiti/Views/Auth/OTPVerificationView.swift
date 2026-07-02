@@ -184,7 +184,11 @@ struct OTPVerificationView: View {
 
     // MARK: - Demo Hint
 
+    /// The fixed 123456 code only works when the backend runs in dev mode.
+    /// Never show it in release builds — real users get a real OTP.
+    @ViewBuilder
     private var demoHint: some View {
+        #if DEBUG
         HStack(spacing: 6) {
             Image(systemName: "info.circle")
                 .font(.system(size: 11))
@@ -198,6 +202,7 @@ struct OTPVerificationView: View {
             Capsule()
                 .fill(AppTheme.gold.opacity(0.1))
         )
+        #endif
     }
 
     // MARK: - Error View

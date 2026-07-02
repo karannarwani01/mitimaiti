@@ -4,7 +4,19 @@ import Combine
 @MainActor
 class ChatViewModel: ObservableObject {
     @Published var messages: [Message] = []
-    @Published var messageText = ""
+    @Published var messageText = "" {
+        didSet {
+            // Let the other side see "typing…" — throttled to one emit per 2s
+            // (the backend debounces with a 3s Redis TTL).
+            guard !messageText.isEmpty, let matchId = match?.id else { return }
+            let now = Date()
+            if now.timeIntervalSince(lastTypingEmit) > 2 {
+                lastTypingEmit = now
+                SocketChat.shared.sendTyping(matchId: matchId)
+            }
+        }
+    }
+    private var lastTypingEmit = Date.distantPast
     @Published var isLoading = false
     @Published var isSending = false
     @Published var isOtherTyping = false
@@ -165,9 +177,22 @@ class ChatViewModel: ObservableObject {
 
                 // Real replies now arrive via SocketChat (no simulation).
             } catch {
+                // Server rejected it (moderation, Respect-First lock, rate
+                // limit) — remove the optimistic bubble so a failed message
+                // doesn't sit in the thread looking sent.
+                messages.removeAll { $0.id == tempMsg.id }
+                MessageRepository.shared.setMessages(matchId: matchId, msgs: messages)
                 self.error = error.localizedDescription
                 isSending = false
             }
+        }
+    }
+
+    /// Tell the backend we left this chat so push notifications resume.
+    /// Without this the server suppresses pushes for up to an hour.
+    func leaveChat() {
+        if let matchId = match?.id {
+            SocketChat.shared.leaveChat(matchId: matchId)
         }
     }
 
@@ -429,7 +454,9 @@ class ChatViewModel: ObservableObject {
 
     /// After loading messages, check if the other user has already replied
     private func checkAndUnlockIfReplied() {
-        guard let match, match.firstMsgLocked, match.firstMsgBy == currentUserId else { return }
+        // iSentFirst is the server-computed flag; firstMsgBy carries a real
+        // UUID which never equals the local "current-user-id" placeholder.
+        guard let match, match.firstMsgLocked, match.iSentFirst else { return }
 
         let otherUserId = match.otherUser.id
         let hasReply = messages.contains { $0.senderId == otherUserId }

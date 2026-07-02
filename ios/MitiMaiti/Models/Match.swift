@@ -3,6 +3,12 @@ import Foundation
 struct Message: Identifiable, Codable, Hashable {
     static let allowedReactions: [String] = ["❤️", "😂", "😮", "😢", "😡", "👍"]
 
+    /// The logged-in user's real id, set at login/session restore. Messages
+    /// fetched from the backend carry real UUIDs — comparing only against the
+    /// optimistic "current-user-id" marker rendered every server-loaded
+    /// message (including your own) on the other person's side.
+    nonisolated(unsafe) static var currentUserId: String?
+
     let id: String
     let matchId: String
     let senderId: String
@@ -13,9 +19,14 @@ struct Message: Identifiable, Codable, Hashable {
     let createdAt: Date
     var reaction: String?
     var durationSeconds: Int
+    /// Server-computed ownership flag (GET /chat sends `isYou`); most reliable
+    /// signal when present.
+    var isYouFlag: Bool?
 
     var isFromMe: Bool {
-        senderId == "current-user-id"
+        if let isYouFlag { return isYouFlag }
+        return senderId == "current-user-id" ||
+            (Message.currentUserId != nil && senderId == Message.currentUserId)
     }
 
     init(
@@ -28,7 +39,8 @@ struct Message: Identifiable, Codable, Hashable {
         status: MessageStatus = .sent,
         createdAt: Date = Date(),
         reaction: String? = nil,
-        durationSeconds: Int = 0
+        durationSeconds: Int = 0,
+        isYouFlag: Bool? = nil
     ) {
         self.id = id
         self.matchId = matchId
@@ -40,6 +52,53 @@ struct Message: Identifiable, Codable, Hashable {
         self.createdAt = createdAt
         self.reaction = reaction
         self.durationSeconds = durationSeconds
+        self.isYouFlag = isYouFlag
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, matchId, senderId, content, mediaUrl, msgType, status,
+             createdAt, reaction, durationSeconds, isRead, isYou
+    }
+
+    /// Lenient decoding: GET /chat message rows omit matchId/status/
+    /// durationSeconds, content can be null, and read state arrives as isRead.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
+        matchId = try c.decodeIfPresent(String.self, forKey: .matchId) ?? ""
+        senderId = try c.decodeIfPresent(String.self, forKey: .senderId) ?? ""
+        content = try c.decodeIfPresent(String.self, forKey: .content) ?? ""
+        mediaUrl = try c.decodeIfPresent(String.self, forKey: .mediaUrl)
+        msgType = ((try? c.decodeIfPresent(MessageType.self, forKey: .msgType)) ?? nil) ?? .text
+        if let s = ((try? c.decodeIfPresent(MessageStatus.self, forKey: .status)) ?? nil) {
+            status = s
+        } else if ((try? c.decodeIfPresent(Bool.self, forKey: .isRead)) ?? nil) == true {
+            status = .read
+        } else {
+            status = .delivered
+        }
+        createdAt = ((try? c.decodeIfPresent(Date.self, forKey: .createdAt)) ?? nil) ?? Date()
+        reaction = try c.decodeIfPresent(String.self, forKey: .reaction)
+        let explicitDuration = try c.decodeIfPresent(Int.self, forKey: .durationSeconds)
+        // Voice messages store their duration (seconds) in `content`
+        let voiceDuration = Int(content)
+        durationSeconds = explicitDuration ?? ((msgType == .voice ? voiceDuration : nil) ?? 0)
+        isYouFlag = try c.decodeIfPresent(Bool.self, forKey: .isYou)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(matchId, forKey: .matchId)
+        try c.encode(senderId, forKey: .senderId)
+        try c.encode(content, forKey: .content)
+        try c.encodeIfPresent(mediaUrl, forKey: .mediaUrl)
+        try c.encode(msgType, forKey: .msgType)
+        try c.encode(status, forKey: .status)
+        try c.encode(createdAt, forKey: .createdAt)
+        try c.encodeIfPresent(reaction, forKey: .reaction)
+        try c.encode(durationSeconds, forKey: .durationSeconds)
+        try c.encodeIfPresent(isYouFlag, forKey: .isYou)
     }
 }
 

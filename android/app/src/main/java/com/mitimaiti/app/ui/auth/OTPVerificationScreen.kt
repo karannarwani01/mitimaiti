@@ -43,9 +43,15 @@ fun OTPVerificationScreen(viewModel: AuthViewModel, onVerified: () -> Unit, onBa
             OutlinedTextField(value = otpCode, onValueChange = { viewModel.updateOtpCode(it) }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("000000", color = colors.textMuted, fontSize = 24.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(), letterSpacing = 12.sp) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), shape = RoundedCornerShape(AppTheme.radiusMd), textStyle = LocalTextStyle.current.copy(fontSize = 24.sp, textAlign = TextAlign.Center, letterSpacing = 12.sp, fontWeight = FontWeight.Bold, color = colors.textPrimary), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AppColors.Rose, unfocusedBorderColor = colors.border), singleLine = true)
             error?.let { Spacer(modifier = Modifier.height(8.dp)); Text(it, color = AppColors.Error, fontSize = 14.sp) }
             Spacer(modifier = Modifier.height(24.dp))
+            // Cap resends at 3 per session (matches iOS; also protects the
+            // shared per-IP rate limit on the backend)
+            var resendCount by remember { mutableIntStateOf(0) }
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                if (resendCooldown > 0) Text("Resend code in ${resendCooldown}s", color = colors.textMuted, fontSize = 15.sp)
-                else TextButton(onClick = { viewModel.sendOTP() }) { Text("Resend Code", color = AppColors.Rose, fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
+                when {
+                    resendCount >= 3 -> Text("Maximum resends reached. Try again later.", color = colors.textMuted, fontSize = 15.sp)
+                    resendCooldown > 0 -> Text("Resend code in ${resendCooldown}s", color = colors.textMuted, fontSize = 15.sp)
+                    else -> TextButton(onClick = { resendCount++; viewModel.sendOTP() }) { Text("Resend Code", color = AppColors.Rose, fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
+                }
             }
             Spacer(modifier = Modifier.weight(1f))
             Button(onClick = { viewModel.verifyOTP() }, modifier = Modifier.fillMaxWidth().height(56.dp), enabled = otpCode.length == 6 && !isLoading, shape = RoundedCornerShape(AppTheme.radiusLg), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Rose, disabledContainerColor = AppColors.Rose.copy(alpha = 0.4f))) {

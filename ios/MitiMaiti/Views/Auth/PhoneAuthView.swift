@@ -153,6 +153,8 @@ struct PhoneAuthView: View {
             ForEach(CountryCode.all) { country in
                 Button {
                     selectedCountry = country
+                    // The view model composes the E.164 number from this
+                    authVM.countryCode = country.code
                 } label: {
                     Text("\(country.short) \(country.name) (\(country.code))")
                 }

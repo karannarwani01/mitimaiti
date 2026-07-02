@@ -266,7 +266,24 @@ router.post(
             .single();
 
           if (matchError) {
+            // Likely a concurrent reciprocal like created the row between our
+            // existence check and this insert — re-select instead of returning
+            // is_match:true with a null match_id.
             console.error('[Actions] Failed to create match:', matchError.message);
+            const { data: racedMatch } = await supabase
+              .from('matches')
+              .select('id, expires_at')
+              .eq('user_a_id', userA)
+              .eq('user_b_id', userB)
+              .limit(1)
+              .maybeSingle();
+            if (racedMatch) {
+              matchId = racedMatch.id;
+              matchExpiresAt = racedMatch.expires_at || matchExpiresAt;
+            } else {
+              isMatch = false;
+              matchExpiresAt = null;
+            }
           } else {
             matchId = match.id;
           }
@@ -466,6 +483,7 @@ router.get(
         { data: likerUsers },
         { data: likerPhotos },
         { data: likerPersonality },
+        { data: likerNameSettings },
       ] = await Promise.all([
         supabase
           .from('basic_profiles')
@@ -484,7 +502,16 @@ router.get(
           .from('personality_profiles')
           .select('user_id, interests')
           .in('user_id', likerIds),
+        supabase
+          .from('user_settings')
+          .select('user_id, show_full_name')
+          .in('user_id', likerIds),
       ]);
+
+      const likerHideFullName = new Set<string>();
+      (likerNameSettings || []).forEach((s: any) => {
+        if (s.show_full_name === false) likerHideFullName.add(s.user_id);
+      });
 
       const likerProfileMap = new Map<string, any>();
       (likerProfiles || []).forEach((p: any) => likerProfileMap.set(p.user_id, p));
@@ -535,11 +562,15 @@ router.get(
         // Skip profiles that don't match gender preference
         if (preferredGender && profile.gender !== preferredGender) continue;
 
+        const likerFirstName = profile.display_name?.split(' ')[0] || 'Unknown';
+
         likedYouCards.push({
           id: like.actor_id,
           action_id: like.id,
-          first_name: profile.display_name?.split(' ')[0] || 'Unknown',
-          display_name: profile.display_name || 'Unknown',
+          first_name: likerFirstName,
+          display_name: likerHideFullName.has(like.actor_id)
+            ? likerFirstName
+            : (profile.display_name || 'Unknown'),
           age: profile.date_of_birth ? calculateAge(profile.date_of_birth) : null,
           city: profile.city,
           intent: profile.intent,
@@ -584,6 +615,7 @@ router.get(
         { data: matchProfiles },
         { data: matchUsers },
         { data: matchPhotos },
+        { data: matchNameSettings },
       ] = await Promise.all([
         supabase
           .from('basic_profiles')
@@ -599,7 +631,16 @@ router.get(
           .in('user_id', otherIds)
           .eq('is_primary', true)
           .limit(otherIds.length),
+        supabase
+          .from('user_settings')
+          .select('user_id, show_full_name')
+          .in('user_id', otherIds),
       ]);
+
+      const matchHideFullName = new Set<string>();
+      (matchNameSettings || []).forEach((s: any) => {
+        if (s.show_full_name === false) matchHideFullName.add(s.user_id);
+      });
 
       const matchProfileMap = new Map<string, any>();
       (matchProfiles || []).forEach((p: any) => matchProfileMap.set(p.user_id, p));
@@ -649,11 +690,15 @@ router.get(
           };
         }
 
+        const matchFirstName = profile?.display_name?.split(' ')[0] || 'Unknown';
+
         matchItems.push({
           match_id: match.id,
           user_id: otherId,
-          first_name: profile?.display_name?.split(' ')[0] || 'Unknown',
-          display_name: profile?.display_name || 'Unknown',
+          first_name: matchFirstName,
+          display_name: matchHideFullName.has(otherId)
+            ? matchFirstName
+            : (profile?.display_name || 'Unknown'),
           age: profile?.date_of_birth ? calculateAge(profile.date_of_birth) : null,
           city: profile?.city || null,
           is_verified: userMeta?.is_verified || false,

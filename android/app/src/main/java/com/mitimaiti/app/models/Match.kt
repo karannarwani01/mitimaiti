@@ -16,10 +16,18 @@ data class Message(
 ) {
     companion object {
         val ALLOWED_REACTIONS = listOf("❤️", "😂", "😮", "😢", "😡", "👍")
+
+        /** The logged-in user's real id, set at login/session restore. Messages
+         *  fetched from the backend carry real UUIDs — comparing only against
+         *  the optimistic "current-user-id" marker rendered every server-loaded
+         *  message (including your own) on the other person's side. */
+        @Volatile
+        var currentUserId: String? = null
     }
 
     val isFromMe: Boolean
-        get() = senderId == "current-user-id"
+        get() = senderId == "current-user-id" ||
+            (currentUserId != null && senderId == currentUserId)
 }
 
 data class Match(

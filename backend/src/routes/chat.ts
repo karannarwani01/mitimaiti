@@ -12,6 +12,40 @@ import icebreakers from '../data/icebreakers.json';
 
 const router = Router();
 
+/**
+ * Broadcast a freshly-inserted message over the socket so the recipient's
+ * open chat updates in real time. REST-sent messages (all iOS sends plus
+ * Android's fallback and all media uploads) were previously invisible until
+ * the recipient manually reloaded the conversation.
+ */
+async function broadcastNewMessage(
+  matchId: string,
+  senderId: string,
+  otherId: string,
+  message: any,
+): Promise<void> {
+  try {
+    const { getSocketServer } = await import('../socket');
+    const io = getSocketServer();
+    if (!io) return;
+
+    const payload = {
+      id: message.id,
+      matchId,
+      senderId,
+      content: message.content ?? null,
+      mediaUrl: message.media_url ?? null,
+      msgType: message.msg_type,
+      isRead: false,
+      createdAt: message.sent_at || message.created_at,
+    };
+    io.to(`user:${otherId}`).emit('new_msg', payload);
+    io.to(`match:${matchId}`).emit('new_msg', payload);
+  } catch (err) {
+    console.warn('[Chat] Socket broadcast failed for REST message:', err);
+  }
+}
+
 // ─── Multer config for chat media ────────────────────────────────────────────
 
 const upload = multer({
@@ -446,6 +480,8 @@ router.post(
       throw new AppError(500, 'Failed to save message', 'MESSAGE_SAVE_FAILED');
     }
 
+    await broadcastNewMessage(matchId, user.id, otherId, message);
+
     // Send notification to the other user if they are not in the chat
     try {
       const otherInChat = await redis.get(`in_chat:${otherId}:${matchId}`);
@@ -459,6 +495,7 @@ router.post(
 
         await sendTemplateNotification('photo_received', otherId, {
           name: myBasic?.display_name || 'Someone',
+          matchId, // needed for the notification deep link into the chat
         });
       }
     } catch {
@@ -564,6 +601,8 @@ router.post(
       throw new AppError(500, 'Failed to save voice message', 'MESSAGE_SAVE_FAILED');
     }
 
+    await broadcastNewMessage(matchId, user.id, otherId, message);
+
     // Best-effort push notification
     try {
       const otherInChat = await redis.get(`in_chat:${otherId}:${matchId}`);
@@ -609,7 +648,10 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const user = (req as AuthenticatedRequest).user;
     const { matchId } = req.params;
-    const { content, type: msgType = 'text', mediaUrl } = req.body;
+    // Accept both `type` and `msgType` — the socket path and the Android
+    // REST fallback historically used `msgType`.
+    const { content, mediaUrl } = req.body;
+    const msgType = req.body.type || req.body.msgType || 'text';
 
     if (!content && !mediaUrl) {
       throw new AppError(400, 'Message content or media URL is required', 'EMPTY_MESSAGE');
@@ -676,8 +718,8 @@ router.post(
         .eq('id', matchId);
     }
 
-    // ── AI moderation for text messages ──
-    if (content && msgType === 'text') {
+    // ── AI moderation for any text content (icebreakers included) ──
+    if (content) {
       try {
         const { screenMessage, checkEarlyMessageContactSharing } = await import('../services/moderation');
 
@@ -751,23 +793,31 @@ router.post(
         .eq('id', matchId);
     }
 
+    await broadcastNewMessage(matchId, user.id, otherId, message);
+
     // Send push notification if other user is not in chat
     try {
-      const inChatKey = `in_chat:${matchId}:${otherId}`;
+      // Key format is in_chat:{userId}:{matchId} (set by enter_chat)
+      const inChatKey = `in_chat:${otherId}:${matchId}`;
       const isInChat = await redis.get(inChatKey);
 
       if (!isInChat) {
-        const { sendTemplateNotification } = await import('../services/notifications');
-        const { data: myBasic } = await supabase
-          .from('basic_profiles')
-          .select('display_name')
-          .eq('user_id', user.id)
-          .single();
+        const { checkConversationCooldown } = await import('../services/notifications');
+        const canSendPush = await checkConversationCooldown(matchId, otherId);
 
-        await sendTemplateNotification('new_message', otherId, {
-          name: myBasic?.display_name || 'Someone',
-          matchId,
-        });
+        if (canSendPush) {
+          const { sendTemplateNotification } = await import('../services/notifications');
+          const { data: myBasic } = await supabase
+            .from('basic_profiles')
+            .select('display_name')
+            .eq('user_id', user.id)
+            .single();
+
+          await sendTemplateNotification('new_message', otherId, {
+            name: myBasic?.display_name || 'Someone',
+            matchId,
+          });
+        }
       }
     } catch {
       // Notification failure is non-critical

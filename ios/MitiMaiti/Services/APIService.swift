@@ -38,6 +38,7 @@ actor APIService {
         guard accessToken != nil else { return nil }
         do {
             let resp: ProfileResponse = try await authedRequest(.get, "/me")
+            Message.currentUserId = resp.user.id
             return resp.user.needsOnboarding
                 ?? ((resp.user.profileCompleteness ?? 0) < 50)
         } catch APIError.unauthorized {
@@ -212,14 +213,69 @@ actor APIService {
 
     func fetchProfile() async throws -> User {
         let resp: ProfileResponse = try await authedRequest(.get, "/me")
+        // Message ownership checks need to know who "me" is.
+        Message.currentUserId = resp.user.id
         return resp.toUser()
     }
 
+    /// PATCH /me, then re-fetch the fresh profile. The PATCH response is
+    /// { updated, profileCompleteness } — decoding it as { user } made every
+    /// successful save on iOS look like a failure.
     func updateProfile(_ updates: [String: Any]) async throws -> User {
-        struct Resp: Decodable { let user: User }
+        struct Resp: Decodable { let profileCompleteness: Int }
         let body = try JSONSerialization.data(withJSONObject: updates)
-        let resp: Resp = try await authedRequest(.patch, "/me", rawBody: body)
-        return resp.user
+        let _: Resp = try await authedRequest(.patch, "/me", rawBody: body)
+        return try await fetchProfile()
+    }
+
+    /// Raw user_settings row (+ snooze flag) from GET /me, so the Settings
+    /// screen can seed its state from the server instead of hardcoded defaults.
+    struct ServerSettings: Decodable {
+        let discoveryEnabled: Bool?
+        let incognitoMode: Bool?
+        let showFullName: Bool?
+        let ageMin: Int?
+        let ageMax: Int?
+        let heightMin: Int?
+        let heightMax: Int?
+        let genderPreference: String?
+        let verifiedOnly: Bool?
+        let intentFilter: String?
+        let religionFilter: String?
+        let educationFilter: String?
+        let smokingFilter: String?
+        let drinkingFilter: String?
+        let fluencyFilter: String?
+        let gotraFilter: String?
+        let dietaryFilter: String?
+        let isSnoozed: Bool?
+    }
+
+    func fetchSettings() async throws -> ServerSettings {
+        struct UserStatus: Decodable { let isSnoozed: Bool? }
+        struct Resp: Decodable { let settings: ServerSettings?; let user: UserStatus? }
+        let resp: Resp = try await authedRequest(.get, "/me")
+        let s = resp.settings
+        return ServerSettings(
+            discoveryEnabled: s?.discoveryEnabled,
+            incognitoMode: s?.incognitoMode,
+            showFullName: s?.showFullName,
+            ageMin: s?.ageMin,
+            ageMax: s?.ageMax,
+            heightMin: s?.heightMin,
+            heightMax: s?.heightMax,
+            genderPreference: s?.genderPreference,
+            verifiedOnly: s?.verifiedOnly,
+            intentFilter: s?.intentFilter,
+            religionFilter: s?.religionFilter,
+            educationFilter: s?.educationFilter,
+            smokingFilter: s?.smokingFilter,
+            drinkingFilter: s?.drinkingFilter,
+            fluencyFilter: s?.fluencyFilter,
+            gotraFilter: s?.gotraFilter,
+            dietaryFilter: s?.dietaryFilter,
+            isSnoozed: resp.user?.isSnoozed
+        )
     }
 
     /// PATCH /me with raw section payload (basics/user/settings/…). Returns
@@ -267,17 +323,131 @@ actor APIService {
     }
 
     func rewind() async throws -> String {
-        struct Resp: Decodable { let restoredId: String }
+        // Backend returns { rewound_target_id, rewinds_remaining, rewinds_used_today }
+        struct Resp: Decodable { let rewoundTargetId: String }
         let resp: Resp = try await authedRequest(.post, "/action/rewind")
-        return resp.restoredId
+        return resp.rewoundTargetId
     }
 
     // MARK: - Inbox
 
     func fetchInbox() async throws -> (likes: [LikedYouCard], matches: [Match]) {
-        struct Resp: Decodable { let likes: [LikedYouCard]; let matches: [Match] }
+        // Backend shape: { liked_you: { count, profiles: [flat card] },
+        //                  matches:   { count, profiles: [flat item] } }
+        struct FlatPhoto: Decodable {
+            let url: String?
+            let urlThumb: String?
+            let urlMedium: String?
+            let isPrimary: Bool?
+            let sortOrder: Int?
+        }
+        struct FlatLike: Decodable {
+            let id: String
+            let displayName: String?
+            let firstName: String?
+            let age: Int?
+            let city: String?
+            let isVerified: Bool?
+            let photos: [FlatPhoto]?
+            let aboutMe: String?
+            let interests: [String]?
+            let culturalScore: Int?
+            let culturalBadge: CulturalBadge?
+            let likeLabel: String?
+            let likedAt: Date?
+        }
+        struct LastMsg: Decodable {
+            let content: String?
+            let sentAt: Date?
+            let isYou: Bool?
+            let msgType: MessageType?
+        }
+        struct FlatMatch: Decodable {
+            let matchId: String
+            let userId: String
+            let displayName: String?
+            let firstName: String?
+            let age: Int?
+            let city: String?
+            let isVerified: Bool?
+            let photo: FlatPhoto?
+            let culturalScore: Int?
+            let status: MatchStatus?
+            let matchedAt: Date?
+            let expiresAt: Date?
+            let firstMsgBy: String?
+            let firstMsgByMe: Bool?
+            let firstMsgLocked: Bool?
+            let firstMsgAt: Date?
+            let lastMessage: LastMsg?
+            let unreadCount: Int?
+        }
+        struct Group<T: Decodable>: Decodable { let count: Int; let profiles: [T] }
+        struct Resp: Decodable { let likedYou: Group<FlatLike>; let matches: Group<FlatMatch> }
+
         let resp: Resp = try await authedRequest(.get, "/inbox")
-        return (resp.likes, resp.matches)
+
+        let likes = resp.likedYou.profiles.map { like in
+            LikedYouCard(
+                id: like.id,
+                user: User(
+                    id: like.id,
+                    displayName: like.displayName ?? like.firstName ?? "",
+                    bio: like.aboutMe,
+                    city: like.city,
+                    isVerified: like.isVerified ?? false,
+                    photos: (like.photos ?? []).compactMap { p in
+                        guard let url = p.url ?? p.urlMedium else { return nil }
+                        return UserPhoto(url: url, urlThumb: p.urlThumb, urlMedium: p.urlMedium,
+                                         isPrimary: p.isPrimary ?? false, sortOrder: p.sortOrder ?? 0)
+                    },
+                    interests: like.interests ?? [],
+                    ageYears: like.age
+                ),
+                likedAt: like.likedAt ?? Date(),
+                likeLabel: like.likeLabel ?? "Liked your profile",
+                culturalScore: like.culturalScore ?? 0,
+                culturalBadge: like.culturalBadge ?? .none
+            )
+        }
+
+        let matches = resp.matches.profiles.map { m in
+            Match(
+                id: m.matchId,
+                otherUser: User(
+                    id: m.userId,
+                    displayName: m.displayName ?? m.firstName ?? "",
+                    city: m.city,
+                    isVerified: m.isVerified ?? false,
+                    photos: m.photo.flatMap { p -> [UserPhoto]? in
+                        guard let url = p.url ?? p.urlMedium else { return nil }
+                        return [UserPhoto(url: url, urlThumb: p.urlThumb, urlMedium: p.urlMedium, isPrimary: true)]
+                    } ?? [],
+                    ageYears: m.age
+                ),
+                status: m.status ?? .pendingFirstMessage,
+                matchedAt: m.matchedAt ?? Date(),
+                expiresAt: m.expiresAt,
+                lastMessage: m.lastMessage.flatMap { lm in
+                    guard let content = lm.content else { return nil }
+                    return Message(
+                        matchId: m.matchId,
+                        senderId: (lm.isYou ?? false) ? (Message.currentUserId ?? "current-user-id") : m.userId,
+                        content: content,
+                        msgType: lm.msgType ?? .text,
+                        createdAt: lm.sentAt ?? Date(),
+                        isYouFlag: lm.isYou
+                    )
+                },
+                unreadCount: m.unreadCount ?? 0,
+                firstMsgBy: m.firstMsgBy,
+                firstMsgByMe: m.firstMsgByMe,
+                firstMsgLocked: m.firstMsgLocked ?? false,
+                firstMsgAt: m.firstMsgAt
+            )
+        }
+
+        return (likes, matches)
     }
 
     // MARK: - Chat
@@ -317,13 +487,35 @@ actor APIService {
             throw APIError.serverError("Chat media upload failed: HTTP \(http.statusCode)")
         }
 
-        struct Resp: Decodable { let message: Message }
+        // Media uploads return a FLAT payload — no `message` wrapper:
+        // { messageId, msgType, mediaUrl, mediaType, createdAt }
+        struct Resp: Decodable {
+            let messageId: String
+            let msgType: MessageType?
+            let mediaUrl: String?
+            let createdAt: Date?
+        }
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
-        decoder.dateDecodingStrategy = .iso8601
+        decoder.dateDecodingStrategy = .custom { d in
+            let container = try d.singleValueContainer()
+            let raw = try container.decode(String.self)
+            if let date = HTTPClient.isoFractional.date(from: raw) { return date }
+            if let date = HTTPClient.isoPlain.date(from: raw) { return date }
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unparseable date: \(raw)")
+        }
         let envelope = try decoder.decode(APIEnvelope<Resp>.self, from: data)
         guard let resp = envelope.data else { throw APIError.serverError("Empty response") }
-        return resp.message
+        return Message(
+            id: resp.messageId,
+            matchId: matchId,
+            senderId: Message.currentUserId ?? "current-user-id",
+            content: "",
+            mediaUrl: resp.mediaUrl,
+            msgType: resp.msgType ?? .photo,
+            status: .sent,
+            createdAt: resp.createdAt ?? Date()
+        )
     }
 
     /// Upload a chat voice clip (m4a/AAC) with its duration in seconds.
@@ -354,19 +546,42 @@ actor APIService {
             throw APIError.serverError("Chat voice upload failed: HTTP \(http.statusCode)")
         }
 
-        struct Resp: Decodable { let message: Message }
+        // Voice uploads return a FLAT payload — no `message` wrapper:
+        // { messageId, msgType, mediaUrl, mediaType, durationSeconds, createdAt }
+        struct Resp: Decodable {
+            let messageId: String
+            let mediaUrl: String?
+            let durationSeconds: Int?
+            let createdAt: Date?
+        }
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
-        decoder.dateDecodingStrategy = .iso8601
+        decoder.dateDecodingStrategy = .custom { d in
+            let container = try d.singleValueContainer()
+            let raw = try container.decode(String.self)
+            if let date = HTTPClient.isoFractional.date(from: raw) { return date }
+            if let date = HTTPClient.isoPlain.date(from: raw) { return date }
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unparseable date: \(raw)")
+        }
         let envelope = try decoder.decode(APIEnvelope<Resp>.self, from: data)
         guard let resp = envelope.data else { throw APIError.serverError("Empty response") }
-        return resp.message
+        return Message(
+            id: resp.messageId,
+            matchId: matchId,
+            senderId: Message.currentUserId ?? "current-user-id",
+            content: "",
+            mediaUrl: resp.mediaUrl,
+            msgType: .voice,
+            status: .sent,
+            createdAt: resp.createdAt ?? Date(),
+            durationSeconds: resp.durationSeconds ?? durationSeconds
+        )
     }
 
     func sendMessage(matchId: String, content: String, type: MessageType = .text) async throws -> Message {
         struct Body: Encodable { let content: String; let type: String }
         struct Resp: Decodable { let message: Message }
-        let resp: Resp = try await authedRequest(.post, "/chat/\(matchId)/messages", body: Body(content: content, type: String(describing: type)))
+        let resp: Resp = try await authedRequest(.post, "/chat/\(matchId)/messages", body: Body(content: content, type: type.rawValue))
         return resp.message
     }
 
@@ -400,18 +615,101 @@ actor APIService {
     // MARK: - Family
 
     func fetchFamily() async throws -> (members: [FamilyMember], suggestions: [FamilySuggestion]) {
-        struct MembersResp: Decodable { let members: [FamilyMember] }
-        struct SuggestionsResp: Decodable { let suggestions: [FamilySuggestion] }
-        async let members: MembersResp = authedRequest(.get, "/family")
-        async let suggestions: SuggestionsResp = authedRequest(.get, "/family/suggestions")
-        let (m, s) = try await (members, suggestions)
-        return (m.members, s.suggestions)
+        // GET /family member items: { id, name, relationship, status,
+        // permissions {camelCase}, joinedAt } — no phone.
+        struct FlatMember: Decodable {
+            let id: String
+            let name: String?
+            let relationship: String?
+            let status: String? // may carry values outside the client enum (e.g. "expired")
+            let permissions: FamilyPermissions?
+            let joinedAt: Date?
+        }
+        struct MembersResp: Decodable { let members: [FlatMember] }
+
+        // GET /family/suggestions items: { id, suggestedUserId,
+        // suggestedBy { userId, displayName },
+        // suggestedProfile { displayName, city, country, age, photo },
+        // note, status, createdAt }
+        struct FlatSuggester: Decodable { let userId: String?; let displayName: String? }
+        struct FlatSuggestedProfile: Decodable {
+            let displayName: String?
+            let city: String?
+            let country: String?
+            let age: Int?
+            let photo: String?
+        }
+        struct FlatSuggestion: Decodable {
+            let id: String
+            let suggestedUserId: String?
+            let suggestedBy: FlatSuggester?
+            let suggestedProfile: FlatSuggestedProfile?
+            let note: String?
+            let createdAt: Date?
+        }
+        struct SuggestionsResp: Decodable { let suggestions: [FlatSuggestion] }
+
+        async let membersReq: MembersResp = authedRequest(.get, "/family")
+        async let suggestionsReq: SuggestionsResp = authedRequest(.get, "/family/suggestions")
+        let (m, s) = try await (membersReq, suggestionsReq)
+
+        let members = m.members.map { fm in
+            FamilyMember(
+                id: fm.id,
+                name: fm.name ?? "Family Member",
+                phone: "",
+                relationship: fm.relationship ?? "",
+                status: FamilyMemberStatus(rawValue: fm.status ?? "") ?? .active,
+                permissions: fm.permissions ?? .allEnabled,
+                joinedAt: fm.joinedAt ?? Date()
+            )
+        }
+
+        let suggestions = s.suggestions.map { fs in
+            FamilySuggestion(
+                id: fs.id,
+                suggestedBy: FamilyMember(
+                    id: fs.suggestedBy?.userId ?? "",
+                    name: fs.suggestedBy?.displayName ?? "Family Member",
+                    phone: "",
+                    relationship: ""
+                ),
+                suggestedUser: User(
+                    id: fs.suggestedUserId ?? "",
+                    displayName: fs.suggestedProfile?.displayName ?? "",
+                    city: fs.suggestedProfile?.city,
+                    country: fs.suggestedProfile?.country,
+                    photos: fs.suggestedProfile?.photo.map {
+                        [UserPhoto(url: $0, urlThumb: $0, isPrimary: true)]
+                    } ?? [],
+                    ageYears: fs.suggestedProfile?.age
+                ),
+                note: fs.note,
+                suggestedAt: fs.createdAt ?? Date()
+            )
+        }
+
+        return (members, suggestions)
     }
 
     func generateInvite() async throws -> FamilyInvite {
-        struct Resp: Decodable { let invite: FamilyInvite }
+        // Response fields sit at the top of `data` — no `invite` wrapper:
+        // { inviteId, code, deepLink, expiresAt, currentMembers, maxMembers }
+        struct Resp: Decodable {
+            let code: String
+            let deepLink: String?
+            let expiresAt: Date?
+            let currentMembers: Int?
+            let maxMembers: Int?
+        }
         let resp: Resp = try await authedRequest(.post, "/family/invite")
-        return resp.invite
+        return FamilyInvite(
+            code: resp.code,
+            deepLink: resp.deepLink ?? "",
+            expiresAt: resp.expiresAt ?? Calendar.current.date(byAdding: .hour, value: 48, to: Date())!,
+            currentMembers: resp.currentMembers ?? 0,
+            maxMembers: resp.maxMembers ?? 3
+        )
     }
 
     /// Update a family member (permissions / is_revoked / revoke_all). Raw JSON

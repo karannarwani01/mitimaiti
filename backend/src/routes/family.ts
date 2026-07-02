@@ -80,12 +80,17 @@ async function verifyFamilyMemberAccess(
   familyUserId: string,
   requirePermission?: keyof FamilyPermissions
 ): Promise<{ membership: any; ownerId: string }> {
-  const { data: membership, error } = await supabase
+  // A user can be a family member for more than one owner — .single() would
+  // error on multiple rows, so take the most recent active membership.
+  const { data: memberships, error } = await supabase
     .from('family_access')
     .select('*')
     .eq('family_user_id', familyUserId)
     .eq('is_revoked', false)
-    .single();
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  const membership = memberships?.[0];
 
   if (error || !membership) {
     throw new AppError(403, 'No active family connection found', 'NO_FAMILY_ACCESS');
@@ -350,8 +355,13 @@ router.get(
       enriched.push({
         id: member.id,
         familyUserId: member.family_user_id,
+        // `name`/`relationship`/`status` are the client-facing contract;
+        // displayName/roleTag kept for backward compatibility.
+        name: basic?.display_name || 'Family Member',
         displayName: basic?.display_name || 'Family Member',
+        relationship: member.role_tag,
         roleTag: member.role_tag,
+        status: member.status || 'active',
         permissions: member.permissions as FamilyPermissions,
         isRevoked: member.is_revoked,
         joinedAt: member.joined_at,
@@ -394,6 +404,7 @@ router.get(
     res.json({
       success: true,
       data: {
+        members: enriched,
         myFamilyMembers: enriched,
         memberOf: memberOfEnriched,
         pendingInvites: (pendingInvites || []).map((inv: any) => ({
@@ -567,9 +578,10 @@ router.post(
     const user = (req as AuthenticatedRequest).user;
     const { suggestedUserId, note } = req.body;
 
-    // PRIVACY WALL: This endpoint is for family members only
-    // Verify the caller is an active family member
-    const { membership, ownerId } = await verifyFamilyMemberAccess(user.id);
+    // PRIVACY WALL: This endpoint is for family members only.
+    // Verify the caller is an active family member AND the owner has granted
+    // them the "Suggest Profiles" permission.
+    const { membership, ownerId } = await verifyFamilyMemberAccess(user.id, 'canSuggest');
 
     // Check that the family member has not been revoked
     if (membership.is_revoked) {
