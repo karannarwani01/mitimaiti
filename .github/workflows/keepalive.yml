@@ -1,0 +1,38 @@
+# Keep-alive: prevents the Supabase free-tier project from auto-pausing
+# (pauses after ~7 days without activity) and surfaces backend/DB outages.
+#
+# Every 6 hours it curls the backend /health endpoint on Render, which runs a
+# real `users` table query through Supabase — that query counts as project
+# activity on Supabase's side. The job FAILS if the DB is not ok, so GitHub
+# emails the repo owner when the backend loses its database (as happened
+# 2026-07-02 when the project paused and all logins broke).
+
+name: Keep-alive
+
+on:
+  schedule:
+    - cron: "0 */6 * * *" # every 6 hours
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Ping backend /health (wakes Render, queries Supabase)
+        run: |
+          # Render free tier cold-starts in ~30-60s; retry with patience.
+          for attempt in 1 2 3; do
+            body=$(curl -sS --max-time 90 "https://mitimaiti-backend-tyxa.onrender.com/health") && break
+            echo "attempt $attempt failed; retrying in 30s..."
+            sleep 30
+          done
+          echo "health response: $body"
+
+          db_status=$(echo "$body" | python3 -c "import sys, json; print(json.load(sys.stdin)['db']['status'])")
+          echo "db status: $db_status"
+
+          if [ "$db_status" != "ok" ]; then
+            echo "::error::Database is NOT ok (status: $db_status). Supabase project may be paused or unreachable."
+            exit 1
+          fi
