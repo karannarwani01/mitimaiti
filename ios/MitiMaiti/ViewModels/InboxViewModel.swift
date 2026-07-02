@@ -90,8 +90,13 @@ class InboxViewModel: ObservableObject {
         guard let index = likes.firstIndex(where: { $0.id == likeId }) else { return }
         let like = likes.remove(at: index)
 
+        // Provisional match shown immediately — but with a placeholder id.
+        // Opening a chat against that fake id 404s, so swap in the real
+        // match_id from the action response as soon as it arrives.
+        let provisionalId = "pending-\(like.user.id)"
         let expiresAt = Date().addingTimeInterval(86400)
         let match = Match(
+            id: provisionalId,
             otherUser: like.user,
             status: .pendingFirstMessage,
             matchedAt: Date(),
@@ -100,10 +105,26 @@ class InboxViewModel: ObservableObject {
         )
         matches.insert(match, at: 0)
 
-        // Persist the like so the match is actually created server-side (they
-        // already liked us → mutual match). Without this the match is cosmetic
-        // and vanishes on the next inbox refetch.
-        Task { _ = try? await api.performAction(targetId: like.user.id, type: .like) }
+        Task {
+            if let result = try? await api.performAction(targetId: like.user.id, type: .like),
+               let realId = result.matchId {
+                if let idx = matches.firstIndex(where: { $0.id == provisionalId }) {
+                    var fixed = matches[idx]
+                    fixed = Match(
+                        id: realId,
+                        otherUser: fixed.otherUser,
+                        status: fixed.status,
+                        matchedAt: fixed.matchedAt,
+                        expiresAt: fixed.expiresAt,
+                        firstMsgLocked: fixed.firstMsgLocked
+                    )
+                    matches[idx] = fixed
+                }
+            } else {
+                // No match id returned — fall back to the server's truth
+                loadInbox()
+            }
+        }
 
         // Trigger match notification
         NotificationManager.shared.addNotification(

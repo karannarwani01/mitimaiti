@@ -263,7 +263,10 @@ router.get(
   authenticate,
   asyncHandler(async (req: Request, res: Response) => {
     const user = (req as AuthenticatedRequest).user;
-    const lastUserId = (req.query.last_user_id as string) || null;
+    // Clients send ?cursor= (the value of the previous response's `cursor`);
+    // last_user_id kept as a legacy alias.
+    const lastUserId =
+      (req.query.cursor as string) || (req.query.last_user_id as string) || null;
 
     // ── Step 0: Load current user's profile, settings, and metadata ─────────
 
@@ -996,9 +999,13 @@ router.get(
     // Final trim to PAGE_SIZE + explore
     const finalCards = cards.slice(0, PAGE_SIZE + exploreCards.length);
 
-    const lastCard = page[page.length - 1];
-    const nextCursor = lastCard ? lastCard.userId : null;
-    const hasMore = interleaved.length > PAGE_SIZE;
+    // Cursor must follow the RAW query order (user_id ascending) — the
+    // interleaved page is re-ranked by score, so its last item is an
+    // arbitrary mid-set id and a gt(user_id) next page would skip/repeat.
+    const lastFetched = (candidateProfiles || [])[(candidateProfiles || []).length - 1];
+    const nextCursor = lastFetched ? lastFetched.user_id : null;
+    const hasMore =
+      (candidateProfiles || []).length >= fetchSize || interleaved.length > PAGE_SIZE;
 
     res.json({
       success: true,

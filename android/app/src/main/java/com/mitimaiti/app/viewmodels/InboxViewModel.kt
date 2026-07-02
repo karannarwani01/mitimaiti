@@ -79,12 +79,23 @@ class InboxViewModel : ViewModel() {
 
     fun likeBack(likeId: String) {
         val like = _likes.value.firstOrNull { it.id == likeId } ?: return; _likes.value = _likes.value.filter { it.id != likeId }
-        _matches.value = listOf(Match(otherUser = like.user, status = MatchStatus.PENDING_FIRST_MESSAGE, matchedAt = System.currentTimeMillis(), expiresAt = System.currentTimeMillis() + 24 * 60 * 60 * 1000L)) + _matches.value
+        // Provisional match shown immediately — but with a placeholder id.
+        // Opening a chat against that fake id 404s, so swap in the real
+        // match_id from the action response as soon as it arrives.
+        val provisionalId = "pending-${like.user.id}"
+        _matches.value = listOf(Match(id = provisionalId, otherUser = like.user, status = MatchStatus.PENDING_FIRST_MESSAGE, matchedAt = System.currentTimeMillis(), expiresAt = System.currentTimeMillis() + 24 * 60 * 60 * 1000L)) + _matches.value
         AppNotificationManager.shared.addNotification(type = NotificationType.MATCH, title = "It's a Match!", body = "You and ${like.user.displayName} liked each other!")
-        // Persist the like so the match is actually created server-side (they
-        // already liked us → mutual match). Without this the match is cosmetic
-        // and vanishes on the next inbox refetch.
-        viewModelScope.launch { APIService.performAction(like.user.id, "like") }
+        viewModelScope.launch {
+            APIService.performAction(like.user.id, "like").onSuccess { result ->
+                val realId = result.matchId
+                if (realId != null) {
+                    _matches.value = _matches.value.map { if (it.id == provisionalId) it.copy(id = realId) else it }
+                } else {
+                    // No match id returned — fall back to the server's truth
+                    loadInbox()
+                }
+            }.onFailure { loadInbox() }
+        }
     }
 
     fun passLike(likeId: String) {
