@@ -1363,4 +1363,41 @@ router.post(
   })
 );
 
+// ─── POST /v1/me/test-push ──────────────────────────────────────────────────────
+// Send yourself a test push notification (debugging the FCM pipeline).
+// Own device only; rate limited.
+
+router.post(
+  '/test-push',
+  authenticate,
+  rateLimit({ maxRequests: 3, windowSeconds: 3600, keyPrefix: 'rl_test_push' }),
+  asyncHandler(async (req: Request, res: Response) => {
+    const user = (req as AuthenticatedRequest).user;
+
+    // The online flag suppresses pushes; a test must always attempt delivery
+    try {
+      const { redis } = await import('../config/redis');
+      await redis.del(`online:${user.id}`);
+    } catch {
+      // Redis down — sendPush will handle it
+    }
+
+    const { sendPush } = await import('../services/notifications');
+    const sent = await sendPush(user.id, 'new_message', {
+      title: 'MitiMaiti test 🔔',
+      body: 'Push notifications are working! Jeko chavan, sacho aa.',
+    });
+
+    res.json({
+      success: true,
+      data: {
+        sent,
+        hint: sent
+          ? 'Delivered to FCM — check the device'
+          : 'Not sent: no token registered, Firebase not configured, or daily cap reached',
+      },
+    });
+  }),
+);
+
 export default router;
