@@ -101,6 +101,18 @@ dependencies {
     implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
 
+    // Firebase Cloud Messaging (push notifications)
+    implementation(platform("com.google.firebase:firebase-bom:34.15.0"))
+    implementation("com.google.firebase:firebase-messaging")
+
     // Debug
     debugImplementation("androidx.compose.ui:ui-tooling")
+}
+
+// Firebase activates only when the config file is present, so the project
+// keeps building before google-services.json is dropped into app/.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+} else {
+    logger.lifecycle("google-services.json not found — building WITHOUT push notifications")
 }

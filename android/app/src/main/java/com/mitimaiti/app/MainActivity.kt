@@ -34,10 +34,52 @@ import com.mitimaiti.app.ui.theme.MitiMaitiTheme
 import com.mitimaiti.app.viewmodels.*
 
 class MainActivity : ComponentActivity() {
+
+    companion object {
+        /** matchId from a tapped push notification, consumed by Screen.Main. */
+        val pendingChatMatchId = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+    }
+
+    private fun consumeNotificationIntent(intent: android.content.Intent?) {
+        intent?.getStringExtra(
+            com.mitimaiti.app.services.MitiMaitiMessagingService.EXTRA_MATCH_ID
+        )?.let { pendingChatMatchId.value = it }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        consumeNotificationIntent(intent)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val app = application as MitiMaitiApp
+        consumeNotificationIntent(intent)
+
+        // Notification channels the backend targets (safe without Firebase)
+        com.mitimaiti.app.services.MitiMaitiMessagingService.createChannels(this)
+
+        // Android 13+ runtime permission for notifications
+        if (android.os.Build.VERSION.SDK_INT >= 33 &&
+            androidx.core.content.ContextCompat.checkSelfPermission(
+                this, android.Manifest.permission.POST_NOTIFICATIONS
+            ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 100)
+        }
+
+        // Sync the FCM token with the backend. Guarded: the app builds and
+        // runs without google-services.json, in which case Firebase never
+        // initialises and this quietly no-ops.
+        try {
+            com.google.firebase.messaging.FirebaseMessaging.getInstance().token
+                .addOnSuccessListener { token ->
+                    com.mitimaiti.app.services.FcmTokenRegistrar.register(token)
+                }
+        } catch (e: Exception) {
+            android.util.Log.i("MainActivity", "FCM unavailable (no google-services.json)")
+        }
         setContent {
             val themeMode by app.themeManager.themeMode.collectAsState()
             val isDark = when (themeMode) {
@@ -145,6 +187,15 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable(Screen.Main.route) {
+                            // Deep link from a tapped push notification
+                            val pendingChat by pendingChatMatchId.collectAsState()
+                            androidx.compose.runtime.LaunchedEffect(pendingChat) {
+                                pendingChat?.let { matchId ->
+                                    pendingChatMatchId.value = null
+                                    inboxViewModel.loadInbox()
+                                    navController.navigate(Screen.Chat.createRoute(matchId))
+                                }
+                            }
                             MainTabScreen(
                                 feedViewModel = feedViewModel,
                                 inboxViewModel = inboxViewModel,
@@ -163,9 +214,20 @@ class MainActivity : ComponentActivity() {
                             val matchId = backStackEntry.arguments?.getString("matchId") ?: ""
                             val chatViewModel: ChatViewModel = viewModel()
                             chatViewModel.onMatchActivated = { id, msg -> inboxViewModel.activateMatch(id, msg) }
-                            val match = inboxViewModel.matches.value.firstOrNull { it.id == matchId }
+                            // Reactive: the match may arrive a moment later
+                            // (notification deep link, fresh like-back)
+                            val matches by inboxViewModel.matches.collectAsState()
+                            val match = matches.firstOrNull { it.id == matchId }
                             if (match != null) {
                                 ChatScreen(viewModel = chatViewModel, match = match, onBack = { navController.popBackStack() })
+                            } else {
+                                androidx.compose.runtime.LaunchedEffect(matchId) { inboxViewModel.loadInbox() }
+                                androidx.compose.foundation.layout.Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = androidx.compose.ui.Alignment.Center
+                                ) {
+                                    androidx.compose.material3.CircularProgressIndicator()
+                                }
                             }
                         }
                         composable(Screen.EditProfile.route) {
