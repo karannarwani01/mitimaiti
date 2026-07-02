@@ -36,6 +36,10 @@ class ChatViewModel : ViewModel() {
     private val _chatUnlocked = MutableStateFlow(false)
     val chatUnlocked: StateFlow<Boolean> = _chatUnlocked.asStateFlow()
 
+    /** Server-suggested ice breakers (Sindhi-flavored pool, 3 per empty chat) */
+    private val _serverIcebreakers = MutableStateFlow<List<String>>(emptyList())
+    val serverIcebreakers: StateFlow<List<String>> = _serverIcebreakers.asStateFlow()
+
     /**
      * Callback to notify InboxViewModel when a match becomes active (reply received).
      * Called with (matchId, lastMessage).
@@ -116,8 +120,8 @@ class ChatViewModel : ViewModel() {
             SocketManager.shared.reconnects.collect {
                 val cm = _match.value ?: return@collect
                 SocketManager.shared.enterChat(cm.id)
-                APIService.fetchMessages(cm.id).onSuccess { fresh ->
-                    val sorted = fresh.sortedBy { it.createdAt }
+                APIService.fetchMessages(cm.id).onSuccess { thread ->
+                    val sorted = thread.messages.sortedBy { it.createdAt }
                     _messages.value = sorted
                     MessageRepository.setMessages(cm.id, sorted)
                 }
@@ -155,8 +159,9 @@ class ChatViewModel : ViewModel() {
         viewModelScope.launch {
             _isLoading.value = true
             APIService.fetchMessages(match.id)
-                .onSuccess {
-                    _messages.value = it.sortedBy { m -> m.createdAt }
+                .onSuccess { thread ->
+                    _messages.value = thread.messages.sortedBy { m -> m.createdAt }
+                    _serverIcebreakers.value = thread.icebreakers
                     // Save to repository
                     MessageRepository.setMessages(match.id, _messages.value)
                     checkAndUnlockIfReplied()

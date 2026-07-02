@@ -542,12 +542,13 @@ actor APIService {
 
     // MARK: - Chat
 
-    func fetchMessages(matchId: String, before: String? = nil) async throws -> [Message] {
-        struct Resp: Decodable { let messages: [Message] }
+    func fetchMessages(matchId: String, before: String? = nil) async throws -> (messages: [Message], icebreakers: [String]) {
+        struct FlatIcebreaker: Decodable { let question: String? }
+        struct Resp: Decodable { let messages: [Message]; let icebreakers: [FlatIcebreaker]? }
         var path = "/chat/\(matchId)"
         if let before { path += "?before=\(before)" }
         let resp: Resp = try await authedRequest(.get, path)
-        return resp.messages
+        return (resp.messages, (resp.icebreakers ?? []).compactMap { $0.question })
     }
 
     func sendChatMedia(matchId: String, imageData: Data, mimeType: String = "image/jpeg") async throws -> Message {

@@ -9,7 +9,8 @@ data class IceBreakerPrompt(
 enum class IceBreakerCategory(val displayName: String, val emoji: String) {
     FUN("Fun", "🎉"),
     DEEP("Deep", "💭"),
-    FLIRTY("Flirty", "😏")
+    FLIRTY("Flirty", "😏"),
+    SINDHI("Sindhi", "🪔")
 }
 
 object IceBreakerPrompts {

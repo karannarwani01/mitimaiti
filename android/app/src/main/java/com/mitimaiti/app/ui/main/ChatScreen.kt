@@ -242,8 +242,17 @@ fun ChatScreen(
         cameraLauncher.launch(uri)
     }
 
-    // Ice breaker prompts
+    // Ice breaker prompts — prefer the server's Sindhi-flavored suggestions,
+    // fall back to the local pool (shuffle draws from both).
+    val serverIcebreakers by viewModel.serverIcebreakers.collectAsState()
     var currentPrompts by remember { mutableStateOf(IceBreakerPrompts.getRandomPrompts(3)) }
+    LaunchedEffect(serverIcebreakers) {
+        if (serverIcebreakers.isNotEmpty()) {
+            currentPrompts = serverIcebreakers.take(3).mapIndexed { i, q ->
+                IceBreakerPrompt(id = 1000 + i, text = q, category = IceBreakerCategory.SINDHI)
+            }
+        }
+    }
 
     LaunchedEffect(match) { viewModel.loadMessages(match) }
 
@@ -450,7 +459,13 @@ fun ChatScreen(
                             IceBreakerSection(
                                 prompts = currentPrompts,
                                 onSelect = { viewModel.sendIcebreaker(it) },
-                                onShuffle = { currentPrompts = IceBreakerPrompts.getRandomPrompts(3) }
+                                onShuffle = {
+                                    // Shuffle from the union of server + local pools
+                                    val serverPool = serverIcebreakers.mapIndexed { i, q ->
+                                        IceBreakerPrompt(id = 1000 + i, text = q, category = IceBreakerCategory.SINDHI)
+                                    }
+                                    currentPrompts = (serverPool + IceBreakerPrompts.getAll()).shuffled().take(3)
+                                }
                             )
                         }
                     }

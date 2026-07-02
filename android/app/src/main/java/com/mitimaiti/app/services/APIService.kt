@@ -384,12 +384,19 @@ object APIService {
 
     // ──────────────────── CHAT ────────────────────
 
-    suspend fun fetchMessages(matchId: String): Result<List<Message>> {
+    /** A chat thread plus the server's suggested ice breakers (present only
+     *  when the conversation is still empty). */
+    data class ChatThread(val messages: List<Message>, val icebreakers: List<String>)
+
+    suspend fun fetchMessages(matchId: String): Result<ChatThread> {
         return try {
             val response = api.getMessages(matchId)
             if (response.isSuccessful) {
-                val body = response.body() ?: return Result.success(emptyList())
-                Result.success(parseMessages(body["messages"] as? List<*>))
+                val body = response.body() ?: return Result.success(ChatThread(emptyList(), emptyList()))
+                val icebreakers = (body["icebreakers"] as? List<*>)?.mapNotNull {
+                    (it as? Map<*, *>)?.get("question") as? String
+                } ?: emptyList()
+                Result.success(ChatThread(parseMessages(body["messages"] as? List<*>), icebreakers))
             } else Result.failure(APIError.ServerError)
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }

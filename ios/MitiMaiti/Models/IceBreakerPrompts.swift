@@ -6,12 +6,14 @@ enum IceBreakerCategory: String, CaseIterable {
     case fun = "fun"
     case deep = "deep"
     case flirty = "flirty"
+    case sindhi = "sindhi"
 
     var displayName: String {
         switch self {
         case .fun:    return "Fun"
         case .deep:   return "Deep"
         case .flirty: return "Flirty"
+        case .sindhi: return "Sindhi"
         }
     }
 
@@ -20,6 +22,7 @@ enum IceBreakerCategory: String, CaseIterable {
         case .fun:    return "🎉"
         case .deep:   return "💭"
         case .flirty: return "😏"
+        case .sindhi: return "🪔"
         }
     }
 }

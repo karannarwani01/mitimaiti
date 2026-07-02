@@ -1105,12 +1105,25 @@ private struct ChatIcebreakerSection: View {
 
     @State private var visiblePrompts: [IceBreakerPrompt] = IceBreakerPrompts.random(count: 3)
 
+    /// Server suggestions (Sindhi-flavored pool) mapped into prompt cards
+    private var serverPrompts: [IceBreakerPrompt] {
+        chatVM.serverIcebreakers.enumerated().map { i, q in
+            IceBreakerPrompt(id: 1000 + i, text: q, category: .sindhi)
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             icebreakerHeader
             promptCards
         }
         .padding(.vertical, 12)
+        .onChange(of: chatVM.serverIcebreakers) { _, fresh in
+            // Prefer the server's Sindhi-flavored suggestions when they arrive
+            if !fresh.isEmpty {
+                visiblePrompts = serverPrompts
+            }
+        }
     }
 
     // MARK: Header row
@@ -1126,10 +1139,10 @@ private struct ChatIcebreakerSection: View {
 
             Spacer()
 
-            // Dice shuffle button
+            // Dice shuffle button — draws from the union of server + local pools
             Button {
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                    visiblePrompts = IceBreakerPrompts.random(count: 3)
+                    visiblePrompts = Array((serverPrompts + IceBreakerPrompts.getAll()).shuffled().prefix(3))
                 }
             } label: {
                 Image(systemName: "dice.fill")

@@ -24,6 +24,9 @@ class ChatViewModel: ObservableObject {
     @Published var error: String?
     @Published var chatUnlocked = false
 
+    /// Server-suggested ice breakers (Sindhi-flavored pool, 3 per empty chat)
+    @Published var serverIcebreakers: [String] = []
+
     private let api = APIService.shared
     private let currentUserId = "current-user-id"
 
@@ -115,8 +118,9 @@ class ChatViewModel: ObservableObject {
 
         Task {
             do {
-                let msgs = try await api.fetchMessages(matchId: match.id)
-                messages = msgs.sorted { $0.createdAt < $1.createdAt }
+                let thread = try await api.fetchMessages(matchId: match.id)
+                messages = thread.messages.sorted { $0.createdAt < $1.createdAt }
+                serverIcebreakers = thread.icebreakers
                 MessageRepository.shared.setMessages(matchId: match.id, msgs: messages)
                 isLoading = false
 
@@ -536,7 +540,7 @@ class ChatViewModel: ObservableObject {
                 guard let matchId = self.match?.id else { continue }
                 SocketChat.shared.enterChat(matchId: matchId)
                 if let fresh = try? await self.api.fetchMessages(matchId: matchId) {
-                    let sorted = fresh.sorted { $0.createdAt < $1.createdAt }
+                    let sorted = fresh.messages.sorted { $0.createdAt < $1.createdAt }
                     self.messages = sorted
                     MessageRepository.shared.setMessages(matchId: matchId, msgs: sorted)
                 }
