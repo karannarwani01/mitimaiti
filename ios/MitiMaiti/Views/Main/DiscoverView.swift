@@ -666,6 +666,41 @@ private struct ProfileDetailSheet: View {
                         )
                     }
 
+                    // Sindhi identity + basics (cards carry these; never shown before)
+                    let identityRows: [(String, String)] = [
+                        ("Sindhi fluency", card.user.sindhiFluency?.display),
+                        ("Food preference", card.user.foodPreference?.display),
+                        ("Family values", card.user.familyValues?.display),
+                        ("Height", card.user.heightCm.map { "\($0) cm" }),
+                        ("Education", card.user.education),
+                        ("Work", card.user.occupation),
+                        ("Religion", card.user.religion),
+                    ].compactMap { label, value in value.map { (label, $0) } }
+
+                    if !identityRows.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("🪔 Sindhi Roots & Basics")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(colors.textPrimary)
+                            ForEach(identityRows, id: \.0) { row in
+                                HStack {
+                                    Text(row.0)
+                                        .font(.system(size: 13))
+                                        .foregroundColor(colors.textMuted)
+                                    Spacer()
+                                    Text(row.1)
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundColor(colors.textPrimary)
+                                }
+                            }
+                        }
+                        .padding(14)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(colors.surfaceMedium)
+                        )
+                    }
+
                     // Interests
                     if !card.user.interests.isEmpty {
                         Text("Interests")

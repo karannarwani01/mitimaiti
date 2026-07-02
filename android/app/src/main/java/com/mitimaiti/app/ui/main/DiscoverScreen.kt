@@ -61,6 +61,7 @@ fun DiscoverScreen(
     var filterState by remember { mutableStateOf(FilterState()) }
     val activeFilterCount = countActiveFilters(filterState)
     val dailyPick by viewModel.dailyPick.collectAsState()
+    var detailCard by remember { mutableStateOf<FeedCard?>(null) }
 
     Box(modifier = Modifier.fillMaxSize().background(colors.backgroundGradient)) {
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
@@ -209,13 +210,13 @@ fun DiscoverScreen(
                             }
                         }
 
-                        // Top swipeable card
+                        // Top swipeable card — tap opens the full profile
                         key(topCard.id) {
                             SwipeablePhotoCard(
                                 card = topCard,
                                 onSwipeRight = { viewModel.likeUser() },
                                 onSwipeLeft = { viewModel.passUser() },
-                                onTap = { }
+                                onTap = { detailCard = topCard }
                             )
                         }
                     }
@@ -330,6 +331,17 @@ fun DiscoverScreen(
                         Text("Keep Swiping")
                     }
                 }
+            )
+        }
+
+        // ── Profile Detail (tap a card to see the full profile) ──
+        detailCard?.let { card ->
+            ProfileDetailSheet(
+                card = card,
+                onLike = { detailCard = null; viewModel.likeUser() },
+                onPass = { detailCard = null; viewModel.passUser() },
+                onShowScore = { detailCard = null; viewModel.showScoreBreakdown(card) },
+                onDismiss = { detailCard = null }
             )
         }
 
