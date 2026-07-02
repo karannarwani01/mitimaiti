@@ -139,14 +139,21 @@ class ProfileViewModel: ObservableObject {
 
         // Build the nested PATCH /me payload the backend expects (its schema is
         // .strict(), so only send allowed keys, grouped by section, omitting
-        // blanks). Enum rawValues match the backend enums. smoking/drinking/
-        // exercise have no PATCH schema home, so they are intentionally omitted.
+        // blanks). Enum rawValues match the backend enums.
         var basics: [String: Any] = [:]
         let bio = editBio.trimmingCharacters(in: .whitespacesAndNewlines)
         if !bio.isEmpty { basics["bio"] = bio }
         if let h = Int(editHeight.trimmingCharacters(in: .whitespaces)), (120...240).contains(h) {
             basics["height_cm"] = h
         }
+        // EditProfileView applies its edits into `user` before calling save,
+        // so `user` carries the freshest lifestyle values.
+        if let v = user.smoking, !v.isEmpty { basics["smoking"] = v }
+        else if !editSmoking.isEmpty { basics["smoking"] = editSmoking }
+        if let v = user.drinking, !v.isEmpty { basics["drinking"] = v }
+        else if !editDrinking.isEmpty { basics["drinking"] = editDrinking }
+        if let v = user.exercise, !v.isEmpty { basics["exercise"] = v }
+        else if !editExercise.isEmpty { basics["exercise"] = editExercise }
 
         var userFields: [String: Any] = [:]
         let edu = editEducation.trimmingCharacters(in: .whitespaces)

@@ -1049,8 +1049,8 @@ struct FilterSheetView: View {
     private let dietaryOptions = ["Veg", "Non-Veg", "Vegan", "Jain"]
     private let gotraOptions = ["Lohana", "Amil", "Bhatia", "Sahiti", "Chhapru"]
     private let educationOptions = ["Bachelors", "Masters", "PhD", "Professional"]
-    private let smokingOptions = ["Never", "Social", "Regular"]
-    private let drinkingOptions = ["Never", "Social", "Regular"]
+    private let smokingOptions = ["Never", "Socially", "Regularly"]
+    private let drinkingOptions = ["Never", "Socially", "Regularly"]
     private let exerciseOptions = ["Daily", "Often", "Sometimes", "Never"]
     private let familyPlanOptions = ["Yes", "No", "Open to it", "Already has"]
 

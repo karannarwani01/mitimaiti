@@ -97,6 +97,13 @@ const basicsSchema = z
     city: z.string().max(100).optional(),
     state: z.string().max(100).optional(),
     country: z.string().max(100).optional(),
+    // Lifestyle — canonical client vocab: smoking/drinking = Never/Socially/
+    // Regularly, exercise = Daily/Often/Sometimes/Never (compared
+    // case-insensitively by the discovery filters). Previously these had no
+    // schema slot, so they could never be saved at all.
+    smoking: z.string().max(50).nullable().optional(),
+    drinking: z.string().max(50).nullable().optional(),
+    exercise: z.string().max(50).nullable().optional(),
   })
   .strict();
 

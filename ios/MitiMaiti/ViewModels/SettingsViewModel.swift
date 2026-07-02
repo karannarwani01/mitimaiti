@@ -37,7 +37,7 @@ class SettingsViewModel: ObservableObject {
     static let gotraOptions = ["Any", "Exclude same gotra", "Lohana", "Bhatia", "Amil", "Sahiti", "Hyderabadi", "Shikarpuri", "Other"]
     static let dietaryOptions = ["Any", "Vegetarian", "Non-Vegetarian", "Vegan", "Jain"]
     static let educationOptions = ["Any", "Bachelors", "Masters", "PhD", "Professional", "Business Owner"]
-    static let smokingOptions = ["Any", "Never", "Occasionally", "Regularly"]
+    static let smokingOptions = ["Any", "Never", "Socially", "Regularly"]
     static let drinkingOptions = ["Any", "Never", "Socially", "Regularly"]
     static let familyPlansOptions = ["Any", "Yes wants kids", "Maybe", "No"]
 

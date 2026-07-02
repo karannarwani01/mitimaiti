@@ -833,7 +833,7 @@ fun SettingsScreen(
         if (showSmokingPicker) {
             PickerSheet(
                 title = "Smoking",
-                options = listOf("Any", "Never", "Sometimes", "Regularly"),
+                options = listOf("Any", "Never", "Socially", "Regularly"),
                 selected = smokingFilter ?: "Any",
                 onSelect = { value ->
                     viewModel.setSmokingFilter(if (value == "Any") null else value)

@@ -409,7 +409,7 @@ private fun LifestyleTab(state: FilterState, onUpdate: (FilterState) -> Unit) {
         Text("SMOKING", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = colors.textMuted, letterSpacing = 1.sp)
         Spacer(modifier = Modifier.height(8.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("Never", "Social", "Regular").forEach { option ->
+            listOf("Never", "Socially", "Regularly").forEach { option ->
                 FilterChip(
                     selected = state.smokingFilter == option,
                     onClick = { onUpdate(state.copy(smokingFilter = if (state.smokingFilter == option) null else option)) },
@@ -423,7 +423,7 @@ private fun LifestyleTab(state: FilterState, onUpdate: (FilterState) -> Unit) {
         Text("DRINKING", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = colors.textMuted, letterSpacing = 1.sp)
         Spacer(modifier = Modifier.height(8.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("Never", "Social", "Regular").forEach { option ->
+            listOf("Never", "Socially", "Regularly").forEach { option ->
                 FilterChip(
                     selected = state.drinkingFilter == option,
                     onClick = { onUpdate(state.copy(drinkingFilter = if (state.drinkingFilter == option) null else option)) },

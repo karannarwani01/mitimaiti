@@ -423,7 +423,9 @@ router.get(
         intent,
         education,
         occupation,
-        religion
+        religion,
+        smoking,
+        drinking
       `)
       .gte('date_of_birth', minDob)
       .lte('date_of_birth', maxDob);
@@ -553,13 +555,14 @@ router.get(
     const sindhiMap = new Map<string, any>();
     (sindhiProfiles || []).forEach((s: any) => sindhiMap.set(s.user_id, s));
 
-    const { data: personalityProfiles } = await supabase
-      .from('personality_profiles')
-      .select('user_id, smoking, drinking, interests')
+    // Dietary preference lives on chatti_profiles (food_preference)
+    const { data: chattiProfiles } = await supabase
+      .from('chatti_profiles')
+      .select('user_id, food_preference')
       .in('user_id', candidateIds);
 
-    const personalityMap = new Map<string, any>();
-    (personalityProfiles || []).forEach((p: any) => personalityMap.set(p.user_id, p));
+    const chattiMap = new Map<string, any>();
+    (chattiProfiles || []).forEach((c: any) => chattiMap.set(c.user_id, c));
 
     // Build the filtered candidate list
     const profileMap = new Map<string, any>();
@@ -586,21 +589,23 @@ router.get(
       // Soft filter: verified only
       if (verifiedOnly && !meta.is_verified) continue;
 
-      // Soft filter: smoking (case-insensitive — clients send display casing)
+      // Soft filter: smoking (from basic_profiles — personality_profiles has
+      // no smoking column, so this filter previously never matched anything).
+      // Case-insensitive; candidates who haven't set the field pass through.
       if (mySettings?.smoking_filter) {
-        const personality = personalityMap.get(cId);
+        const candidate = profileMap.get(cId);
         if (
-          personality?.smoking &&
-          personality.smoking.toLowerCase() !== mySettings.smoking_filter.toLowerCase()
+          candidate?.smoking &&
+          candidate.smoking.toLowerCase() !== mySettings.smoking_filter.toLowerCase()
         ) continue;
       }
 
-      // Soft filter: drinking (case-insensitive)
+      // Soft filter: drinking (same fix as smoking)
       if (mySettings?.drinking_filter) {
-        const personality = personalityMap.get(cId);
+        const candidate = profileMap.get(cId);
         if (
-          personality?.drinking &&
-          personality.drinking.toLowerCase() !== mySettings.drinking_filter.toLowerCase()
+          candidate?.drinking &&
+          candidate.drinking.toLowerCase() !== mySettings.drinking_filter.toLowerCase()
         ) continue;
       }
 
@@ -624,12 +629,14 @@ router.get(
         if (!sindhi?.gotra || sindhi.gotra.toLowerCase() !== mySettings.gotra_filter.toLowerCase()) continue;
       }
 
-      // Soft filter: dietary
+      // Soft filter: dietary (food_preference on chatti_profiles — the old
+      // personality lookup read a column that doesn't exist)
       if (mySettings?.dietary_filter) {
-        const profile = profileMap.get(cId);
-        // dietary could be on personality or chatti; check personality for now
-        const personality = personalityMap.get(cId);
-        if (personality?.dietary && personality.dietary !== mySettings.dietary_filter) continue;
+        const chatti = chattiMap.get(cId);
+        if (
+          chatti?.food_preference &&
+          chatti.food_preference.toLowerCase() !== mySettings.dietary_filter.toLowerCase()
+        ) continue;
       }
 
       // Soft filter: kundli minimum score

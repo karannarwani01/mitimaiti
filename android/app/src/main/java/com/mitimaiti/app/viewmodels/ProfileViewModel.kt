@@ -240,6 +240,9 @@ class ProfileViewModel : ViewModel() {
             val basics = mutableMapOf<String, Any>()
             if (editBio.value.isNotBlank()) basics["bio"] = editBio.value.trim()
             editHeight.value?.let { if (it in 120..240) basics["height_cm"] = it }
+            if (editSmoking.value.isNotBlank()) basics["smoking"] = editSmoking.value
+            if (editDrinking.value.isNotBlank()) basics["drinking"] = editDrinking.value
+            if (editExercise.value.isNotBlank()) basics["exercise"] = editExercise.value
 
             val userFields = mutableMapOf<String, Any>()
             if (editEducation.value.isNotBlank()) userFields["education"] = editEducation.value.trim()
