@@ -33,11 +33,24 @@ class FeedViewModel : ViewModel() {
     val showScoreBreakdown: StateFlow<Boolean> = _showScoreBreakdown.asStateFlow()
     private val _selectedCard = MutableStateFlow<FeedCard?>(null)
     val selectedCard: StateFlow<FeedCard?> = _selectedCard.asStateFlow()
-    private val passedCards = mutableListOf<FeedCard>()
+
+    /** Last swipes in order (card + kind), so rewind undoes likes AND passes
+     *  — matching the backend, which deletes the most recent swipe of either
+     *  kind (previously undoing after a like restored the wrong profile). */
+    private data class Swipe(val card: FeedCard, val kind: String)
+    private val swipeHistory = mutableListOf<Swipe>()
+
     val likesRemaining: Int get() = MAX_DAILY_LIKES - _dailyLikesUsed.value
     val rewindsRemaining: Int get() = MAX_DAILY_REWINDS - _dailyRewindsUsed.value
 
-    fun loadFeed() { viewModelScope.launch { _isLoading.value = true; APIService.fetchFeed().onSuccess { _cards.value = it }.onFailure { _error.value = "Failed to load profiles" }; _isLoading.value = false } }
+    private fun applyFeedPage(page: APIService.FeedPage, replace: Boolean) {
+        if (replace) _cards.value = page.cards
+        // Seed daily counters from the server so they survive relaunch
+        page.likesUsedToday?.let { _dailyLikesUsed.value = it }
+        page.rewindsUsedToday?.let { _dailyRewindsUsed.value = it }
+    }
+
+    fun loadFeed() { viewModelScope.launch { _isLoading.value = true; APIService.fetchFeed().onSuccess { applyFeedPage(it, replace = true) }.onFailure { _error.value = "Failed to load profiles" }; _isLoading.value = false } }
 
     /**
      * Persist the Discover filter sheet to the backend (user_settings drives
@@ -68,22 +81,63 @@ class FeedViewModel : ViewModel() {
             // Refetch with the new filters applied server-side
             _isLoading.value = true
             APIService.fetchFeed()
-                .onSuccess { _cards.value = it }
+                .onSuccess { applyFeedPage(it, replace = true) }
                 .onFailure { _error.value = "Failed to load profiles" }
             _isLoading.value = false
         }
     }
 
     fun likeUser() {
-        val cur = _cards.value.toMutableList(); if (cur.isEmpty() || _dailyLikesUsed.value >= MAX_DAILY_LIKES) return
+        val cur = _cards.value.toMutableList(); if (cur.isEmpty()) return
+        if (_dailyLikesUsed.value >= MAX_DAILY_LIKES) {
+            _error.value = "You've used all $MAX_DAILY_LIKES likes for today. Come back tomorrow!"
+            return
+        }
         val card = cur.removeAt(0); _cards.value = cur; _dailyLikesUsed.value++
-        viewModelScope.launch { APIService.performAction(card.user.id, "like").onSuccess { isMatch -> if (isMatch) { _matchedUser.value = card.user; _showMatchAlert.value = true; AppNotificationManager.shared.addNotification(type = NotificationType.MATCH, title = "It's a Match!", body = "You and ${card.user.displayName} liked each other!") } }; prefetchIfNeeded() }
+        swipeHistory.add(Swipe(card, "like"))
+        viewModelScope.launch {
+            APIService.performAction(card.user.id, "like").onSuccess { result ->
+                result.likesUsedToday?.let { _dailyLikesUsed.value = it }
+                if (result.isMatch) {
+                    // A matched like can't be rewound — drop it from the undo stack
+                    swipeHistory.removeAll { it.card.id == card.id }
+                    _matchedUser.value = card.user; _showMatchAlert.value = true
+                    AppNotificationManager.shared.addNotification(type = NotificationType.MATCH, title = "It's a Match!", body = "You and ${card.user.displayName} liked each other!")
+                }
+            }.onFailure { err ->
+                if (err is com.mitimaiti.app.services.APIError.DailyLimitReached) {
+                    _dailyLikesUsed.value = MAX_DAILY_LIKES
+                    _error.value = "You've used all $MAX_DAILY_LIKES likes for today. Come back tomorrow!"
+                }
+            }
+            prefetchIfNeeded()
+        }
     }
 
-    fun passUser() { val cur = _cards.value.toMutableList(); if (cur.isEmpty()) return; val card = cur.removeAt(0); passedCards.add(card); _cards.value = cur; viewModelScope.launch { APIService.performAction(card.user.id, "pass"); prefetchIfNeeded() } }
-    fun rewind() { if (passedCards.isEmpty() || _dailyRewindsUsed.value >= MAX_DAILY_REWINDS) return; val card = passedCards.removeAt(passedCards.size - 1); _cards.value = listOf(card) + _cards.value; _dailyRewindsUsed.value++; viewModelScope.launch { APIService.rewind() } }
+    fun passUser() { val cur = _cards.value.toMutableList(); if (cur.isEmpty()) return; val card = cur.removeAt(0); swipeHistory.add(Swipe(card, "pass")); _cards.value = cur; viewModelScope.launch { APIService.performAction(card.user.id, "pass"); prefetchIfNeeded() } }
+
+    fun rewind() {
+        if (swipeHistory.isEmpty()) { _error.value = "Nothing to rewind!"; return }
+        if (_dailyRewindsUsed.value >= MAX_DAILY_REWINDS) {
+            _error.value = "You've used all $MAX_DAILY_REWINDS rewinds for today."
+            return
+        }
+        val swipe = swipeHistory.removeAt(swipeHistory.size - 1)
+        _cards.value = listOf(swipe.card) + _cards.value
+        _dailyRewindsUsed.value++
+        if (swipe.kind == "like" && _dailyLikesUsed.value > 0) _dailyLikesUsed.value--
+        viewModelScope.launch {
+            APIService.rewind().onFailure { err ->
+                if (err is com.mitimaiti.app.services.APIError.CannotRewindMatched) {
+                    // The like became a match server-side — put the card back off the deck
+                    _cards.value = _cards.value.filterNot { it.id == swipe.card.id }
+                    _error.value = "It's already a match! Unmatch from the chat instead."
+                }
+            }
+        }
+    }
     fun dismissMatchAlert() { _showMatchAlert.value = false; _matchedUser.value = null }
     fun showScoreBreakdown(card: FeedCard) { _selectedCard.value = card; _showScoreBreakdown.value = true }
     fun hideScoreBreakdown() { _showScoreBreakdown.value = false; _selectedCard.value = null }
-    private suspend fun prefetchIfNeeded() { if (_cards.value.size < 5) { APIService.fetchFeed().onSuccess { new -> val ids = _cards.value.map { it.id }.toSet(); _cards.value = _cards.value + new.filter { it.id !in ids } } } }
+    private suspend fun prefetchIfNeeded() { if (_cards.value.size < 5) { APIService.fetchFeed().onSuccess { page -> val ids = _cards.value.map { it.id }.toSet(); _cards.value = _cards.value + page.cards.filter { it.id !in ids }; applyFeedPage(page, replace = false) } } }
 }

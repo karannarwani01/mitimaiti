@@ -7,6 +7,7 @@ import { authenticate } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { getCulturalScore } from '../services/scoring';
 import { getKundliScore } from '../services/kundli';
+import { getDailyCount, DAILY_LIKE_LIMIT, DAILY_REWIND_LIMIT } from './actions';
 import { AuthenticatedRequest, FeedCard, CulturalBadge, KundliTier, FamilyValues, FoodPreference, SindhiFluency } from '../types';
 import { cityDistance } from '../utils/geo';
 
@@ -280,6 +281,19 @@ router.get(
       throw new AppError(400, 'Complete your profile before discovering matches', 'PROFILE_INCOMPLETE');
     }
 
+    // Server-authoritative daily counters — clients seed their like/rewind
+    // budgets from the feed instead of resetting to 0 on every relaunch.
+    const [likesUsedToday, rewindsUsedToday] = await Promise.all([
+      getDailyCount(user.id, 'like'),
+      getDailyCount(user.id, 'rewind'),
+    ]);
+    const dailyLimits = {
+      likes_used_today: likesUsedToday,
+      likes_remaining: Math.max(0, DAILY_LIKE_LIMIT - likesUsedToday),
+      rewinds_used_today: rewindsUsedToday,
+      rewinds_remaining: Math.max(0, DAILY_REWIND_LIMIT - rewindsUsedToday),
+    };
+
     // Determine discovery city: passport mode or actual city
     let discoveryCity = myBasic.city;
     let isPassportMode = false;
@@ -490,6 +504,7 @@ router.get(
             cold_city: true,
             city_profile_count: cityCount || 0,
             message: `Only ${cityCount || 0} profiles in ${discoveryCity}. Explore other cities!`,
+            limits: dailyLimits,
           },
         });
       }
@@ -501,6 +516,7 @@ router.get(
           cursor: null,
           has_more: false,
           cold_city: false,
+          limits: dailyLimits,
         },
       });
     }
@@ -630,6 +646,7 @@ router.get(
           cursor: null,
           has_more: false,
           cold_city: false,
+          limits: dailyLimits,
         },
       });
     }
@@ -980,6 +997,7 @@ router.get(
         cursor: nextCursor,
         has_more: hasMore,
         cold_city: coldCity,
+        limits: dailyLimits,
         ...(coldCity ? { city_profile_count: cityProfileCount } : {}),
         ...(isPassportMode ? { passport_city: discoveryCity } : {}),
       },

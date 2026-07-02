@@ -217,6 +217,7 @@ export function createSocketServer(httpServer?: HttpServer): Server {
                   expires_at: null, // Clear timer once both have messaged
                 })
                 .eq('id', matchId);
+              emitMatchUpdate(matchId, userId, otherId);
             }
           } else if (match.first_msg_locked && match.first_msg_by !== userId) {
             // The receiver is replying to the first message — this unlocks
@@ -229,6 +230,7 @@ export function createSocketServer(httpServer?: HttpServer): Server {
                 expires_at: null, // Clear timer once both have messaged
               })
               .eq('id', matchId);
+            emitMatchUpdate(matchId, userId, otherId);
           }
         }
 
@@ -466,6 +468,15 @@ export function emitToUser(userId: string, event: string, data: any): void {
   if (io) {
     io.to(`user:${userId}`).emit(event, data);
   }
+}
+
+/**
+ * Tell both participants a match just activated (Respect-First unlock).
+ */
+function emitMatchUpdate(matchId: string, userA: string, userB: string): void {
+  const update = { matchId, status: 'active', firstMsgLocked: false, expiresAt: null };
+  emitToUser(userA, 'match_update', update);
+  emitToUser(userB, 'match_update', update);
 }
 
 export default { createSocketServer, getSocketServer, emitToUser };

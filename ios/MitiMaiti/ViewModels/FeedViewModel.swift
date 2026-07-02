@@ -14,11 +14,23 @@ class FeedViewModel: ObservableObject {
 
     let maxDailyLikes = 50
     let maxDailyRewinds = 10
-    private var passedCards: [FeedCard] = []
+
+    /// Last swipes in order (card + kind), so rewind undoes likes AND passes
+    /// — matching the backend, which deletes the most recent swipe of either
+    /// kind (previously undoing after a like restored the wrong profile).
+    private enum SwipeKind { case like, pass }
+    private var swipeHistory: [(card: FeedCard, kind: SwipeKind)] = []
+
     private let api = APIService.shared
 
     var likesRemaining: Int { maxDailyLikes - dailyLikesUsed }
     var rewindsRemaining: Int { maxDailyRewinds - dailyRewindsUsed }
+
+    /// Seed daily counters from the server so they survive relaunch.
+    private func applyLimits(_ limits: APIService.DailyLimits?) {
+        if let used = limits?.likesUsedToday { dailyLikesUsed = used }
+        if let used = limits?.rewindsUsedToday { dailyRewindsUsed = used }
+    }
 
     func loadFeed() {
         guard !isLoading else { return }
@@ -28,7 +40,8 @@ class FeedViewModel: ObservableObject {
         Task {
             do {
                 let feed = try await api.fetchFeed()
-                cards = feed
+                cards = feed.cards
+                applyLimits(feed.limits)
                 isLoading = false
             } catch {
                 self.error = error.localizedDescription
@@ -47,7 +60,8 @@ class FeedViewModel: ObservableObject {
             error = nil
             do {
                 let feed = try await api.fetchFeed()
-                cards = feed
+                cards = feed.cards
+                applyLimits(feed.limits)
                 isLoading = false
             } catch {
                 self.error = error.localizedDescription
@@ -59,17 +73,21 @@ class FeedViewModel: ObservableObject {
     func likeUser() {
         guard !cards.isEmpty else { return }
         guard dailyLikesUsed < maxDailyLikes else {
-            error = "You've used all 50 likes for today!"
+            error = "You've used all \(maxDailyLikes) likes for today. Come back tomorrow!"
             return
         }
 
         let card = cards.removeFirst()
         dailyLikesUsed += 1
+        swipeHistory.append((card, .like))
 
         Task {
             do {
                 let result = try await api.performAction(targetId: card.user.id, type: .like)
+                if let used = result.likesUsedToday { dailyLikesUsed = used }
                 if result.isMatch {
+                    // A matched like can't be rewound — drop it from the undo stack
+                    swipeHistory.removeAll { $0.card.id == card.id }
                     matchedUser = card.user
                     showMatchAlert = true
 
@@ -81,6 +99,9 @@ class FeedViewModel: ObservableObject {
                         actionData: card.user.id
                     )
                 }
+            } catch APIError.rateLimited {
+                dailyLikesUsed = maxDailyLikes
+                self.error = "You've used all \(maxDailyLikes) likes for today. Come back tomorrow!"
             } catch {
                 self.error = error.localizedDescription
             }
@@ -92,7 +113,7 @@ class FeedViewModel: ObservableObject {
     func passUser() {
         guard !cards.isEmpty else { return }
         let card = cards.removeFirst()
-        passedCards.append(card)
+        swipeHistory.append((card, .pass))
         Task {
             // Record the pass on the backend so the profile isn't re-served in
             // the feed and rewind has something to undo (matches Android).
@@ -104,18 +125,27 @@ class FeedViewModel: ObservableObject {
 
     func rewind() {
         guard dailyRewindsUsed < maxDailyRewinds else {
-            error = "You've used all 10 rewinds for today!"
+            error = "You've used all \(maxDailyRewinds) rewinds for today."
             return
         }
-        guard let last = passedCards.popLast() else {
+        guard let last = swipeHistory.popLast() else {
             error = "Nothing to rewind!"
             return
         }
-        cards.insert(last, at: 0)
+        cards.insert(last.card, at: 0)
         dailyRewindsUsed += 1
-        // Undo the pass on the backend too so the profile's state matches the UI
-        // (matches Android). Fire-and-forget; a failed rewind is non-fatal.
-        Task { _ = try? await api.rewind() }
+        if last.kind == .like, dailyLikesUsed > 0 { dailyLikesUsed -= 1 }
+        Task {
+            do {
+                _ = try await api.rewind()
+            } catch let APIError.serverError(msg) where msg.contains("match") {
+                // The like became a match server-side — take the card back off the deck
+                cards.removeAll { $0.id == last.card.id }
+                self.error = "It's already a match! Unmatch from the chat instead."
+            } catch {
+                // Non-fatal — the UI card stays restored
+            }
+        }
     }
 
     private func prefetchIfNeeded() {
@@ -123,8 +153,9 @@ class FeedViewModel: ObservableObject {
             Task {
                 if let more = try? await api.fetchFeed() {
                     let existingIds = Set(cards.map(\.id))
-                    let newCards = more.filter { !existingIds.contains($0.id) }
+                    let newCards = more.cards.filter { !existingIds.contains($0.id) }
                     cards.append(contentsOf: newCards)
+                    applyLimits(more.limits)
                 }
             }
         }

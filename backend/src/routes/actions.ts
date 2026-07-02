@@ -13,8 +13,8 @@ const router = Router();
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
-const DAILY_LIKE_LIMIT = 50;
-const DAILY_REWIND_LIMIT = 10;
+export const DAILY_LIKE_LIMIT = 50;
+export const DAILY_REWIND_LIMIT = 10;
 const MATCH_EXPIRY_HOURS = 24;
 
 // ─── Schemas ────────────────────────────────────────────────────────────────────
@@ -39,8 +39,9 @@ function todayKey(): string {
 
 /**
  * Get daily usage count from Redis with PostgreSQL fallback.
+ * Exported so the feed can seed clients with server-authoritative counters.
  */
-async function getDailyCount(userId: string, actionType: string): Promise<number> {
+export async function getDailyCount(userId: string, actionType: string): Promise<number> {
   const key = `daily_${actionType}:${userId}:${todayKey()}`;
 
   try {
@@ -164,8 +165,9 @@ router.post(
 
     // ── Daily like limit: 50 per day ────────────────────────────────────────
 
+    let likesUsed = 0;
     if (type === 'like') {
-      const likesUsed = await getDailyCount(user.id, 'like');
+      likesUsed = await getDailyCount(user.id, 'like');
       if (likesUsed >= DAILY_LIKE_LIMIT) {
         throw new AppError(
           429,
@@ -295,6 +297,31 @@ router.post(
           supabase.from('basic_profiles').select('display_name').eq('user_id', targetUserId).single(),
         ]);
 
+        // Real-time: both clients listen for 'new_match' so an online user
+        // sees the match instantly without reloading the inbox.
+        if (matchId) {
+          try {
+            const { emitToUser } = await import('../socket');
+            const matchPayload = {
+              matchId,
+              status: 'pending_first_message',
+              expiresAt: matchExpiresAt,
+            };
+            emitToUser(user.id, 'new_match', {
+              ...matchPayload,
+              userId: targetUserId,
+              displayName: targetBasic?.display_name || 'Someone',
+            });
+            emitToUser(targetUserId, 'new_match', {
+              ...matchPayload,
+              userId: user.id,
+              displayName: myBasic?.display_name || 'Someone',
+            });
+          } catch (err) {
+            console.warn('[Actions] new_match socket emit failed:', err);
+          }
+        }
+
         await Promise.all([
           sendTemplateNotification('new_match', user.id, {
             name: targetBasic?.display_name || 'Someone',
@@ -323,6 +350,14 @@ router.post(
         match_id: matchId,
         match_expires_at: matchExpiresAt,
         created_at: action.created_at,
+        // Server-authoritative daily counters so clients don't drift or
+        // reset on relaunch
+        ...(type === 'like'
+          ? {
+              likes_used_today: likesUsed + 1,
+              likes_remaining: Math.max(0, DAILY_LIKE_LIMIT - likesUsed - 1),
+            }
+          : {}),
       },
     });
   }),
@@ -347,34 +382,73 @@ router.post(
       );
     }
 
-    // ── Find last pass action (NOT likes — rewind only works on passes) ─────
+    // ── Find the last swipe (like OR pass) — Bumble/Hinge-style undo ────────
+    // Previously only passes were rewindable, so hitting Undo right after a
+    // like resurrected an older passed profile instead.
 
-    const { data: lastPass } = await supabase
+    const { data: lastAction } = await supabase
       .from('actions')
       .select('id, target_id, kind, created_at')
       .eq('actor_id', user.id)
-      .eq('kind', 'pass')
+      .in('kind', ['like', 'pass'])
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    if (!lastPass) {
-      throw new AppError(404, 'No recent pass to rewind', 'NO_PASS_TO_REWIND');
+    if (!lastAction) {
+      throw new AppError(404, 'No recent swipe to rewind', 'NO_PASS_TO_REWIND');
     }
 
-    // ── Delete the pass record ──────────────────────────────────────────────
+    // A like that already became a mutual match cannot be undone — unmatch is
+    // the explicit path for that.
+    if (lastAction.kind === 'like') {
+      const [userA, userB] = user.id < lastAction.target_id
+        ? [user.id, lastAction.target_id]
+        : [lastAction.target_id, user.id];
+      const { data: existingMatch } = await supabase
+        .from('matches')
+        .select('id, status')
+        .eq('user_a_id', userA)
+        .eq('user_b_id', userB)
+        .not('status', 'in', '(dissolved,expired,unmatched)')
+        .limit(1)
+        .maybeSingle();
+
+      if (existingMatch) {
+        throw new AppError(
+          400,
+          "It's already a match! Unmatch from the chat if you've changed your mind.",
+          'CANNOT_REWIND_MATCHED',
+        );
+      }
+    }
+
+    // ── Delete the swipe record ─────────────────────────────────────────────
 
     const { error: deleteError } = await supabase
       .from('actions')
       .delete()
-      .eq('id', lastPass.id);
+      .eq('id', lastAction.id);
 
     if (deleteError) {
-      throw new AppError(500, 'Failed to rewind pass', 'REWIND_FAILED');
+      throw new AppError(500, 'Failed to rewind swipe', 'REWIND_FAILED');
     }
 
     // Track the rewind in daily counters
     await incrementDailyCount(user.id, 'rewind');
+
+    // Undoing a like refunds it against the daily like limit
+    if (lastAction.kind === 'like') {
+      try {
+        const likeKey = `daily_like:${user.id}:${todayKey()}`;
+        const current = await redis.get(likeKey);
+        if (current && parseInt(current, 10) > 0) {
+          await redis.decr(likeKey);
+        }
+      } catch {
+        // Redis down — DB fallback recounts naturally since the row is gone
+      }
+    }
 
     // Invalidate feed cache so the rewound profile reappears
     await invalidateFeedCache(user.id);
@@ -384,7 +458,8 @@ router.post(
     res.json({
       success: true,
       data: {
-        rewound_target_id: lastPass.target_id,
+        rewound_target_id: lastAction.target_id,
+        rewound_kind: lastAction.kind,
         rewinds_remaining: rewindsRemaining,
         rewinds_used_today: rewindsUsed + 1,
       },

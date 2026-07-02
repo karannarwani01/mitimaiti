@@ -716,6 +716,17 @@ router.post(
           expires_at: null, // Clear timer once both have messaged
         })
         .eq('id', matchId);
+
+      // Real-time: tell both users the match is now active (unlock banners,
+      // countdown removal) without waiting for a reload.
+      try {
+        const { emitToUser } = await import('../socket');
+        const update = { matchId, status: 'active', firstMsgLocked: false, expiresAt: null };
+        emitToUser(user.id, 'match_update', update);
+        emitToUser(otherId, 'match_update', update);
+      } catch {
+        // Non-critical
+      }
     }
 
     // ── AI moderation for any text content (icebreakers included) ──

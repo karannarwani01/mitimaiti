@@ -244,33 +244,63 @@ object APIService {
 
     // ──────────────────── FEED ────────────────────
 
-    suspend fun fetchFeed(cursor: String? = null): Result<List<FeedCard>> {
+    /** One page of the discovery feed plus server-authoritative daily counters. */
+    data class FeedPage(
+        val cards: List<FeedCard>,
+        val likesUsedToday: Int? = null,
+        val rewindsUsedToday: Int? = null,
+    )
+
+    suspend fun fetchFeed(cursor: String? = null): Result<FeedPage> {
         return try {
             val response = api.getFeed(cursor)
             if (response.isSuccessful) {
-                val body = response.body() ?: return Result.success(emptyList())
-                Result.success(parseFeedCards(body["cards"] as? List<*>))
+                val body = response.body() ?: return Result.success(FeedPage(emptyList()))
+                val limits = body["limits"] as? Map<*, *>
+                Result.success(FeedPage(
+                    cards = parseFeedCards(body["cards"] as? List<*>),
+                    likesUsedToday = (limits?.get("likes_used_today") as? Number)?.toInt(),
+                    rewindsUsedToday = (limits?.get("rewinds_used_today") as? Number)?.toInt(),
+                ))
             } else Result.failure(APIError.ServerError)
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
 
     // ──────────────────── ACTIONS ────────────────────
 
-    /** Returns true when the like produced a mutual match. The backend responds
-     *  with { is_match, match_id, ... } — there is no full `match` object here. */
-    suspend fun performAction(targetId: String, type: String): Result<Boolean> {
+    data class ActionResult(
+        val isMatch: Boolean,
+        val matchId: String?,
+        val likesUsedToday: Int? = null,
+    )
+
+    /** The backend responds with { is_match, match_id, likes_used_today, ... }. */
+    suspend fun performAction(targetId: String, type: String): Result<ActionResult> {
         return try {
             val response = api.performAction(mapOf("target_user_id" to targetId, "type" to type))
             if (response.isSuccessful) {
-                Result.success(response.body()?.get("is_match") as? Boolean ?: false)
+                val body = response.body()
+                Result.success(ActionResult(
+                    isMatch = body?.get("is_match") as? Boolean ?: false,
+                    matchId = body?.get("match_id") as? String,
+                    likesUsedToday = (body?.get("likes_used_today") as? Number)?.toInt(),
+                ))
+            } else if (response.code() == 429) {
+                Result.failure(APIError.DailyLimitReached)
             } else Result.failure(APIError.ServerError)
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
 
+    /** Undo the last swipe (like or pass). Fails with a message when the last
+     *  like already became a match. */
     suspend fun rewind(): Result<Boolean> {
         return try {
             val response = api.rewind()
-            Result.success(response.isSuccessful)
+            if (response.isSuccessful) Result.success(true)
+            else if (response.code() == 429) Result.failure(APIError.DailyLimitReached)
+            else if (response.code() == 400 && errorCodeOf(response) == "CANNOT_REWIND_MATCHED") {
+                Result.failure(APIError.CannotRewindMatched)
+            } else Result.failure(APIError.ServerError)
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
 
@@ -691,4 +721,8 @@ sealed class APIError : Exception() {
     object PhotoLimitReached : APIError()
     /** Server rejected a chat message (moderation, Respect-First lock, rate limit). */
     data class MessageRejected(val reason: String) : APIError()
+    /** Daily like/rewind budget exhausted (429 DAILY_LIMIT_REACHED). */
+    object DailyLimitReached : APIError()
+    /** The last like already became a match — undo it via Unmatch instead. */
+    object CannotRewindMatched : APIError()
 }

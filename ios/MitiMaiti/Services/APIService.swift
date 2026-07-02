@@ -290,21 +290,29 @@ actor APIService {
 
     // MARK: - Feed
 
-    func fetchFeed(cursor: String? = nil) async throws -> [FeedCard] {
-        struct Resp: Decodable { let cards: [FeedCard] }
+    /// Server-authoritative daily like/rewind counters delivered with the feed.
+    struct DailyLimits: Decodable {
+        let likesUsedToday: Int?
+        let likesRemaining: Int?
+        let rewindsUsedToday: Int?
+        let rewindsRemaining: Int?
+    }
+
+    func fetchFeed(cursor: String? = nil) async throws -> (cards: [FeedCard], limits: DailyLimits?) {
+        struct Resp: Decodable { let cards: [FeedCard]; let limits: DailyLimits? }
         let path = cursor.map { "/feed?cursor=\($0)" } ?? "/feed"
         let resp: Resp = try await authedRequest(.get, path)
-        return resp.cards
+        return (resp.cards, resp.limits)
     }
 
     // MARK: - Actions
 
-    func performAction(targetId: String, type: ActionType) async throws -> (isMatch: Bool, matchId: String?) {
+    func performAction(targetId: String, type: ActionType) async throws -> (isMatch: Bool, matchId: String?, likesUsedToday: Int?) {
         // Field name snake-cases to target_user_id (what the backend expects).
         struct Body: Encodable { let targetUserId: String; let type: String }
-        struct Resp: Decodable { let isMatch: Bool; let matchId: String? }
-        let resp: Resp = try await authedRequest(.post, "/action", body: Body(targetUserId: targetId, type: String(describing: type)))
-        return (resp.isMatch, resp.matchId)
+        struct Resp: Decodable { let isMatch: Bool; let matchId: String?; let likesUsedToday: Int? }
+        let resp: Resp = try await authedRequest(.post, "/action", body: Body(targetUserId: targetId, type: type.rawValue))
+        return (resp.isMatch, resp.matchId, resp.likesUsedToday)
     }
 
     func registerFcmToken(_ token: String, platform: String = "ios") async throws {
