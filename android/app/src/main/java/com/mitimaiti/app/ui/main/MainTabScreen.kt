@@ -178,7 +178,21 @@ fun MainTabScreen(
                     MainTab.DISCOVER -> DiscoverScreen(
                         viewModel = feedViewModel,
                         onNavigateToEditProfile = onNavigateToEditProfile,
-                        userProfileCompleteness = profileViewModel.computedCompleteness
+                        userProfileCompleteness = profileViewModel.computedCompleteness,
+                        onSendMessage = { matchId, matchedUser ->
+                            // Seed the inbox with the fresh match so the chat
+                            // route can resolve it immediately, then open it.
+                            inboxViewModel.upsertMatch(
+                                com.mitimaiti.app.models.Match(
+                                    id = matchId,
+                                    otherUser = matchedUser,
+                                    status = com.mitimaiti.app.models.MatchStatus.PENDING_FIRST_MESSAGE,
+                                    matchedAt = System.currentTimeMillis(),
+                                    expiresAt = System.currentTimeMillis() + 24 * 60 * 60 * 1000L
+                                )
+                            )
+                            onNavigateToChat(matchId)
+                        }
                     )
                     MainTab.LIKED_YOU -> LikedYouScreen(viewModel = inboxViewModel)
                     MainTab.MATCHES -> MatchesScreen(

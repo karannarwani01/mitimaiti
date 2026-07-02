@@ -131,6 +131,16 @@ class InboxViewModel: ObservableObject {
         matches.removeAll { $0.id == matchId }
     }
 
+    /// Insert a freshly-created match immediately (e.g. from the Discover
+    /// match popup) so the chat screen can open it before the next inbox
+    /// refetch replaces it with the server copy.
+    func upsertMatch(_ match: Match) {
+        if !matches.contains(where: { $0.id == match.id }) {
+            matches.insert(match, at: 0)
+        }
+        loadInbox()
+    }
+
     /// Called when a reply is received after an ice breaker / first message.
     /// Moves the match from the timer-avatar section to the permanent Chats list.
     func activateMatch(id: String) {

@@ -28,6 +28,7 @@ import com.mitimaiti.app.utils.AppLanguage
 import com.mitimaiti.app.utils.LocalizationManager
 import com.mitimaiti.app.utils.ThemeManager
 import com.mitimaiti.app.viewmodels.SettingsViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,6 +44,45 @@ fun SettingsScreen(
 ) {
     val colors = LocalAdaptiveColors.current
     val scrollState = rememberScrollState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val exportScope = rememberCoroutineScope()
+    var isExporting by remember { mutableStateOf(false) }
+
+    // GDPR export: fetch the JSON and hand it to the system share sheet
+    fun exportMyData() {
+        if (isExporting) return
+        isExporting = true
+        exportScope.launch {
+            com.mitimaiti.app.services.APIService.exportData()
+                .onSuccess { json ->
+                    try {
+                        val file = java.io.File(context.cacheDir, "mitimaiti_data_export.json")
+                        file.writeText(json)
+                        val uri = androidx.core.content.FileProvider.getUriForFile(
+                            context, "${context.packageName}.fileprovider", file
+                        )
+                        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                            type = "application/json"
+                            putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        context.startActivity(
+                            android.content.Intent.createChooser(intent, "Save your MitiMaiti data")
+                        )
+                    } catch (e: Exception) {
+                        viewModel.showToast("Couldn't prepare the export file")
+                    }
+                }
+                .onFailure { err ->
+                    viewModel.showToast(
+                        if (err is com.mitimaiti.app.services.APIError.DailyLimitReached)
+                            "Export limit reached — try again in an hour"
+                        else "Export failed. Check your connection."
+                    )
+                }
+            isExporting = false
+        }
+    }
 
     // Visibility
     val discoveryEnabled by viewModel.discoveryEnabled.collectAsState()
@@ -428,18 +468,26 @@ fun SettingsScreen(
                         }
                     }
                     HorizontalDivider(color = colors.borderSubtle)
-                    // Export Data
+                    // Export Data (GDPR) — downloads the JSON and opens the share sheet
                     TextButton(
-                        onClick = { viewModel.showToast("Data export requested. Check your email.") },
+                        onClick = { exportMyData() },
+                        enabled = !isExporting,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.Download, null, tint = AppColors.Info, modifier = Modifier.size(20.dp))
+                            if (isExporting) {
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp), color = AppColors.Info, strokeWidth = 2.dp)
+                            } else {
+                                Icon(Icons.Default.Download, null, tint = AppColors.Info, modifier = Modifier.size(20.dp))
+                            }
                             Spacer(modifier = Modifier.width(12.dp))
-                            Text("Export My Data", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = AppColors.Info)
+                            Text(
+                                if (isExporting) "Preparing your data…" else "Export My Data",
+                                fontSize = 15.sp, fontWeight = FontWeight.Medium, color = AppColors.Info
+                            )
                         }
                     }
                     HorizontalDivider(color = colors.borderSubtle)

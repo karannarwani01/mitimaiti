@@ -95,6 +95,16 @@ class InboxViewModel : ViewModel() {
     }
     fun unmatch(matchId: String) { _matches.value = _matches.value.filter { it.id != matchId } }
 
+    /** Insert a freshly-created match immediately (e.g. from the Discover
+     *  match popup) so the chat screen can open it before the next inbox
+     *  refetch replaces it with the server copy. */
+    fun upsertMatch(match: Match) {
+        if (_matches.value.none { it.id == match.id }) {
+            _matches.value = listOf(match) + _matches.value
+        }
+        loadInbox()
+    }
+
     /**
      * Called when a reply is received after the ice breaker.
      * Transitions match from PENDING → ACTIVE, removes expiry (chat saved permanently).

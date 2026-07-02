@@ -815,6 +815,34 @@ actor APIService {
         let _: EmptyData = try await authedRequest(.post, "/safety/block", body: Body(blockedId: userId))
     }
 
+    /// GDPR data export: returns pretty-printed JSON of everything the
+    /// backend stores about the user (rate-limited to 2/hour server-side).
+    func exportData() async throws -> Data {
+        let url = URL(string: AppConfig.baseURL + "/me/export")!
+        var req = URLRequest(url: url)
+        req.httpMethod = "GET"
+        if let token = accessToken {
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        let (data, response) = try await URLSession.shared.data(for: req)
+        guard let http = response as? HTTPURLResponse else { throw APIError.networkError }
+        if http.statusCode == 401 {
+            try await refresh()
+            return try await exportData()
+        }
+        if http.statusCode == 429 { throw APIError.rateLimited }
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.serverError("Export failed: HTTP \(http.statusCode)")
+        }
+        // Unwrap the { success, data } envelope and pretty-print
+        if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let payload = obj["data"],
+           let pretty = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys]) {
+            return pretty
+        }
+        return data
+    }
+
     /// Permanently delete the account server-side (soft-delete, 30-day window).
     func deleteAccount() async throws {
         struct Body: Encodable { let action: String }

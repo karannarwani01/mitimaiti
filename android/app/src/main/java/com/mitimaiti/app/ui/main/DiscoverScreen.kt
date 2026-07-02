@@ -42,7 +42,13 @@ import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DiscoverScreen(viewModel: FeedViewModel, onNavigateToEditProfile: () -> Unit = {}, userProfileCompleteness: Int = 100) {
+fun DiscoverScreen(
+    viewModel: FeedViewModel,
+    onNavigateToEditProfile: () -> Unit = {},
+    userProfileCompleteness: Int = 100,
+    /** Called with (matchId, matchedUser) when "Send Message" is tapped on the match popup. */
+    onSendMessage: (String, User) -> Unit = { _, _ -> }
+) {
     val colors = LocalAdaptiveColors.current
     val cards by viewModel.cards.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
@@ -250,12 +256,18 @@ fun DiscoverScreen(viewModel: FeedViewModel, onNavigateToEditProfile: () -> Unit
 
         // ── Match Alert ──
         if (showMatchAlert && matchedUser != null) {
+            val matchedMatchId by viewModel.matchedMatchId.collectAsState()
             AlertDialog(
                 onDismissRequest = { viewModel.dismissMatchAlert() },
                 title = { Text("It's a Match! 🎉", fontWeight = FontWeight.Bold) },
                 text = { Text("You and ${matchedUser!!.displayName} liked each other!") },
                 confirmButton = {
-                    TextButton(onClick = { viewModel.dismissMatchAlert() }) {
+                    TextButton(onClick = {
+                        val matchId = matchedMatchId
+                        val user = matchedUser
+                        viewModel.dismissMatchAlert()
+                        if (matchId != null && user != null) onSendMessage(matchId, user)
+                    }) {
                         Text("Send Message", color = AppColors.Rose)
                     }
                 },

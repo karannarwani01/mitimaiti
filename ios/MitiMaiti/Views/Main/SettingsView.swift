@@ -9,6 +9,32 @@ struct SettingsView: View {
 
     @State private var activePickerSheet: PickerSheetType?
 
+    // GDPR export state
+    @State private var isExporting = false
+    @State private var exportFileUrl: URL?
+    @State private var showExportShare = false
+
+    /// Fetch the data export and hand the JSON file to the system share sheet.
+    private func exportMyData() {
+        guard !isExporting else { return }
+        isExporting = true
+        Task {
+            do {
+                let data = try await APIService.shared.exportData()
+                let url = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("mitimaiti_data_export.json")
+                try data.write(to: url)
+                exportFileUrl = url
+                showExportShare = true
+            } catch APIError.rateLimited {
+                vm.showToast("Export limit reached — try again in an hour")
+            } catch {
+                vm.showToast("Export failed. Check your connection.")
+            }
+            isExporting = false
+        }
+    }
+
     var body: some View {
         ZStack(alignment: .top) {
             ScrollView(showsIndicators: false) {
@@ -38,6 +64,11 @@ struct SettingsView: View {
         }
         .navigationTitle(localization.t("settings.title"))
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showExportShare) {
+            if let url = exportFileUrl {
+                ShareSheet(activityItems: [url])
+            }
+        }
         .alert(localization.t("settings.logOutConfirm"), isPresented: $vm.showLogoutConfirmation) {
             Button(localization.t("settings.logOut"), role: .destructive) { authVM.logout() }
             Button(localization.t("common.cancel"), role: .cancel) {}
@@ -400,12 +431,17 @@ struct SettingsView: View {
                 settingsRow(icon: "person.3.fill", title: localization.t("settings.familyMode"), color: AppTheme.rose)
             }
 
-            // Export Data
+            // Export Data (GDPR) — downloads the JSON and opens the share sheet
             Button {
-                vm.showToast("Data export requested")
+                exportMyData()
             } label: {
-                settingsRow(icon: "square.and.arrow.down", title: "Export Data", color: AppTheme.rose)
+                settingsRow(
+                    icon: "square.and.arrow.down",
+                    title: isExporting ? "Preparing your data…" : "Export Data",
+                    color: AppTheme.rose
+                )
             }
+            .disabled(isExporting)
 
             // Change Phone
             changePhoneRow

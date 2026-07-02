@@ -7,9 +7,11 @@ struct DiscoverView: View {
     @State private var showFilters = false
     @State private var showNotifications = false
     @EnvironmentObject var profileVM: ProfileViewModel
+    @EnvironmentObject var inboxVM: InboxViewModel
     @State private var showEditProfile = false
     @State private var bannerDismissed = false
     @State private var showShareSheet = false
+    @State private var newMatchToChat: Match?
     @ObservedObject private var notificationManager = NotificationManager.shared
 
     var body: some View {
@@ -32,11 +34,33 @@ struct DiscoverView: View {
                 NotificationPanelView()
             }
             .alert(localization.t("discover.itsAMatch"), isPresented: $feedVM.showMatchAlert) {
-                Button(localization.t("discover.sendMessage")) {}
-                Button(localization.t("discover.keepDiscovering"), role: .cancel) {}
+                Button(localization.t("discover.sendMessage")) {
+                    // Open the fresh chat right away (previously did nothing)
+                    if let matchId = feedVM.matchedMatchId, let user = feedVM.matchedUser {
+                        let match = Match(
+                            id: matchId,
+                            otherUser: user,
+                            status: .pendingFirstMessage,
+                            matchedAt: Date(),
+                            expiresAt: Date().addingTimeInterval(24 * 3600)
+                        )
+                        inboxVM.upsertMatch(match)
+                        newMatchToChat = match
+                    }
+                    feedVM.matchedMatchId = nil
+                }
+                Button(localization.t("discover.keepDiscovering"), role: .cancel) {
+                    feedVM.matchedMatchId = nil
+                }
             } message: {
                 if let user = feedVM.matchedUser {
                     Text("You and \(user.displayName) liked each other! Start a conversation within 24 hours.")
+                }
+            }
+            .fullScreenCover(item: $newMatchToChat) { match in
+                NavigationStack {
+                    ChatView(match: match)
+                        .environmentObject(inboxVM)
                 }
             }
             .navigationDestination(isPresented: $showEditProfile) {

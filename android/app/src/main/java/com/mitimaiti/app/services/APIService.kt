@@ -82,6 +82,20 @@ object APIService {
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
 
+    /** GDPR data export: returns the raw JSON of everything the backend
+     *  stores about the user (rate-limited to 2/hour server-side). */
+    suspend fun exportData(): Result<String> {
+        return try {
+            val response = api.exportData()
+            if (response.isSuccessful) {
+                val raw = response.body()?.string()
+                if (raw.isNullOrBlank()) Result.failure(APIError.ServerError)
+                else Result.success(raw)
+            } else if (response.code() == 429) Result.failure(APIError.DailyLimitReached)
+            else Result.failure(APIError.ServerError)
+        } catch (e: Exception) { Result.failure(APIError.NetworkError) }
+    }
+
     /** Permanently delete the account server-side (soft-delete, 30-day window). */
     suspend fun deleteAccount(): Result<Boolean> {
         return try {

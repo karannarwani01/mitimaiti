@@ -8,6 +8,7 @@ class FeedViewModel: ObservableObject {
     @Published var dailyRewindsUsed = 0
     @Published var showMatchAlert = false
     @Published var matchedUser: User?
+    @Published var matchedMatchId: String?
     @Published var error: String?
     @Published var showScoreBreakdown = false
     @Published var selectedCard: FeedCard?
@@ -89,6 +90,7 @@ class FeedViewModel: ObservableObject {
                     // A matched like can't be rewound — drop it from the undo stack
                     swipeHistory.removeAll { $0.card.id == card.id }
                     matchedUser = card.user
+                    matchedMatchId = result.matchId
                     showMatchAlert = true
 
                     // Trigger match notification

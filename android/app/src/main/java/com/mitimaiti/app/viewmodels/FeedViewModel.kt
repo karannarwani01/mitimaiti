@@ -27,6 +27,8 @@ class FeedViewModel : ViewModel() {
     val showMatchAlert: StateFlow<Boolean> = _showMatchAlert.asStateFlow()
     private val _matchedUser = MutableStateFlow<User?>(null)
     val matchedUser: StateFlow<User?> = _matchedUser.asStateFlow()
+    private val _matchedMatchId = MutableStateFlow<String?>(null)
+    val matchedMatchId: StateFlow<String?> = _matchedMatchId.asStateFlow()
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
     private val _showScoreBreakdown = MutableStateFlow(false)
@@ -101,7 +103,7 @@ class FeedViewModel : ViewModel() {
                 if (result.isMatch) {
                     // A matched like can't be rewound — drop it from the undo stack
                     swipeHistory.removeAll { it.card.id == card.id }
-                    _matchedUser.value = card.user; _showMatchAlert.value = true
+                    _matchedUser.value = card.user; _matchedMatchId.value = result.matchId; _showMatchAlert.value = true
                     AppNotificationManager.shared.addNotification(type = NotificationType.MATCH, title = "It's a Match!", body = "You and ${card.user.displayName} liked each other!")
                 }
             }.onFailure { err ->
@@ -136,7 +138,7 @@ class FeedViewModel : ViewModel() {
             }
         }
     }
-    fun dismissMatchAlert() { _showMatchAlert.value = false; _matchedUser.value = null }
+    fun dismissMatchAlert() { _showMatchAlert.value = false; _matchedUser.value = null; _matchedMatchId.value = null }
     fun showScoreBreakdown(card: FeedCard) { _selectedCard.value = card; _showScoreBreakdown.value = true }
     fun hideScoreBreakdown() { _showScoreBreakdown.value = false; _selectedCard.value = null }
     private suspend fun prefetchIfNeeded() { if (_cards.value.size < 5) { APIService.fetchFeed().onSuccess { page -> val ids = _cards.value.map { it.id }.toSet(); _cards.value = _cards.value + page.cards.filter { it.id !in ids }; applyFeedPage(page, replace = false) } } }

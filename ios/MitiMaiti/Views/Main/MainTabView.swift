@@ -14,6 +14,7 @@ struct MainTabView: View {
             DiscoverView()
                 .environmentObject(feedVM)
                 .environmentObject(profileVM)
+                .environmentObject(inboxVM)
                 .tabItem {
                     Label("Discover", systemImage: "sparkle.magnifyingglass")
                 }
