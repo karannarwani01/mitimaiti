@@ -82,6 +82,9 @@ interface MitiMaitiApi {
         @Query("limit") limit: Int = 20
     ): Response<Map<String, Any>>
 
+    @GET("feed/daily-pick")
+    suspend fun getDailyPick(): Response<Map<String, Any>>
+
     @GET("feed/prompts")
     suspend fun getDailyPrompts(): Response<Map<String, Any>>
 

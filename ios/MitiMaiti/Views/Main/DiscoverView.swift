@@ -18,6 +18,9 @@ struct DiscoverView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 discoverHeader
+                if let pick = feedVM.dailyPick {
+                    dailyPickBanner(pick)
+                }
                 mainContent
             }
             .appBackground()
@@ -73,6 +76,54 @@ struct DiscoverView: View {
                 ])
             }
         }
+    }
+
+    // MARK: - "Most Compatible" daily pick banner (Hinge Standouts-style)
+
+    private func dailyPickBanner(_ pick: FeedCard) -> some View {
+        Button {
+            feedVM.bringPickToFront()
+        } label: {
+            HStack(spacing: 10) {
+                AsyncImage(url: URL(string: pick.user.primaryPhoto?.urlThumb ?? pick.user.primaryPhoto?.url ?? "")) { image in
+                    image.resizable().scaledToFill()
+                } placeholder: {
+                    Circle().fill(AppTheme.gold.opacity(0.2))
+                }
+                .frame(width: 40, height: 40)
+                .clipShape(Circle())
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("✨ Today's Most Compatible")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(AppTheme.gold)
+                    Text("\(pick.user.displayName), \(pick.user.age)")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(colors.textPrimary)
+                }
+
+                Spacer()
+
+                Text("\(pick.culturalScore.overallScore)%")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(AppTheme.gold))
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(AppTheme.gold.opacity(0.12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(AppTheme.gold.opacity(0.5), lineWidth: 1)
+                    )
+            )
+        }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 8)
     }
 
     // MARK: - Header

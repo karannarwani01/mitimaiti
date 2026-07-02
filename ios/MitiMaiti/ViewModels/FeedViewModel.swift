@@ -33,10 +33,35 @@ class FeedViewModel: ObservableObject {
         if let used = limits?.rewindsUsedToday { dailyRewindsUsed = used }
     }
 
+    // ── "Most Compatible" daily pick (Hinge Standouts-style) ──
+    @Published var dailyPick: FeedCard?
+
+    private func loadDailyPick() {
+        Task {
+            if let pick = try? await api.fetchDailyPick() {
+                dailyPick = pick
+            }
+        }
+    }
+
+    /// Bring today's pick to the front of the deck so the user can swipe on it.
+    func bringPickToFront() {
+        guard let pick = dailyPick else { return }
+        let existing = cards.first { $0.id == pick.id }
+        cards.removeAll { $0.id == pick.id }
+        cards.insert(existing ?? pick, at: 0)
+    }
+
+    /// Hide the pick banner once the user has swiped on that person.
+    private func clearPickIfActedOn(_ cardId: String) {
+        if dailyPick?.id == cardId { dailyPick = nil }
+    }
+
     func loadFeed() {
         guard !isLoading else { return }
         isLoading = true
         error = nil
+        loadDailyPick()
 
         Task {
             do {
@@ -81,6 +106,7 @@ class FeedViewModel: ObservableObject {
         let card = cards.removeFirst()
         dailyLikesUsed += 1
         swipeHistory.append((card, .like))
+        clearPickIfActedOn(card.id)
 
         Task {
             do {
@@ -116,6 +142,7 @@ class FeedViewModel: ObservableObject {
         guard !cards.isEmpty else { return }
         let card = cards.removeFirst()
         swipeHistory.append((card, .pass))
+        clearPickIfActedOn(card.id)
         Task {
             // Record the pass on the backend so the profile isn't re-served in
             // the feed and rewind has something to undo (matches Android).

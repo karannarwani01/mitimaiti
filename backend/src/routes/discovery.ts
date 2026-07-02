@@ -1074,4 +1074,185 @@ router.post(
   }),
 );
 
+// ─── GET /v1/feed/daily-pick ────────────────────────────────────────────────────
+// "Most Compatible" daily pick (Hinge Standouts-style): the highest
+// cultural-score candidate for this user, stable for the whole day.
+
+router.get(
+  '/daily-pick',
+  authenticate,
+  asyncHandler(async (req: Request, res: Response) => {
+    const user = (req as AuthenticatedRequest).user;
+    const today = new Date().toISOString().split('T')[0];
+    const cacheKey = `daily_pick:${user.id}:${today}`;
+
+    // ── My basics + settings ──
+    const [{ data: myBasic }, { data: mySettings }] = await Promise.all([
+      supabase.from('basic_profiles').select('city, gender, intent').eq('user_id', user.id).single(),
+      supabase.from('user_settings').select('age_min, age_max, gender_preference').eq('user_id', user.id).single(),
+    ]);
+
+    if (!myBasic) {
+      throw new AppError(400, 'Complete your profile before discovering matches', 'PROFILE_INCOMPLETE');
+    }
+
+    // ── Exclusions: self, blocked (both ways), already acted on ──
+    const [{ data: blocks }, { data: myActions }] = await Promise.all([
+      supabase
+        .from('blocked_users')
+        .select('blocker_id, blocked_id')
+        .or(`blocker_id.eq.${user.id},blocked_id.eq.${user.id}`),
+      supabase.from('actions').select('target_id').eq('actor_id', user.id),
+    ]);
+
+    const exclude = new Set<string>([user.id]);
+    (blocks || []).forEach((b: any) => {
+      exclude.add(b.blocker_id);
+      exclude.add(b.blocked_id);
+    });
+    (myActions || []).forEach((a: any) => exclude.add(a.target_id));
+
+    // ── Resolve today's pick (cached for the day so it stays stable) ──
+    let pickId = await safeRedisGet(cacheKey);
+    if (pickId && exclude.has(pickId)) pickId = null; // already swiped on today
+
+    if (!pickId) {
+      const now = new Date();
+      const ageMin = mySettings?.age_min ?? 18;
+      const ageMax = mySettings?.age_max ?? 50;
+      const maxDob = new Date(now.getFullYear() - ageMin, now.getMonth(), now.getDate())
+        .toISOString().split('T')[0];
+      const minDob = new Date(now.getFullYear() - ageMax - 1, now.getMonth(), now.getDate())
+        .toISOString().split('T')[0];
+
+      let query = supabase
+        .from('basic_profiles')
+        .select('user_id')
+        .eq('city', myBasic.city)
+        .gte('date_of_birth', minDob)
+        .lte('date_of_birth', maxDob)
+        .limit(60);
+
+      const genderPref = mySettings?.gender_preference || 'everyone';
+      if (genderPref === 'men') query = query.eq('gender', 'man');
+      else if (genderPref === 'women') query = query.eq('gender', 'woman');
+
+      const { data: candidates } = await query;
+      const candidateIds = (candidates || [])
+        .map((c: any) => c.user_id)
+        .filter((id: string) => !exclude.has(id));
+
+      if (candidateIds.length === 0) {
+        return res.json({ success: true, data: { card: null, date: today } });
+      }
+
+      // Safety gates: banned / hidden / snoozed / incognito never surface
+      const [{ data: meta }, { data: settingsRows }, { data: snoozed }] = await Promise.all([
+        supabase.from('users').select('id, is_banned, is_hidden').in('id', candidateIds),
+        supabase.from('user_settings').select('user_id, incognito_mode').in('user_id', candidateIds),
+        supabase.from('users').select('id').in('id', candidateIds).eq('is_snoozed', true),
+      ]);
+      const badIds = new Set<string>();
+      (meta || []).forEach((u: any) => { if (u.is_banned || u.is_hidden) badIds.add(u.id); });
+      (settingsRows || []).forEach((s: any) => { if (s.incognito_mode === true) badIds.add(s.user_id); });
+      (snoozed || []).forEach((u: any) => badIds.add(u.id));
+
+      const safeIds = candidateIds.filter((id: string) => !badIds.has(id)).slice(0, 30);
+      if (safeIds.length === 0) {
+        return res.json({ success: true, data: { card: null, date: today } });
+      }
+
+      // Highest cultural score wins
+      let best: { id: string; score: number } | null = null;
+      for (const cId of safeIds) {
+        const { total } = await getCachedCulturalScore(user.id, cId);
+        if (!best || total > best.score) best = { id: cId, score: total };
+      }
+      if (!best) {
+        return res.json({ success: true, data: { card: null, date: today } });
+      }
+
+      pickId = best.id;
+      // Cache until end of day
+      const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      await safeRedisSet(cacheKey, pickId, Math.ceil((endOfDay.getTime() - now.getTime()) / 1000));
+    }
+
+    // ── Build the card for the pick ──
+    const [
+      { data: profile },
+      { data: pickMeta },
+      { data: photos },
+      { data: personality },
+      { data: sindhi },
+      { data: nameSetting },
+    ] = await Promise.all([
+      supabase
+        .from('basic_profiles')
+        .select('user_id, display_name, date_of_birth, bio, height_cm, city, state, country, intent, education, occupation, religion')
+        .eq('user_id', pickId)
+        .single(),
+      supabase.from('users').select('is_verified, profile_completeness, is_online').eq('id', pickId).single(),
+      supabase
+        .from('photos')
+        .select('url_medium, url_original, url_thumb, sort_order, is_primary, is_verified, is_video')
+        .eq('user_id', pickId)
+        .order('sort_order'),
+      supabase.from('personality_profiles').select('interests, prompts').eq('user_id', pickId).maybeSingle(),
+      supabase.from('sindhi_profiles').select('sindhi_fluency').eq('user_id', pickId).maybeSingle(),
+      supabase.from('user_settings').select('show_full_name').eq('user_id', pickId).maybeSingle(),
+    ]);
+
+    if (!profile) {
+      return res.json({ success: true, data: { card: null, date: today } });
+    }
+
+    const { total: culturalScore, badge: culturalBadge } = await getCachedCulturalScore(user.id, pickId);
+    const { score: kundliScore, tier: kundliTier } = await getCachedKundliScore(user.id, pickId);
+
+    const firstName = profile.display_name?.split(' ')[0] || 'Unknown';
+    const hideFullName = nameSetting?.show_full_name === false;
+
+    const card = {
+      id: pickId,
+      first_name: firstName,
+      display_name: hideFullName ? firstName : (profile.display_name || 'Unknown'),
+      age: calculateAge(profile.date_of_birth),
+      city: profile.city,
+      state: profile.state || null,
+      country: profile.country || null,
+      bio: profile.bio || null,
+      intent: profile.intent,
+      is_verified: pickMeta?.is_verified || false,
+      profile_completeness: pickMeta?.profile_completeness || 0,
+      photos: (photos || []).map((p: any) => ({
+        url: p.url_original,
+        url_thumb: p.url_thumb || p.url_medium,
+        url_medium: p.url_medium,
+        is_primary: p.is_primary || false,
+        sort_order: p.sort_order || 0,
+        is_verified: p.is_verified || false,
+        is_video: p.is_video || false,
+      })),
+      about_me: profile.bio || null,
+      prompts: Array.isArray(personality?.prompts) ? personality!.prompts.slice(0, 3) : [],
+      interests: personality?.interests || [],
+      cultural_score: culturalScore,
+      cultural_badge: culturalBadge,
+      kundli_score: kundliScore,
+      kundli_tier: kundliTier,
+      common_interests: 0,
+      distance_km: cityDistance(myBasic.city || '', profile.city || ''),
+      is_online: pickMeta?.is_online || false,
+      sindhi_fluency: sindhi?.sindhi_fluency || null,
+      height_cm: profile.height_cm || null,
+      education: profile.education || null,
+      occupation: profile.occupation || null,
+      religion: profile.religion || null,
+    };
+
+    res.json({ success: true, data: { card, date: today } });
+  }),
+);
+
 export default router;

@@ -60,6 +60,7 @@ fun DiscoverScreen(
     var showFilters by remember { mutableStateOf(false) }
     var filterState by remember { mutableStateOf(FilterState()) }
     val activeFilterCount = countActiveFilters(filterState)
+    val dailyPick by viewModel.dailyPick.collectAsState()
 
     Box(modifier = Modifier.fillMaxSize().background(colors.backgroundGradient)) {
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
@@ -98,6 +99,59 @@ fun DiscoverScreen(
                                     }
                                 }
                             }
+                        }
+                    }
+                }
+            }
+
+            // ── "Most Compatible" daily pick banner (Hinge Standouts-style) ──
+            dailyPick?.let { pick ->
+                Surface(
+                    onClick = { viewModel.bringPickToFront() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .padding(bottom = 8.dp),
+                    shape = RoundedCornerShape(AppTheme.radiusMd),
+                    color = AppColors.BadgeGold.copy(alpha = 0.12f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, AppColors.BadgeGold.copy(alpha = 0.5f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        AsyncImage(
+                            model = pick.user.primaryPhoto?.urlThumb ?: pick.user.primaryPhoto?.url ?: "",
+                            contentDescription = null,
+                            modifier = Modifier.size(40.dp).clip(CircleShape),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "✨ Today's Most Compatible",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = AppColors.BadgeGold
+                            )
+                            Text(
+                                buildString {
+                                    append(pick.user.displayName)
+                                    pick.user.age?.let { append(", $it") }
+                                },
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = colors.textPrimary
+                            )
+                        }
+                        Surface(shape = CircleShape, color = AppColors.BadgeGold) {
+                            Text(
+                                "${pick.culturalScore.overallScore}%",
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
                         }
                     }
                 }

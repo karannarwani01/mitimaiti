@@ -52,7 +52,29 @@ class FeedViewModel : ViewModel() {
         page.rewindsUsedToday?.let { _dailyRewindsUsed.value = it }
     }
 
-    fun loadFeed() { viewModelScope.launch { _isLoading.value = true; APIService.fetchFeed().onSuccess { applyFeedPage(it, replace = true) }.onFailure { _error.value = "Failed to load profiles" }; _isLoading.value = false } }
+    // ── "Most Compatible" daily pick (Hinge Standouts-style) ──
+    private val _dailyPick = MutableStateFlow<FeedCard?>(null)
+    val dailyPick: StateFlow<FeedCard?> = _dailyPick.asStateFlow()
+
+    private fun loadDailyPick() {
+        viewModelScope.launch {
+            APIService.fetchDailyPick().onSuccess { _dailyPick.value = it }
+        }
+    }
+
+    /** Bring today's pick to the front of the deck so the user can swipe on it. */
+    fun bringPickToFront() {
+        val pick = _dailyPick.value ?: return
+        val existing = _cards.value.firstOrNull { it.id == pick.id }
+        _cards.value = listOf(existing ?: pick) + _cards.value.filterNot { it.id == pick.id }
+    }
+
+    /** Hide the pick banner once the user has swiped on that person. */
+    private fun clearPickIfActedOn(cardId: String) {
+        if (_dailyPick.value?.id == cardId) _dailyPick.value = null
+    }
+
+    fun loadFeed() { loadDailyPick(); viewModelScope.launch { _isLoading.value = true; APIService.fetchFeed().onSuccess { applyFeedPage(it, replace = true) }.onFailure { _error.value = "Failed to load profiles" }; _isLoading.value = false } }
 
     /**
      * Persist the Discover filter sheet to the backend (user_settings drives
@@ -97,6 +119,7 @@ class FeedViewModel : ViewModel() {
         }
         val card = cur.removeAt(0); _cards.value = cur; _dailyLikesUsed.value++
         swipeHistory.add(Swipe(card, "like"))
+        clearPickIfActedOn(card.id)
         viewModelScope.launch {
             APIService.performAction(card.user.id, "like").onSuccess { result ->
                 result.likesUsedToday?.let { _dailyLikesUsed.value = it }
@@ -116,7 +139,7 @@ class FeedViewModel : ViewModel() {
         }
     }
 
-    fun passUser() { val cur = _cards.value.toMutableList(); if (cur.isEmpty()) return; val card = cur.removeAt(0); swipeHistory.add(Swipe(card, "pass")); _cards.value = cur; viewModelScope.launch { APIService.performAction(card.user.id, "pass"); prefetchIfNeeded() } }
+    fun passUser() { val cur = _cards.value.toMutableList(); if (cur.isEmpty()) return; val card = cur.removeAt(0); swipeHistory.add(Swipe(card, "pass")); clearPickIfActedOn(card.id); _cards.value = cur; viewModelScope.launch { APIService.performAction(card.user.id, "pass"); prefetchIfNeeded() } }
 
     fun rewind() {
         if (swipeHistory.isEmpty()) { _error.value = "Nothing to rewind!"; return }

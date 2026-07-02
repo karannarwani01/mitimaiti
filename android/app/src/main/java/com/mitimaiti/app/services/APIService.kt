@@ -314,6 +314,18 @@ object APIService {
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
 
+    /** "Most Compatible" daily pick — one card, stable for the day, or null
+     *  when there's no candidate left. */
+    suspend fun fetchDailyPick(): Result<FeedCard?> {
+        return try {
+            val response = api.getDailyPick()
+            if (response.isSuccessful) {
+                val card = response.body()?.get("card") as? Map<*, *>
+                Result.success(card?.let { parseFeedCards(listOf(it)).firstOrNull() })
+            } else Result.failure(APIError.ServerError)
+        } catch (e: Exception) { Result.failure(APIError.NetworkError) }
+    }
+
     // ──────────────────── ACTIONS ────────────────────
 
     data class ActionResult(

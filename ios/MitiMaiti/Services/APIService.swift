@@ -379,6 +379,14 @@ actor APIService {
         return (resp.cards, resp.limits)
     }
 
+    /// "Most Compatible" daily pick — one card, stable for the day, or nil
+    /// when there's no candidate left.
+    func fetchDailyPick() async throws -> FeedCard? {
+        struct Resp: Decodable { let card: FeedCard? }
+        let resp: Resp = try await authedRequest(.get, "/feed/daily-pick")
+        return resp.card
+    }
+
     // MARK: - Actions
 
     func performAction(targetId: String, type: ActionType) async throws -> (isMatch: Bool, matchId: String?, likesUsedToday: Int?) {
