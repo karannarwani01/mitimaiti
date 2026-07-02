@@ -10,6 +10,13 @@ interface RateLimitOptions {
   windowSeconds?: number;
   maxRequests?: number;
   keyPrefix?: string;
+  /**
+   * For unauthenticated routes: request-body fields to key the limit by
+   * (e.g. ['phone', 'email']). Mobile carriers use carrier-grade NAT, so many
+   * real users share one public IP — IP-keyed OTP limits let strangers
+   * exhaust each other's login budget. Falls back to IP when none present.
+   */
+  identityFields?: string[];
 }
 
 /**
@@ -23,13 +30,25 @@ export function rateLimit(options: RateLimitOptions = {}) {
     windowSeconds = DEFAULT_WINDOW_SECONDS,
     maxRequests = DEFAULT_MAX_REQUESTS,
     keyPrefix = 'rl',
+    identityFields,
   } = options;
 
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const user = (req as AuthenticatedRequest).user;
 
     if (!user) {
-      // If no user is attached (unauthenticated route), use IP-based limiting
+      // Unauthenticated route: prefer an identity key (phone/email from the
+      // body) so CGNAT users don't share a budget; fall back to IP.
+      if (identityFields) {
+        for (const field of identityFields) {
+          const value = (req.body as any)?.[field];
+          if (typeof value === 'string' && value.trim().length > 0) {
+            const key = `${keyPrefix}:id:${value.trim().toLowerCase()}`;
+            await checkLimit(key, windowSeconds, maxRequests, res, next);
+            return;
+          }
+        }
+      }
       const ip = req.ip || req.socket.remoteAddress || 'unknown';
       const key = `${keyPrefix}:ip:${ip}`;
       await checkLimit(key, windowSeconds, maxRequests, res, next);
@@ -87,6 +106,29 @@ export const strictRateLimit = rateLimit({
   windowSeconds: 60,
   maxRequests: 10,
   keyPrefix: 'rl_strict',
+});
+
+/**
+ * OTP send limiter: 5 sends per hour per phone/email (protects the Twilio/
+ * Resend budget and stops SMS-bombing a victim's number), with an IP
+ * fallback for malformed bodies.
+ */
+export const otpSendRateLimit = rateLimit({
+  windowSeconds: 3600,
+  maxRequests: 5,
+  keyPrefix: 'rl_otp_send',
+  identityFields: ['phone', 'email'],
+});
+
+/**
+ * OTP verify limiter: 10 attempts per 10 minutes per phone/email — enough
+ * for typos, too few to brute-force a 6-digit code.
+ */
+export const otpVerifyRateLimit = rateLimit({
+  windowSeconds: 600,
+  maxRequests: 10,
+  keyPrefix: 'rl_otp_verify',
+  identityFields: ['phone', 'email'],
 });
 
 export default rateLimit;

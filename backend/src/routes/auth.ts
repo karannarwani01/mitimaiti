@@ -6,7 +6,7 @@ import { redis } from '../config/redis';
 import { AppError, asyncHandler } from '../utils/errors';
 import { validate } from '../middleware/validate';
 import { authenticate } from '../middleware/auth';
-import { strictRateLimit } from '../middleware/rateLimit';
+import { strictRateLimit, otpSendRateLimit, otpVerifyRateLimit } from '../middleware/rateLimit';
 import { AuthenticatedRequest } from '../types';
 
 const router = Router();
@@ -83,7 +83,7 @@ const devOtpSessions = new Map<string, { phone: string; createdAt: number }>();
 
 router.post(
   '/login',
-  strictRateLimit,
+  otpSendRateLimit,
   validate(loginSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const { phone } = req.body;
@@ -136,7 +136,7 @@ router.post(
 
 router.post(
   '/verify',
-  strictRateLimit,
+  otpVerifyRateLimit,
   validate(verifySchema),
   asyncHandler(async (req: Request, res: Response) => {
     const { phone, token } = req.body;
@@ -405,7 +405,7 @@ const devOtpSessionsByEmail = new Map<string, { email: string; createdAt: number
 
 router.post(
   '/email/login',
-  strictRateLimit,
+  otpSendRateLimit,
   validate(emailLoginSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const email = (req.body.email as string).toLowerCase();
@@ -457,7 +457,7 @@ router.post(
 
 router.post(
   '/email/verify',
-  strictRateLimit,
+  otpVerifyRateLimit,
   validate(emailVerifySchema),
   asyncHandler(async (req: Request, res: Response) => {
     const email = (req.body.email as string).toLowerCase();

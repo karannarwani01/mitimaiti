@@ -43,7 +43,9 @@ struct EditProfileView: View {
     @State private var editWantKids: String = ""
     @State private var editSettlingTimeline: String = ""
 
-    @State private var editFluency: SindhiFluency = .fluent
+    // Optional: nil = "user never set this". Defaulting to a value here used
+    // to write fabricated cultural data on every save.
+    @State private var editFluency: SindhiFluency?
     @State private var editDialect: String = ""
     @State private var editGotra: String = ""
     @State private var editGeneration: String = ""
@@ -52,8 +54,8 @@ struct EditProfileView: View {
     @State private var editFamilyOriginCity: String = ""
     @State private var editFamilyOriginCountry: String = ""
 
-    @State private var editFamilyValues: FamilyValues = .moderate
-    @State private var editFoodPreference: FoodPreference = .vegetarian
+    @State private var editFamilyValues: FamilyValues?
+    @State private var editFoodPreference: FoodPreference?
     @State private var editFestivals: [String] = []
     @State private var editCuisines: [String] = []
     @State private var editCulturalActivities: [String] = []
@@ -407,8 +409,9 @@ struct EditProfileView: View {
 
     private var fluencyPicker: some View {
         Picker("Fluency", selection: $editFluency) {
+            Text("Select").tag(nil as SindhiFluency?)
             ForEach(SindhiFluency.allCases) { level in
-                Text(level.display).tag(level)
+                Text(level.display).tag(level as SindhiFluency?)
             }
         }
         .pickerStyle(.menu)
@@ -465,7 +468,7 @@ struct EditProfileView: View {
     private var familyValuesPicker: some View {
         Picker("Family Values", selection: $editFamilyValues) {
             ForEach(FamilyValues.allCases) { value in
-                Text(value.display).tag(value)
+                Text(value.display).tag(value as FamilyValues?)
             }
         }
         .pickerStyle(.segmented)
@@ -473,8 +476,9 @@ struct EditProfileView: View {
 
     private var foodPreferencePicker: some View {
         Picker("Food Preference", selection: $editFoodPreference) {
+            Text("Select").tag(nil as FoodPreference?)
             ForEach(FoodPreference.allCases) { pref in
-                Text(pref.display).tag(pref)
+                Text(pref.display).tag(pref as FoodPreference?)
             }
         }
         .pickerStyle(.menu)
@@ -1062,7 +1066,7 @@ struct EditProfileView: View {
         editWantKids = user.wantKids ?? ""
         editSettlingTimeline = user.settlingTimeline ?? ""
 
-        editFluency = user.sindhiFluency ?? .fluent
+        editFluency = user.sindhiFluency
         editDialect = user.sindhiDialect ?? ""
         editGotra = user.gotra ?? ""
         editGeneration = user.generation ?? ""
@@ -1073,8 +1077,8 @@ struct EditProfileView: View {
 
         editPrompts = user.prompts
 
-        editFamilyValues = user.familyValues ?? .moderate
-        editFoodPreference = user.foodPreference ?? .vegetarian
+        editFamilyValues = user.familyValues
+        editFoodPreference = user.foodPreference
         editFestivals = user.festivalsCelebrated ?? []
         editCuisines = user.cuisinePreferences ?? []
         editCulturalActivities = user.culturalActivities ?? []
