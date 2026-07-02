@@ -104,6 +104,7 @@ class ChatViewModel: ObservableObject {
     func loadMessages(for match: Match) {
         self.match = match
         startRealtime()
+        SocketChat.shared.activeChatMatchId = match.id
         SocketChat.shared.enterChat(matchId: match.id)
 
         // Serve from cache immediately — avoids blank screen on re-navigation
@@ -197,6 +198,9 @@ class ChatViewModel: ObservableObject {
     func leaveChat() {
         if let matchId = match?.id {
             SocketChat.shared.leaveChat(matchId: matchId)
+            if SocketChat.shared.activeChatMatchId == matchId {
+                SocketChat.shared.activeChatMatchId = nil
+            }
         }
     }
 

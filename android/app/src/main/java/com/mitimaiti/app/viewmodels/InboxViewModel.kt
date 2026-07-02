@@ -52,6 +52,41 @@ class InboxViewModel : ViewModel() {
                 }
             }
         }
+        // Global message alerts: a user who is online but NOT inside this
+        // chat gets no push (the server suppresses it) and previously nothing
+        // in-app either. Bump the unread badge and surface a notification.
+        viewModelScope.launch {
+            com.mitimaiti.app.services.SocketManager.shared.incomingMessages.collect { json ->
+                val matchId = json.optString("matchId")
+                if (matchId.isEmpty()) return@collect
+                // The open chat handles its own messages
+                if (matchId == com.mitimaiti.app.services.SocketManager.shared.activeChatMatchId) return@collect
+                // Ignore the echo of our own sends (match room includes us)
+                val senderId = json.optString("senderId")
+                if (senderId.isNotEmpty() && senderId == Message.currentUserId) return@collect
+
+                val existing = _matches.value.firstOrNull { it.id == matchId }
+                val content = json.optString("content").ifEmpty { "Sent you a message" }
+                if (existing != null) {
+                    _matches.value = listOf(
+                        existing.copy(
+                            unreadCount = existing.unreadCount + 1,
+                            lastMessage = content,
+                            status = MatchStatus.ACTIVE.takeIf { existing.firstMsgByMe } ?: existing.status,
+                            firstMsgLocked = if (existing.firstMsgByMe) false else existing.firstMsgLocked
+                        )
+                    ) + _matches.value.filterNot { it.id == matchId }
+                    AppNotificationManager.shared.addNotification(
+                        type = NotificationType.MESSAGE,
+                        title = existing.otherUser.displayName,
+                        body = content
+                    )
+                } else {
+                    // Unknown match (e.g. brand-new) — refresh from the server
+                    loadInbox()
+                }
+            }
+        }
     }
 
     fun loadInbox() {

@@ -33,6 +33,11 @@ class SocketManager private constructor() {
     private var socket: Socket? = null
     private var tokenProvider: (suspend () -> String?)? = null
 
+    /** The match whose chat screen is currently open (null = none). Global
+     *  listeners use this to avoid double-notifying for the visible chat. */
+    @Volatile
+    var activeChatMatchId: String? = null
+
     private val _isConnected = MutableStateFlow(false)
     val isConnected: StateFlow<Boolean> = _isConnected.asStateFlow()
 

@@ -1,7 +1,9 @@
 import SwiftUI
+import Combine
 
 @MainActor
 class InboxViewModel: ObservableObject {
+    private var cancellables = Set<AnyCancellable>()
     @Published var likes: [LikedYouCard] = []
     @Published var matches: [Match] = []
     @Published var isLoading = false
@@ -41,6 +43,51 @@ class InboxViewModel: ObservableObject {
                 self.activateMatch(id: matchId)
             }
         }
+        // Global message alerts: a user who is online but NOT inside this
+        // chat gets no push (the server suppresses it) and previously nothing
+        // in-app either. Bump the unread badge and surface a notification.
+        SocketChat.shared.globalMessages
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] payload in
+                guard let self else { return }
+                guard let matchId = payload["matchId"] as? String else { return }
+                // The open chat handles its own messages
+                if matchId == SocketChat.shared.activeChatMatchId { return }
+                // Ignore the echo of our own sends (match room includes us)
+                if let senderId = payload["senderId"] as? String,
+                   senderId == Message.currentUserId { return }
+
+                let content = (payload["content"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+                    ?? "Sent you a message"
+
+                if let idx = self.matches.firstIndex(where: { $0.id == matchId }) {
+                    var match = self.matches[idx]
+                    match.unreadCount += 1
+                    match.lastMessage = Message(
+                        matchId: matchId,
+                        senderId: match.otherUser.id,
+                        content: content,
+                        createdAt: Date()
+                    )
+                    if match.iSentFirst {
+                        match.firstMsgLocked = false
+                        match.status = .active
+                    }
+                    self.matches.remove(at: idx)
+                    self.matches.insert(match, at: 0)
+
+                    NotificationManager.shared.addNotification(
+                        type: .message,
+                        title: match.otherUser.displayName,
+                        body: content,
+                        actionData: matchId
+                    )
+                } else {
+                    // Unknown match (e.g. brand-new) — refresh from the server
+                    self.loadInbox()
+                }
+            }
+            .store(in: &cancellables)
     }
 
     func loadInbox() {

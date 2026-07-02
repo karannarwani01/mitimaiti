@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 import SocketIO
 
 /// WebSocket manager for real-time chat. Mirrors backend/src/socket.ts events.
@@ -23,6 +24,15 @@ final class SocketChat: ObservableObject {
     /// backfill messages that arrived during the outage.
     private(set) var reconnects = AsyncStream<Void>.makeStream()
     private var wasEverConnected = false
+
+    /// Multicast copy of every new_msg — the AsyncStream above is
+    /// single-consumer (owned by the open ChatViewModel), so global listeners
+    /// (inbox badge / in-app alerts) subscribe here instead.
+    let globalMessages = PassthroughSubject<[String: Any], Never>()
+
+    /// The match whose chat screen is currently open (nil = none). Global
+    /// listeners use this to avoid double-notifying for the visible chat.
+    var activeChatMatchId: String?
 
     func connect(token: String) {
         if socket?.status == .connected { return }
@@ -52,6 +62,7 @@ final class SocketChat: ObservableObject {
         socket?.on("new_msg") { [weak self] data, _ in
             if let payload = data.first as? [String: Any] {
                 self?.incomingMessages.continuation.yield(payload)
+                self?.globalMessages.send(payload)
             }
         }
         socket?.on("typing") { [weak self] data, _ in

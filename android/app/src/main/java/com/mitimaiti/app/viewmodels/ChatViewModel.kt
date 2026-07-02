@@ -146,6 +146,7 @@ class ChatViewModel : ViewModel() {
 
     fun loadMessages(match: Match) {
         _match.value = match
+        SocketManager.shared.activeChatMatchId = match.id
         SocketManager.shared.enterChat(match.id)
         // Check MessageRepository first (persists across navigation)
         val cached = MessageRepository.getMessages(match.id)
@@ -243,7 +244,12 @@ class ChatViewModel : ViewModel() {
     /** Tell the backend we left this chat so push notifications resume.
      *  Without this the server suppresses pushes for up to an hour. */
     fun leaveChat() {
-        _match.value?.id?.let { SocketManager.shared.leaveChat(it) }
+        _match.value?.id?.let {
+            SocketManager.shared.leaveChat(it)
+            if (SocketManager.shared.activeChatMatchId == it) {
+                SocketManager.shared.activeChatMatchId = null
+            }
+        }
     }
 
     fun sendIcebreaker(question: String) {
