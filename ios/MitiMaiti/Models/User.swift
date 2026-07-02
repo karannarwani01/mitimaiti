@@ -94,6 +94,9 @@ struct User: Identifiable, Codable, Hashable {
     /// Server-computed age. Feed/inbox cards send `age` without a date of birth.
     var ageYears: Int?
 
+    /// Hinge-style voice introduction (short audio clip)
+    var voiceIntroUrl: String?
+
     var age: Int {
         if let ageYears { return ageYears }
         guard let dob = dateOfBirth else { return 0 }
@@ -153,7 +156,8 @@ struct User: Identifiable, Codable, Hashable {
         languages: [String]? = nil,
         isOnline: Bool = false,
         lastActive: Date? = nil,
-        ageYears: Int? = nil
+        ageYears: Int? = nil,
+        voiceIntroUrl: String? = nil
     ) {
         self.id = id
         self.phone = phone
@@ -204,5 +208,6 @@ struct User: Identifiable, Codable, Hashable {
         self.isOnline = isOnline
         self.lastActive = lastActive
         self.ageYears = ageYears
+        self.voiceIntroUrl = voiceIntroUrl
     }
 }

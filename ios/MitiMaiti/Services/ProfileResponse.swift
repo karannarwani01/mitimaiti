@@ -73,6 +73,7 @@ struct ProfileResponse: Decodable {
         let petPreference: String?
         let languages: [String]?
         let prompts: [PromptRow]?
+        let voiceIntroUrl: String?
     }
 
     struct PromptRow: Decodable {
@@ -151,7 +152,8 @@ struct ProfileResponse: Decodable {
             petPreference: personality?.petPreference,
             languages: personality?.languages,
             isOnline: user.isOnline ?? false,
-            lastActive: user.lastActive
+            lastActive: user.lastActive,
+            voiceIntroUrl: personality?.voiceIntroUrl
         )
     }
 }

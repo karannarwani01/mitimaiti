@@ -61,6 +61,13 @@ interface MitiMaitiApi {
     @POST("me/verify")
     suspend fun verifySelfie(@Part selfie: MultipartBody.Part): Response<Map<String, Any>>
 
+    @Multipart
+    @POST("me/voice-intro")
+    suspend fun uploadVoiceIntro(@Part audio: MultipartBody.Part): Response<Map<String, Any>>
+
+    @DELETE("me/voice-intro")
+    suspend fun deleteVoiceIntro(): Response<Map<String, Any>>
+
     @GET("me/export")
     suspend fun exportData(): Response<okhttp3.ResponseBody>
 

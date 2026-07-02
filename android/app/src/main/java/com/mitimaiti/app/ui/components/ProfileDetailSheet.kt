@@ -12,6 +12,8 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -99,6 +101,12 @@ fun ProfileDetailSheet(
                         color = Color(intent.color)
                     )
                 }
+            }
+
+            // Voice intro (Hinge-style)
+            user.voiceIntroUrl?.let { url ->
+                Spacer(modifier = Modifier.height(10.dp))
+                VoiceIntroPill(url = url)
             }
 
             // Score chips (tap → full breakdown)
@@ -235,5 +243,55 @@ fun ProfileDetailSheet(
 private fun SectionCard(color: Color, content: @Composable ColumnScope.() -> Unit) {
     Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), color = color) {
         Column(modifier = Modifier.padding(14.dp), content = content)
+    }
+}
+
+/** Tap-to-play pill for a profile's voice introduction. */
+@Composable
+fun VoiceIntroPill(url: String) {
+    var isPlaying by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    val player = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<android.media.MediaPlayer?>(null) }
+
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        onDispose {
+            player.value?.release()
+            player.value = null
+        }
+    }
+
+    Surface(
+        onClick = {
+            if (isPlaying) {
+                player.value?.stop(); player.value?.release(); player.value = null
+                isPlaying = false
+            } else {
+                try {
+                    val mp = android.media.MediaPlayer()
+                    mp.setDataSource(url)
+                    mp.setOnPreparedListener { it.start() }
+                    mp.setOnCompletionListener { isPlaying = false; it.release(); player.value = null }
+                    mp.prepareAsync()
+                    player.value = mp
+                    isPlaying = true
+                } catch (e: Exception) { isPlaying = false }
+            }
+        },
+        shape = RoundedCornerShape(AppTheme.radiusFull),
+        color = AppColors.Rose.copy(alpha = 0.12f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, AppColors.Rose.copy(alpha = 0.4f))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(if (isPlaying) "⏸" else "▶", fontSize = 14.sp, color = AppColors.Rose)
+            Text(
+                if (isPlaying) "Playing voice intro…" else "Play voice intro",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = AppColors.Rose
+            )
+        }
     }
 }

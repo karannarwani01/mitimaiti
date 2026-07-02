@@ -154,6 +154,7 @@ export interface FeedCard {
   about_me: string | null;
   prompts: any[];
   interests: string[];
+  voice_intro_url?: string | null;
   cultural_score: number;
   cultural_badge: CulturalBadge;
   cultural_breakdown: CulturalBreakdown | null;

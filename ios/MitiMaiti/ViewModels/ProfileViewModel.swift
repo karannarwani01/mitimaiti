@@ -16,6 +16,29 @@ class ProfileViewModel: ObservableObject {
     @Published var isSaving = false
     @Published var saveSuccess = false
 
+    // ── Voice intro (Hinge-style) ──
+    @Published var isUploadingVoice = false
+
+    func uploadVoiceIntro(audioData: Data) {
+        isUploadingVoice = true
+        Task {
+            do {
+                let url = try await api.uploadVoiceIntro(audioData: audioData)
+                user.voiceIntroUrl = url
+            } catch {
+                self.error = "Voice intro upload failed"
+            }
+            isUploadingVoice = false
+        }
+    }
+
+    func deleteVoiceIntro() {
+        Task {
+            try? await api.deleteVoiceIntro()
+            user.voiceIntroUrl = nil
+        }
+    }
+
     // ── Selfie verification ──
     @Published var isVerifying = false
     @Published var verifyMessage: String?

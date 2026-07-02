@@ -209,6 +209,47 @@ actor APIService {
         )
     }
 
+    // MARK: - Voice intro (Hinge-style)
+
+    /// Upload a short voice introduction. Returns the public URL.
+    func uploadVoiceIntro(audioData: Data) async throws -> String {
+        let boundary = UUID().uuidString
+        var body = Data()
+        body.append("--\(boundary)\r\nContent-Disposition: form-data; name=\"audio\"; filename=\"voice_intro.m4a\"\r\nContent-Type: audio/mp4\r\n\r\n".data(using: .utf8)!)
+        body.append(audioData)
+        body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
+
+        let url = URL(string: AppConfig.baseURL + "/me/voice-intro")!
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        if let token = accessToken {
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        req.httpBody = body
+
+        let (data, response) = try await URLSession.shared.data(for: req)
+        guard let http = response as? HTTPURLResponse else { throw APIError.networkError }
+        if http.statusCode == 401 {
+            try await refresh()
+            return try await uploadVoiceIntro(audioData: audioData)
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.serverError("Voice intro upload failed: HTTP \(http.statusCode)")
+        }
+
+        struct Resp: Decodable { let voiceIntroUrl: String }
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let envelope = try decoder.decode(APIEnvelope<Resp>.self, from: data)
+        guard let resp = envelope.data else { throw APIError.serverError("Empty response") }
+        return resp.voiceIntroUrl
+    }
+
+    func deleteVoiceIntro() async throws {
+        let _: EmptyData = try await authedRequest(.delete, "/me/voice-intro")
+    }
+
     // MARK: - Verification
 
     struct VerifyResult {

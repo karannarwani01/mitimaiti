@@ -623,6 +623,11 @@ fun EditProfileScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            // Voice intro section (Hinge-style, max 30s)
+            VoiceIntroSection(viewModel = viewModel)
+
+            Spacer(modifier = Modifier.height(12.dp))
+
             // Basics section
             ExpandableSection(
                 title = "Basics",
@@ -1130,3 +1135,137 @@ private fun editFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedLabelColor = AppColors.Rose,
     unfocusedLabelColor = LocalAdaptiveColors.current.textMuted
 )
+
+// ─── Voice Intro (Hinge-style, max 30s) ─────────────────────────────────────
+
+@Composable
+private fun VoiceIntroSection(viewModel: ProfileViewModel) {
+    val colors = LocalAdaptiveColors.current
+    val context = LocalContext.current
+    val voiceIntroUrl by viewModel.voiceIntroUrl.collectAsState()
+    val isUploading by viewModel.isUploadingVoice.collectAsState()
+
+    var isRecording by remember { mutableStateOf(false) }
+    var secondsLeft by remember { mutableIntStateOf(30) }
+    val recorderRef = remember { mutableStateOf<android.media.MediaRecorder?>(null) }
+    val outputFile = remember { mutableStateOf<java.io.File?>(null) }
+
+    fun stopAndUpload() {
+        try { recorderRef.value?.stop() } catch (e: Exception) { /* too short */ }
+        recorderRef.value?.release(); recorderRef.value = null
+        isRecording = false
+        outputFile.value?.let { f ->
+            if (f.exists() && f.length() > 1024) viewModel.uploadVoiceIntro(f.readBytes())
+            else Toast.makeText(context, "Recording too short", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun startRecording() {
+        try {
+            val file = java.io.File(context.cacheDir, "voice_intro_${System.currentTimeMillis()}.m4a")
+            outputFile.value = file
+            val recorder = if (android.os.Build.VERSION.SDK_INT >= 31) {
+                android.media.MediaRecorder(context)
+            } else {
+                @Suppress("DEPRECATION") android.media.MediaRecorder()
+            }
+            recorder.setAudioSource(android.media.MediaRecorder.AudioSource.MIC)
+            recorder.setOutputFormat(android.media.MediaRecorder.OutputFormat.MPEG_4)
+            recorder.setAudioEncoder(android.media.MediaRecorder.AudioEncoder.AAC)
+            recorder.setMaxDuration(30_000)
+            recorder.setOutputFile(file.absolutePath)
+            recorder.setOnInfoListener { _, what, _ ->
+                if (what == android.media.MediaRecorder.MEDIA_RECORDER_INFO_MAX_DURATION_REACHED) stopAndUpload()
+            }
+            recorder.prepare(); recorder.start()
+            recorderRef.value = recorder
+            secondsLeft = 30
+            isRecording = true
+        } catch (e: Exception) {
+            Toast.makeText(context, "Couldn't start recording", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val micPermission = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) startRecording()
+        else Toast.makeText(context, "Microphone permission needed", Toast.LENGTH_SHORT).show()
+    }
+
+    // Countdown while recording
+    LaunchedEffect(isRecording) {
+        while (isRecording && secondsLeft > 0) {
+            kotlinx.coroutines.delay(1000)
+            secondsLeft--
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose { recorderRef.value?.release(); recorderRef.value = null }
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(AppTheme.radiusMd),
+        color = colors.surface,
+        shadowElevation = 2.dp
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Mic, null, tint = AppColors.Rose, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Voice Intro", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = colors.textPrimary)
+                Spacer(modifier = Modifier.weight(1f))
+                if (isUploading) CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = AppColors.Rose)
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                "Let your voice do the talking — a 30-second hello in Sindhi or English",
+                fontSize = 12.sp,
+                color = colors.textMuted
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+
+            when {
+                isRecording -> {
+                    Button(
+                        onClick = { stopAndUpload() },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(AppTheme.radiusFull),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Error)
+                    ) {
+                        Icon(Icons.Default.Stop, null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Stop (${secondsLeft}s left)", fontWeight = FontWeight.SemiBold)
+                    }
+                }
+                voiceIntroUrl != null -> {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        VoiceIntroPill(url = voiceIntroUrl!!)
+                        TextButton(onClick = { viewModel.deleteVoiceIntro() }) {
+                            Text("Delete", color = AppColors.Error, fontSize = 13.sp)
+                        }
+                        TextButton(onClick = {
+                            micPermission.launch(android.Manifest.permission.RECORD_AUDIO)
+                        }) {
+                            Text("Re-record", color = AppColors.Rose, fontSize = 13.sp)
+                        }
+                    }
+                }
+                else -> {
+                    OutlinedButton(
+                        onClick = { micPermission.launch(android.Manifest.permission.RECORD_AUDIO) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(AppTheme.radiusFull),
+                        border = BorderStroke(1.dp, AppColors.Rose.copy(alpha = 0.5f))
+                    ) {
+                        Icon(Icons.Default.Mic, null, tint = AppColors.Rose, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Record voice intro", color = AppColors.Rose, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
+    }
+}

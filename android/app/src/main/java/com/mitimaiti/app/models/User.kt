@@ -72,7 +72,9 @@ data class User(
     val profileCompleteness: Int = 0,
     val needsOnboarding: Boolean = false,
     /** Server-computed age. Feed/inbox cards send `age` without a date of birth. */
-    val ageYears: Int? = null
+    val ageYears: Int? = null,
+    /** Hinge-style voice introduction (short audio clip) */
+    val voiceIntroUrl: String? = null
 ) {
     val age: Int?
         get() = ageYears ?: dateOfBirth?.let { Period.between(it, LocalDate.now()).years }

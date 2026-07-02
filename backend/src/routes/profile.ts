@@ -85,6 +85,22 @@ const uploadSelfie = multer({
   },
 });
 
+const uploadVoiceIntro = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5 MB ≈ well over 30s of AAC
+    files: 1,
+  },
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['audio/m4a', 'audio/mp4', 'audio/x-m4a', 'audio/aac', 'audio/mpeg', 'audio/webm', 'audio/ogg', 'audio/wav'];
+    if (allowed.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new AppError(400, 'Voice intro must be an audio file', 'INVALID_FILE_TYPE'));
+    }
+  },
+});
+
 // ─── Zod Schemas for PATCH /v1/me ───────────────────────────────────────────────
 
 const basicsSchema = z
@@ -1359,6 +1375,67 @@ router.post(
       throw new AppError(500, 'Failed to register FCM token', 'FCM_REGISTER_FAILED');
     }
 
+    res.json({ success: true });
+  })
+);
+
+// ─── POST /v1/me/voice-intro ────────────────────────────────────────────────────
+// Upload a short voice introduction (Hinge-style). Stored in the photos
+// bucket under the user's folder; URL saved on personality_profiles.
+
+router.post(
+  '/voice-intro',
+  authenticate,
+  rateLimit({ maxRequests: 10, windowSeconds: 3600, keyPrefix: 'rl_voice_intro' }),
+  uploadVoiceIntro.single('audio'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const user = (req as AuthenticatedRequest).user;
+    const file = req.file;
+
+    if (!file) {
+      throw new AppError(400, 'No audio file uploaded', 'NO_FILE');
+    }
+
+    const extMap: Record<string, string> = {
+      'audio/m4a': 'm4a', 'audio/mp4': 'm4a', 'audio/x-m4a': 'm4a',
+      'audio/aac': 'aac', 'audio/mpeg': 'mp3', 'audio/webm': 'webm',
+      'audio/ogg': 'ogg', 'audio/wav': 'wav',
+    };
+    const ext = extMap[file.mimetype] || 'm4a';
+    // Timestamped path so a re-record busts CDN/client caches
+    const path = `${user.id}/voice_intro_${Date.now()}.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('photos')
+      .upload(path, file.buffer, { contentType: file.mimetype, upsert: true });
+
+    if (uploadError) {
+      throw new AppError(500, 'Failed to upload voice intro', 'UPLOAD_FAILED');
+    }
+
+    const { data: urlData } = supabase.storage.from('photos').getPublicUrl(path);
+
+    await upsertProfileTable('personality_profiles', user.id, {
+      voice_intro_url: urlData.publicUrl,
+    });
+
+    res.status(201).json({
+      success: true,
+      data: { voiceIntroUrl: urlData.publicUrl },
+    });
+  })
+);
+
+// ─── DELETE /v1/me/voice-intro ──────────────────────────────────────────────────
+
+router.delete(
+  '/voice-intro',
+  authenticate,
+  asyncHandler(async (req: Request, res: Response) => {
+    const user = (req as AuthenticatedRequest).user;
+    await upsertProfileTable('personality_profiles', user.id, {
+      voice_intro_url: null,
+    });
     res.json({ success: true });
   })
 );

@@ -627,6 +627,11 @@ private struct ProfileDetailSheet: View {
                         .background(Capsule().fill(AppTheme.rose.opacity(0.15)))
                     }
 
+                    // Voice intro (Hinge-style)
+                    if let voiceUrl = card.user.voiceIntroUrl {
+                        VoiceIntroButton(url: voiceUrl)
+                    }
+
                     // Scores
                     HStack(spacing: 8) {
                         ScoreTag(label: "Cultural", value: "\(card.culturalScore.overallScore)%", color: AppTheme.scoreGold, icon: "sparkles")

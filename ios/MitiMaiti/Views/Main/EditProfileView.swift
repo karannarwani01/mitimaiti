@@ -510,6 +510,10 @@ struct EditProfileView: View {
                 promptsSection
                     .padding(AppTheme.spacingMD)
             }
+            ContentCard {
+                VoiceIntroEditSection(profileVM: profileVM)
+                    .padding(AppTheme.spacingMD)
+            }
         }
     }
 

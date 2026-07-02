@@ -99,7 +99,7 @@ struct FeedCard: Identifiable, Codable, Hashable {
              kundliTier, commonInterests, dailyPromptAnswer, distanceKm,
              isOnline, sindhiFluency, familyValues, foodPreference, heightCm,
              education, occupation, company, religion, smoking, drinking,
-             exercise, isExplore
+             exercise, isExplore, voiceIntroUrl
     }
 
     private struct FlatPhoto: Decodable {
@@ -169,7 +169,8 @@ struct FeedCard: Identifiable, Codable, Hashable {
             foodPreference: ((try? c.decodeIfPresent(FoodPreference.self, forKey: .foodPreference)) ?? nil),
             interests: ((try? c.decodeIfPresent([String].self, forKey: .interests)) ?? nil) ?? [],
             isOnline: ((try? c.decodeIfPresent(Bool.self, forKey: .isOnline)) ?? nil) ?? false,
-            ageYears: ((try? c.decodeIfPresent(Int.self, forKey: .age)) ?? nil)
+            ageYears: ((try? c.decodeIfPresent(Int.self, forKey: .age)) ?? nil),
+            voiceIntroUrl: ((try? c.decodeIfPresent(String.self, forKey: .voiceIntroUrl)) ?? nil)
         )
 
         let score = ((try? c.decodeIfPresent(Int.self, forKey: .culturalScore)) ?? nil) ?? 0

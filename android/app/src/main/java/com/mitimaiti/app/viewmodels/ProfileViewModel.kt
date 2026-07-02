@@ -70,6 +70,30 @@ class ProfileViewModel : ViewModel() {
     // Prompts editing
     val editPrompts = MutableStateFlow<List<UserPrompt>>(emptyList())
 
+    // ── Voice intro (Hinge-style) ──
+    val voiceIntroUrl = MutableStateFlow<String?>(null)
+    val isUploadingVoice = MutableStateFlow(false)
+
+    fun uploadVoiceIntro(bytes: ByteArray) {
+        viewModelScope.launch {
+            isUploadingVoice.value = true
+            APIService.uploadVoiceIntro(bytes).onSuccess { url ->
+                voiceIntroUrl.value = url
+                _user.value = _user.value?.copy(voiceIntroUrl = url)
+            }.onFailure { _error.value = "Voice intro upload failed" }
+            isUploadingVoice.value = false
+        }
+    }
+
+    fun deleteVoiceIntro() {
+        viewModelScope.launch {
+            APIService.deleteVoiceIntro().onSuccess {
+                voiceIntroUrl.value = null
+                _user.value = _user.value?.copy(voiceIntroUrl = null)
+            }
+        }
+    }
+
     // ── Selfie verification ──
     val isVerifying = MutableStateFlow(false)
     val verifyMessage = MutableStateFlow<String?>(null)
@@ -227,6 +251,7 @@ class ProfileViewModel : ViewModel() {
         editTravelStyle.value = user.travelStyle ?: ""
         editLanguages.value = user.languages
         editPrompts.value = user.prompts
+        voiceIntroUrl.value = user.voiceIntroUrl
     }
 
     fun saveProfile() {

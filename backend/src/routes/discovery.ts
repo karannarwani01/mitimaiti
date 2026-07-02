@@ -849,7 +849,7 @@ router.get(
         .in('user_id', allPageIds),
       supabase
         .from('personality_profiles')
-        .select('user_id, interests')
+        .select('user_id, interests, voice_intro_url')
         .in('user_id', allPageIds),
       supabase
         .from('users')
@@ -882,8 +882,10 @@ router.get(
     });
 
     const interestMap = new Map<string, string[]>();
+    const voiceIntroMap = new Map<string, string | null>();
     (interests || []).forEach((i: any) => {
       interestMap.set(i.user_id, i.interests || []);
+      voiceIntroMap.set(i.user_id, i.voice_intro_url || null);
     });
 
     const dailyPromptMap = new Map<string, string | null>();
@@ -959,6 +961,7 @@ router.get(
         about_me: c.profile.bio || null,
         prompts: userPrompts.slice(0, 3),
         interests: userInterests,
+        voice_intro_url: voiceIntroMap.get(c.userId) || null,
         cultural_score: c.culturalScore,
         cultural_badge: c.culturalBadge,
         cultural_breakdown: null, // populated on detail view
@@ -1212,7 +1215,7 @@ router.get(
         .select('url_medium, url_original, url_thumb, sort_order, is_primary, is_verified, is_video')
         .eq('user_id', pickId)
         .order('sort_order'),
-      supabase.from('personality_profiles').select('interests, prompts').eq('user_id', pickId).maybeSingle(),
+      supabase.from('personality_profiles').select('interests, prompts, voice_intro_url').eq('user_id', pickId).maybeSingle(),
       supabase.from('sindhi_profiles').select('sindhi_fluency').eq('user_id', pickId).maybeSingle(),
       supabase.from('user_settings').select('show_full_name').eq('user_id', pickId).maybeSingle(),
     ]);
@@ -1251,6 +1254,7 @@ router.get(
       about_me: profile.bio || null,
       prompts: Array.isArray(personality?.prompts) ? personality!.prompts.slice(0, 3) : [],
       interests: personality?.interests || [],
+      voice_intro_url: personality?.voice_intro_url || null,
       cultural_score: culturalScore,
       cultural_badge: culturalBadge,
       kundli_score: kundliScore,

@@ -269,6 +269,26 @@ object APIService {
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
 
+    /** Upload a short voice introduction (Hinge-style). Returns the public URL. */
+    suspend fun uploadVoiceIntro(bytes: ByteArray): Result<String> {
+        return try {
+            val body = bytes.toRequestBody("audio/mp4".toMediaTypeOrNull())
+            val part = MultipartBody.Part.createFormData("audio", "voice_intro.m4a", body)
+            val response = api.uploadVoiceIntro(part)
+            if (response.isSuccessful) {
+                val url = response.body()?.get("voice_intro_url") as? String
+                if (url != null) Result.success(url) else Result.failure(APIError.ServerError)
+            } else Result.failure(APIError.ServerError)
+        } catch (e: Exception) { Result.failure(APIError.NetworkError) }
+    }
+
+    suspend fun deleteVoiceIntro(): Result<Boolean> {
+        return try {
+            val response = api.deleteVoiceIntro()
+            if (response.isSuccessful) Result.success(true) else Result.failure(APIError.ServerError)
+        } catch (e: Exception) { Result.failure(APIError.NetworkError) }
+    }
+
     suspend fun deletePhoto(id: String): Result<Boolean> {
         return try {
             val response = api.deletePhoto(id)
@@ -640,7 +660,8 @@ object APIService {
             profileCompleteness = (data["profile_completeness"] as? Number)?.toInt() ?: 0,
             needsOnboarding = data["needs_onboarding"] as? Boolean ?: false,
             // Feed/inbox cards send a computed `age` and no date_of_birth
-            ageYears = (data["age"] as? Number)?.toInt()
+            ageYears = (data["age"] as? Number)?.toInt(),
+            voiceIntroUrl = data["voice_intro_url"] as? String
         )
     }
 
