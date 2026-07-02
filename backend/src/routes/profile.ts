@@ -1340,16 +1340,19 @@ router.post(
     const user = (req as AuthenticatedRequest).user;
     const { token, platform } = req.body;
 
+    // Table columns: token (NOT fcm_token) with UNIQUE(user_id, platform) —
+    // the old insert wrote a nonexistent column against a nonexistent
+    // constraint, so registration always 500'd.
     const { error } = await supabase
       .from('user_fcm_tokens')
       .upsert(
         {
           user_id: user.id,
-          fcm_token: token,
-          platform: platform || null,
+          token,
+          platform: platform || 'android',
           updated_at: new Date().toISOString(),
         },
-        { onConflict: 'user_id' }
+        { onConflict: 'user_id,platform' }
       );
 
     if (error) {

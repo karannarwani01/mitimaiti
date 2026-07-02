@@ -87,16 +87,16 @@ export async function sendPush(
       }
     }
 
-    // 3. Fetch FCM token
+    // 3. Fetch FCM token (column is `token` — fcm_token never existed)
     const { data: tokenRow, error: tokenErr } = await supabase
       .from('user_fcm_tokens')
-      .select('fcm_token')
+      .select('token')
       .eq('user_id', userId)
       .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    if (tokenErr || !tokenRow?.fcm_token) {
+    if (tokenErr || !tokenRow?.token) {
       console.log(`[Notifications] No FCM token for user ${userId}`);
       return false;
     }
@@ -106,7 +106,7 @@ export async function sendPush(
     const body = data.body || formatBody(type, data);
 
     const message: admin.messaging.Message = {
-      token: tokenRow.fcm_token,
+      token: tokenRow.token,
       notification: {
         title,
         body,
