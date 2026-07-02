@@ -815,16 +815,17 @@ router.get(
         }
       }
 
-      // Prompts (only if permitted)
+      // Prompts (only if permitted) — stored as JSONB on personality_profiles
       if (permissions.canViewProfile) {
-        const { data: prompts } = await supabase
-          .from('prompt_answers')
-          .select('prompt_id, answer, created_at')
+        const { data: personalityRow } = await supabase
+          .from('personality_profiles')
+          .select('prompts')
           .eq('user_id', candidate.user_id)
-          .order('created_at', { ascending: false })
-          .limit(3);
+          .maybeSingle();
 
-        enrichedCard.prompts = prompts || [];
+        enrichedCard.prompts = Array.isArray(personalityRow?.prompts)
+          ? personalityRow!.prompts.slice(0, 3)
+          : [];
       }
 
       // Verification status

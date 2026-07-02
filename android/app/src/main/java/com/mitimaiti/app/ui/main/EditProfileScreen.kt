@@ -83,17 +83,27 @@ private val GENERATION_OPTIONS = listOf("1st Gen", "2nd Gen", "3rd Gen", "4th Ge
 private val DIALECT_OPTIONS = listOf("Kutchi", "Hyderabadi", "Tharparkar", "Lari", "Vicholi", "Lasi", "Dhatki", "Other")
 private val COMMUNITY_OPTIONS = listOf("Lohana", "Amil", "Bhaiband", "Sahiti", "Sindhi Muslim", "Sindhi Hindu", "Other")
 
+// Canonical prompt catalog — MUST stay identical to iOS
+// (EditProfileView.promptQuestionOptions)
 private val PROMPT_QUESTIONS = listOf(
-    "A typical Sunday for me looks like...",
-    "The way to my heart is...",
-    "I'm looking for someone who...",
-    "My most controversial opinion is...",
-    "I geek out on...",
-    "My ideal first date is...",
-    "Two truths and a lie...",
-    "I recently discovered that...",
-    "A life goal of mine is...",
-    "My love language is..."
+    "A life goal of mine",
+    "The way to my heart is",
+    "My Sindhi superpower",
+    "My simple pleasures",
+    "I geek out on",
+    "My most controversial opinion",
+    "Together we could",
+    "I am convinced that",
+    "My non-negotiable",
+    "My typical Sunday",
+    "The best way to ask me out",
+    "I am looking for",
+    "We will get along if",
+    "I want someone who",
+    "My idea of a perfect day",
+    "My favourite Sindhi dish is",
+    "A family tradition I love",
+    "My favourite festival memory"
 )
 
 @OptIn(ExperimentalMaterial3Api::class)

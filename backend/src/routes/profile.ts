@@ -133,6 +133,18 @@ const personalitySchema = z
     movie_genres: z.array(z.string().max(50)).max(15).optional(),
     travel_style: z.string().max(100).optional(),
     pet_preference: z.string().max(100).optional(),
+    // Hinge-style profile prompts, stored as JSONB [{ question, answer }].
+    // An empty array clears them.
+    prompts: z
+      .array(
+        z.object({
+          id: z.string().max(64).optional(),
+          question: z.string().min(1).max(150),
+          answer: z.string().min(1).max(300),
+        }),
+      )
+      .max(3)
+      .optional(),
   })
   .strict();
 

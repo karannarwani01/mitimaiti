@@ -158,7 +158,9 @@ class ProfileViewModel: ObservableObject {
         if let v = user.musicPreferences, !v.isEmpty { personality["music_preferences"] = v }
         if let v = user.movieGenres, !v.isEmpty { personality["movie_genres"] = v }
         if let v = user.travelStyle, !v.isEmpty { personality["travel_style"] = v }
-        if !personality.isEmpty { payload["personality"] = personality }
+        // Always send prompts so removals persist (empty array clears them)
+        personality["prompts"] = user.prompts.map { ["question": $0.question, "answer": $0.answer] }
+        payload["personality"] = personality
 
         if !basics.isEmpty { payload["basics"] = basics }
         if !userFields.isEmpty { payload["user"] = userFields }

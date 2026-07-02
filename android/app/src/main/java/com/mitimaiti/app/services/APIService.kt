@@ -548,6 +548,12 @@ object APIService {
                     isVerified = photo["is_verified"] as? Boolean ?: false
                 )
             } ?: emptyList(),
+            prompts = (data["prompts"] as? List<*>)?.mapNotNull { p ->
+                val m = p as? Map<*, *> ?: return@mapNotNull null
+                val q = m["question"] as? String ?: return@mapNotNull null
+                val a = m["answer"] as? String ?: return@mapNotNull null
+                UserPrompt(question = q, answer = a)
+            } ?: emptyList(),
             occupation = data["occupation"] as? String,
             education = data["education"] as? String,
             company = data["company"] as? String,

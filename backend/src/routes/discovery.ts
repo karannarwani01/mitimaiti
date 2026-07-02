@@ -830,12 +830,13 @@ router.get(
         .in('user_id', allPageIds)
         .order('sort_order')
         .limit(allPageIds.length * 6),
+      // Prompts live as JSONB on personality_profiles (there is no
+      // prompt_answers table — the old query silently failed and cards
+      // never carried prompts).
       supabase
-        .from('prompt_answers')
-        .select('user_id, answer, prompt_id')
-        .in('user_id', allPageIds)
-        .order('created_at', { ascending: false })
-        .limit(allPageIds.length * 3),
+        .from('personality_profiles')
+        .select('user_id, prompts')
+        .in('user_id', allPageIds),
       supabase
         .from('personality_profiles')
         .select('user_id, interests')
@@ -864,8 +865,10 @@ router.get(
 
     const promptMap = new Map<string, any[]>();
     (prompts || []).forEach((p: any) => {
-      if (!promptMap.has(p.user_id)) promptMap.set(p.user_id, []);
-      promptMap.get(p.user_id)!.push(p);
+      // p.prompts is the JSONB array [{ question, answer }]
+      if (Array.isArray(p.prompts) && p.prompts.length > 0) {
+        promptMap.set(p.user_id, p.prompts);
+      }
     });
 
     const interestMap = new Map<string, string[]>();

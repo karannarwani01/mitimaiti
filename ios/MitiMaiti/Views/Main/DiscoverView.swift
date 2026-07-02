@@ -412,6 +412,26 @@ struct DiscoverView: View {
                         }
                         .opacity(0.8)
                     }
+
+                    // Hinge-style prompt teaser (first prompt Q&A)
+                    if let prompt = card.user.prompts.first {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(prompt.question)
+                                .font(.system(size: 11, weight: .semibold))
+                                .opacity(0.7)
+                                .lineLimit(1)
+                            Text("“\(prompt.answer)”")
+                                .font(.system(size: 14, weight: .medium))
+                                .lineLimit(2)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color.black.opacity(0.35))
+                        )
+                        .padding(.top, 6)
+                    }
                 }
                 .foregroundColor(.white)
                 .padding(20)

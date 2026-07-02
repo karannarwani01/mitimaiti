@@ -72,6 +72,12 @@ struct ProfileResponse: Decodable {
         let travelStyle: String?
         let petPreference: String?
         let languages: [String]?
+        let prompts: [PromptRow]?
+    }
+
+    struct PromptRow: Decodable {
+        let question: String
+        let answer: String
     }
 
     struct PhotoRow: Decodable {
@@ -111,7 +117,9 @@ struct ProfileResponse: Decodable {
                     isVerified: $0.isVerified ?? false
                 )
             },
-            prompts: [],
+            prompts: (personality?.prompts ?? []).map {
+                UserPrompt(question: $0.question, answer: $0.answer)
+            },
             education: user.education,
             occupation: user.occupation,
             company: user.company,

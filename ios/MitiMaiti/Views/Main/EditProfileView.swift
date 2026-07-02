@@ -534,6 +534,8 @@ struct EditProfileView: View {
 
     // MARK: - Prompts Section
 
+    // Canonical prompt catalog — MUST stay identical to Android
+    // (EditProfileScreen.PROMPT_QUESTIONS)
     private var promptQuestionOptions: [String] {
         [
             "A life goal of mine",
@@ -550,7 +552,10 @@ struct EditProfileView: View {
             "I am looking for",
             "We will get along if",
             "I want someone who",
-            "My idea of a perfect day"
+            "My idea of a perfect day",
+            "My favourite Sindhi dish is",
+            "A family tradition I love",
+            "My favourite festival memory"
         ]
     }
 

@@ -236,6 +236,10 @@ class ProfileViewModel : ViewModel() {
             if (editMusicPreferences.value.isNotEmpty()) personality["music_preferences"] = editMusicPreferences.value
             if (editMovieGenres.value.isNotEmpty()) personality["movie_genres"] = editMovieGenres.value
             if (editTravelStyle.value.isNotBlank()) personality["travel_style"] = editTravelStyle.value.trim()
+            // Always send prompts so removals persist (empty array clears them)
+            personality["prompts"] = editPrompts.value.map {
+                mapOf("question" to it.question, "answer" to it.answer)
+            }
 
             val payload = mutableMapOf<String, Any>()
             if (basics.isNotEmpty()) payload["basics"] = basics

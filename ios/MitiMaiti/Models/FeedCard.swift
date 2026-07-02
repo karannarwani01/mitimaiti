@@ -95,11 +95,11 @@ struct FeedCard: Identifiable, Codable, Hashable {
     private enum FlatKeys: String, CodingKey {
         case id, firstName, displayName, age, city, state, country, bio,
              intent, isVerified, profileCompleteness, photos, aboutMe,
-             interests, culturalScore, culturalBadge, kundliScore, kundliTier,
-             commonInterests, dailyPromptAnswer, distanceKm, isOnline,
-             sindhiFluency, familyValues, foodPreference, heightCm, education,
-             occupation, company, religion, smoking, drinking, exercise,
-             isExplore
+             prompts, interests, culturalScore, culturalBadge, kundliScore,
+             kundliTier, commonInterests, dailyPromptAnswer, distanceKm,
+             isOnline, sindhiFluency, familyValues, foodPreference, heightCm,
+             education, occupation, company, religion, smoking, drinking,
+             exercise, isExplore
     }
 
     private struct FlatPhoto: Decodable {
@@ -109,6 +109,11 @@ struct FeedCard: Identifiable, Codable, Hashable {
         let isPrimary: Bool?
         let sortOrder: Int?
         let isVerified: Bool?
+    }
+
+    private struct FlatPrompt: Decodable {
+        let question: String?
+        let answer: String?
     }
 
     init(from decoder: Decoder) throws {
@@ -130,6 +135,12 @@ struct FeedCard: Identifiable, Codable, Hashable {
                 )
             } ?? []
 
+        let prompts: [UserPrompt] = ((try? c.decodeIfPresent([FlatPrompt].self, forKey: .prompts)) ?? nil)?
+            .compactMap { p in
+                guard let q = p.question, let a = p.answer else { return nil }
+                return UserPrompt(question: q, answer: a)
+            } ?? []
+
         self.user = User(
             id: cardId,
             displayName: try c.decodeIfPresent(String.self, forKey: .displayName)
@@ -145,6 +156,7 @@ struct FeedCard: Identifiable, Codable, Hashable {
             isVerified: ((try? c.decodeIfPresent(Bool.self, forKey: .isVerified)) ?? nil) ?? false,
             profileCompleteness: ((try? c.decodeIfPresent(Int.self, forKey: .profileCompleteness)) ?? nil) ?? 0,
             photos: photos,
+            prompts: prompts,
             education: try? c.decodeIfPresent(String.self, forKey: .education),
             occupation: try? c.decodeIfPresent(String.self, forKey: .occupation),
             company: try? c.decodeIfPresent(String.self, forKey: .company),
