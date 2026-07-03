@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { supabase } from '../config/supabase';
 import { AppError, asyncHandler } from '../utils/errors';
 import { authenticate, requireAdmin } from '../middleware/auth';
-import { validate } from '../middleware/validate';
+import { validate, validateParams } from '../middleware/validate';
 import { AuthenticatedRequest, AdminAction } from '../types';
 import { sendPush } from '../services/notifications';
 
@@ -450,6 +450,10 @@ router.post(
 
 router.get(
   '/user/:id',
+  // Guard the raw :id — it is interpolated into a PostgREST .or() filter
+  // string below; a UUID gate prevents filter injection (defence-in-depth
+  // behind requireAdmin).
+  validateParams(z.object({ id: z.string().uuid('Invalid user id') })),
   asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
 

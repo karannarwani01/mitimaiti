@@ -17,6 +17,32 @@ interface RateLimitOptions {
    * exhaust each other's login budget. Falls back to IP when none present.
    */
   identityFields?: string[];
+  /**
+   * When Redis is unavailable, the global limiter fails OPEN (availability
+   * over protection). Sensitive limiters (auth/OTP) set this so they instead
+   * fall back to an in-process limiter — a Redis outage must not remove the
+   * only guard against SMS-bombing and OTP brute-force.
+   */
+  fallbackInProcess?: boolean;
+}
+
+// ─── In-process fallback (only used when Redis is down AND fallbackInProcess) ──
+// Fixed-window counter in local memory. Per-instance (Render runs 1 web
+// instance today), best-effort, and self-pruning so it can't grow unbounded.
+const localBuckets = new Map<string, { count: number; resetAt: number }>();
+
+function inProcessCheck(key: string, windowSeconds: number, maxRequests: number): boolean {
+  const now = Date.now();
+  const bucket = localBuckets.get(key);
+  if (!bucket || now >= bucket.resetAt) {
+    localBuckets.set(key, { count: 1, resetAt: now + windowSeconds * 1000 });
+    if (localBuckets.size > 10000) {
+      for (const [k, v] of localBuckets) if (now >= v.resetAt) localBuckets.delete(k);
+    }
+    return true;
+  }
+  bucket.count += 1;
+  return bucket.count <= maxRequests;
 }
 
 /**
@@ -31,6 +57,7 @@ export function rateLimit(options: RateLimitOptions = {}) {
     maxRequests = DEFAULT_MAX_REQUESTS,
     keyPrefix = 'rl',
     identityFields,
+    fallbackInProcess = false,
   } = options;
 
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -44,19 +71,19 @@ export function rateLimit(options: RateLimitOptions = {}) {
           const value = (req.body as any)?.[field];
           if (typeof value === 'string' && value.trim().length > 0) {
             const key = `${keyPrefix}:id:${value.trim().toLowerCase()}`;
-            await checkLimit(key, windowSeconds, maxRequests, res, next);
+            await checkLimit(key, windowSeconds, maxRequests, res, next, fallbackInProcess);
             return;
           }
         }
       }
       const ip = req.ip || req.socket.remoteAddress || 'unknown';
       const key = `${keyPrefix}:ip:${ip}`;
-      await checkLimit(key, windowSeconds, maxRequests, res, next);
+      await checkLimit(key, windowSeconds, maxRequests, res, next, fallbackInProcess);
       return;
     }
 
     const key = `${keyPrefix}:${user.id}`;
-    await checkLimit(key, windowSeconds, maxRequests, res, next);
+    await checkLimit(key, windowSeconds, maxRequests, res, next, fallbackInProcess);
   };
 }
 
@@ -65,7 +92,8 @@ async function checkLimit(
   windowSeconds: number,
   maxRequests: number,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
+  fallbackInProcess = false
 ): Promise<void> {
   try {
     const current = await redis.incr(key);
@@ -89,10 +117,20 @@ async function checkLimit(
       );
     }
   } catch (err) {
-    // Re-throw AppError (rate limit exceeded) but swallow Redis connection errors
+    // Re-throw AppError (rate limit exceeded) — a real 429, not a Redis fault.
     if (err instanceof AppError) throw err;
-    // Redis down — allow request through (fail open for availability)
-    console.warn('[RateLimit] Redis unavailable, skipping rate limit check');
+
+    // Redis down. Sensitive limiters (auth/OTP) fall back to an in-process
+    // limiter so a Redis outage can't disable SMS-bomb / brute-force
+    // protection. The global limiter fails open (availability first) as before.
+    if (fallbackInProcess) {
+      if (!inProcessCheck(key, windowSeconds, maxRequests)) {
+        throw new AppError(429, 'Rate limit exceeded. Try again shortly.', 'RATE_LIMIT_EXCEEDED');
+      }
+      console.warn('[RateLimit] Redis unavailable — using in-process fallback for', key);
+    } else {
+      console.warn('[RateLimit] Redis unavailable, skipping rate limit check');
+    }
   }
 
   next();
@@ -106,6 +144,7 @@ export const strictRateLimit = rateLimit({
   windowSeconds: 60,
   maxRequests: 10,
   keyPrefix: 'rl_strict',
+  fallbackInProcess: true,
 });
 
 /**
@@ -118,6 +157,7 @@ export const otpSendRateLimit = rateLimit({
   maxRequests: 5,
   keyPrefix: 'rl_otp_send',
   identityFields: ['phone', 'email'],
+  fallbackInProcess: true,
 });
 
 /**
@@ -129,6 +169,7 @@ export const otpVerifyRateLimit = rateLimit({
   maxRequests: 10,
   keyPrefix: 'rl_otp_verify',
   identityFields: ['phone', 'email'],
+  fallbackInProcess: true,
 });
 
 export default rateLimit;

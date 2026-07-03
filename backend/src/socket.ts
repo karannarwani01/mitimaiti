@@ -361,13 +361,12 @@ export function createSocketServer(httpServer?: HttpServer): Server {
       try {
         const { matchId } = data;
 
-        // Join the match room
-        socket.join(`match:${matchId}`);
-
-        // Mark user as in this chat (for notification suppression)
-        await redis.set(`in_chat:${userId}:${matchId}`, '1', 'EX', IN_CHAT_TTL_SECONDS);
-
-        // Verify match access
+        // SECURITY: verify participation BEFORE joining the room. Previously
+        // the join + in-chat marker happened first and a failed check merely
+        // returned (without leaving), so any authenticated user could stream
+        // an arbitrary conversation's live messages by emitting enter_chat
+        // with someone else's matchId (both message broadcasts target
+        // `match:${matchId}`).
         const { data: match } = await supabase
           .from('matches')
           .select('user_a_id, user_b_id')
@@ -375,7 +374,15 @@ export function createSocketServer(httpServer?: HttpServer): Server {
           .single();
 
         if (!match) return;
-        if (match.user_a_id !== userId && match.user_b_id !== userId) return;
+        if (match.user_a_id !== userId && match.user_b_id !== userId) {
+          // Not a participant — ensure we are not in the room and stop.
+          socket.leave(`match:${matchId}`);
+          return;
+        }
+
+        // Verified participant — now join the room and mark in-chat.
+        socket.join(`match:${matchId}`);
+        await redis.set(`in_chat:${userId}:${matchId}`, '1', 'EX', IN_CHAT_TTL_SECONDS);
 
         const otherId = match.user_a_id === userId ? match.user_b_id : match.user_a_id;
 
