@@ -626,6 +626,11 @@ router.patch(
         if (USER_TABLE_KEYS.has(k)) {
           const col = USER_COLUMN_MAP[k] ?? k;
           usersUpdate[col] = v;
+          // DUAL-WRITE: discovery/inbox/admin build cards from
+          // basic_profiles.* — writing identity only to users left
+          // basic_profiles permanently empty, so the feed 400'd with
+          // PROFILE_INCOMPLETE for everyone (found in the post-008 runbook).
+          basicProfilesUpdate[k] = v;
         } else basicProfilesUpdate[k] = v;
       }
       if (Object.keys(usersUpdate).length > 0) {
@@ -700,8 +705,12 @@ router.patch(
       const usersUpdate: Record<string, any> = {};
       const basicProfilesUpdate: Record<string, any> = {};
       for (const [k, v] of Object.entries(userFields)) {
-        if (USER_TABLE_KEYS.has(k)) usersUpdate[k] = v;
-        else basicProfilesUpdate[k] = v;
+        if (USER_TABLE_KEYS.has(k)) {
+          usersUpdate[k] = v;
+          // Cards read intent from basic_profiles — mirror it (is_snoozed
+          // stays users-only)
+          if (k === 'intent') basicProfilesUpdate[k] = v;
+        } else basicProfilesUpdate[k] = v;
       }
       if (Object.keys(usersUpdate).length > 0) {
         updatePromises.push(
