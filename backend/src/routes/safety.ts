@@ -206,14 +206,18 @@ router.post(
       throw new AppError(500, 'Failed to block user', 'BLOCK_FAILED');
     }
 
-    // Dissolve any active match between them
+    // Dissolve any LIVE match between them — active OR pending_first_message.
+    // Previously this only matched status='active', so blocking someone you'd
+    // just matched with (still pending the first message) left the match alive
+    // in both inboxes with a running countdown, and the blocked person kept
+    // appearing in the blocker's matches.
     const { data: activeMatches } = await supabase
       .from('matches')
       .select('id')
       .or(
         `and(user_a_id.eq.${user.id},user_b_id.eq.${blockedId}),and(user_a_id.eq.${blockedId},user_b_id.eq.${user.id})`
       )
-      .eq('status', 'active');
+      .in('status', ['active', 'pending_first_message']);
 
     if (activeMatches && activeMatches.length > 0) {
       const matchIds = activeMatches.map((m: any) => m.id);
