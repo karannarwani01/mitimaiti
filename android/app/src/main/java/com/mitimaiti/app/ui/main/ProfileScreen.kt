@@ -467,11 +467,11 @@ fun ProfileScreen(
     // Primary photo picker sheet
     if (showPhotoPicker) {
         PrimaryPhotoPickerSheet(
-            existingPhotos = repoPhotos,
+            existingPhotos = repoPhotos.map { it.uri },
             onDismiss = { showPhotoPicker = false },
             onNewPhotoFromGallery = { uri ->
                 viewModel.addPhoto(uri)
-                val newIndex = PhotoRepository.photos.value.indexOf(uri)
+                val newIndex = PhotoRepository.photos.value.indexOfFirst { it.uri == uri }
                 if (newIndex > 0) viewModel.setPrimaryPhoto(newIndex)
             },
             onSetPrimary = { index -> viewModel.setPrimaryPhoto(index) }

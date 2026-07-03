@@ -209,6 +209,24 @@ actor APIService {
         )
     }
 
+    /// DELETE /v1/me/media/:id — remove a photo/video from the server.
+    func deleteMedia(id: String) async throws {
+        let _: EmptyData = try await authedRequest(.delete, "/me/media/\(id)")
+    }
+
+    /// PATCH /v1/me/media/:id/primary — make this photo the profile photo.
+    func setPrimaryPhoto(id: String) async throws {
+        struct Resp: Decodable { let primaryPhotoId: String? }
+        let _: Resp = try await authedRequest(.patch, "/me/media/\(id)/primary")
+    }
+
+    /// POST /v1/me/media/reorder — persist photo order (index = sort_order).
+    func reorderPhotos(ids: [String]) async throws {
+        struct Body: Encodable { let photoIds: [String] }
+        struct Resp: Decodable { let order: [String]? }
+        let _: Resp = try await authedRequest(.post, "/me/media/reorder", body: Body(photoIds: ids))
+    }
+
     // MARK: - Voice intro (Hinge-style)
 
     /// Upload a short voice introduction. Returns the public URL.

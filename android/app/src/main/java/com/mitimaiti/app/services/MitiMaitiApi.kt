@@ -78,6 +78,12 @@ interface MitiMaitiApi {
     @DELETE("me/media/{id}")
     suspend fun deletePhoto(@Path("id") id: String): Response<Map<String, Any>>
 
+    @PATCH("me/media/{id}/primary")
+    suspend fun setPrimaryPhoto(@Path("id") id: String): Response<Map<String, Any>>
+
+    @POST("me/media/reorder")
+    suspend fun reorderPhotos(@Body body: Map<String, List<String>>): Response<Map<String, Any>>
+
     @POST("me/fcm-token")
     suspend fun registerFcmToken(@Body body: Map<String, String>): Response<Map<String, Any>>
 

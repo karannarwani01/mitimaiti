@@ -97,7 +97,13 @@ const CITY_COORDS: Record<string, [number, number]> = {
 };
 
 /**
- * Get coordinates for a city name (case-insensitive partial match).
+ * Get coordinates for a city name (case-insensitive).
+ *
+ * Falls back to a whole-word containment match in ONE direction only: the
+ * user's string must contain the known city as a whole word ("Navi Mumbai"
+ * → Mumbai, "Bur Dubai" → Dubai). The old bidirectional raw-substring match
+ * returned wrong coordinates for short inputs ("York" → New York, "Sur" →
+ * Surat), silently corrupting distance ranking.
  */
 export function getCityCoords(city: string): [number, number] | null {
   if (!city) return null;
@@ -108,9 +114,10 @@ export function getCityCoords(city: string): [number, number] | null {
     if (name.toLowerCase() === normalized) return coords;
   }
 
-  // Partial match (city contains or is contained in key)
+  // Whole-word containment: input contains the known city name
   for (const [name, coords] of Object.entries(CITY_COORDS)) {
-    if (normalized.includes(name.toLowerCase()) || name.toLowerCase().includes(normalized)) {
+    const key = name.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (new RegExp(`(^|[\\s,\\-/])${key}($|[\\s,\\-/])`).test(normalized)) {
       return coords;
     }
   }

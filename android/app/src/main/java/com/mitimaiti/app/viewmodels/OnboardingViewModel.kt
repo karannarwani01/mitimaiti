@@ -33,7 +33,7 @@ class OnboardingViewModel : ViewModel() {
     }
     val birthDay = MutableStateFlow(""); val birthMonth = MutableStateFlow(""); val birthYear = MutableStateFlow("")
     val selectedGender = MutableStateFlow<Gender?>(null)
-    val selectedPhotos: StateFlow<List<Uri>> = PhotoRepository.photos
+    val selectedPhotos: StateFlow<List<com.mitimaiti.app.services.ProfilePhoto>> = PhotoRepository.photos
     val selectedIntent = MutableStateFlow<Intent?>(null); val selectedShowMe = MutableStateFlow<ShowMe?>(null)
     val selectedCity = MutableStateFlow("")
     val selectedCountry = MutableStateFlow("")
@@ -125,9 +125,11 @@ class OnboardingViewModel : ViewModel() {
             APIService.fetchProfile().onSuccess { serverPhotoCount = it.photos.size }
             var remainingSlots = (maxPhotos - serverPhotoCount).coerceAtLeast(0)
             var uploadedThisPass = false
-            for (uri in selectedPhotos.value) {
+            for (photo in selectedPhotos.value) {
                 if (remainingSlots <= 0) break
-                val bytes = ImageCompression.compressForUpload(context, uri) ?: continue
+                // Already on the server (hydrated from /me) — don't re-upload
+                if (photo.id != null) continue
+                val bytes = ImageCompression.compressForUpload(context, photo.uri) ?: continue
                 val result = APIService.uploadPhoto(bytes)
                 when {
                     result.isSuccess -> { remainingSlots--; uploadedThisPass = true }

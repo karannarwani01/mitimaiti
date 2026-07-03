@@ -1090,6 +1090,79 @@ router.delete(
   })
 );
 
+// ─── PATCH /v1/me/media/:id/primary ─────────────────────────────────────────────
+// Make one of your photos the primary (profile) photo. Videos can't be primary.
+
+router.patch(
+  '/media/:id/primary',
+  authenticate,
+  asyncHandler(async (req: Request, res: Response) => {
+    const user = (req as AuthenticatedRequest).user;
+    const { id } = req.params;
+
+    const { data: media, error: findError } = await supabase
+      .from('photos')
+      .select('id, is_video, is_primary')
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .single();
+
+    if (findError || !media) {
+      throw new AppError(404, 'Media not found', 'MEDIA_NOT_FOUND');
+    }
+    if (media.is_video) {
+      throw new AppError(400, 'Videos cannot be the primary photo', 'PRIMARY_MUST_BE_PHOTO');
+    }
+
+    if (!media.is_primary) {
+      await supabase.from('photos').update({ is_primary: false }).eq('user_id', user.id);
+      await supabase.from('photos').update({ is_primary: true }).eq('id', id);
+    }
+
+    res.json({ success: true, data: { primary_photo_id: id } });
+  })
+);
+
+// ─── POST /v1/me/media/reorder ──────────────────────────────────────────────────
+// Persist a new photo order. Body: { photo_ids: [id, id, ...] } in desired
+// order; sort_order is rewritten to the array index. Every id must belong to
+// the caller (partial lists are allowed — unlisted media keep their order
+// after the listed ones only in the sense of retaining old sort values).
+
+const reorderSchema = z.object({
+  photo_ids: z.array(z.string().uuid('Invalid photo ID')).min(1).max(10),
+});
+
+router.post(
+  '/media/reorder',
+  authenticate,
+  validate(reorderSchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    const user = (req as AuthenticatedRequest).user;
+    const { photo_ids: photoIds } = req.body as { photo_ids: string[] };
+
+    const { data: mine } = await supabase
+      .from('photos')
+      .select('id')
+      .eq('user_id', user.id);
+
+    const myIds = new Set((mine || []).map((p: any) => p.id));
+    for (const pid of photoIds) {
+      if (!myIds.has(pid)) {
+        throw new AppError(400, 'Unknown photo in reorder list', 'INVALID_PHOTO_ID');
+      }
+    }
+
+    await Promise.all(
+      photoIds.map((pid, i) =>
+        supabase.from('photos').update({ sort_order: i }).eq('id', pid).eq('user_id', user.id),
+      ),
+    );
+
+    res.json({ success: true, data: { order: photoIds } });
+  })
+);
+
 // ─── POST /v1/me/verify ─────────────────────────────────────────────────────────
 // Selfie-based profile verification via AWS Rekognition.
 // Compares the uploaded selfie to the user's primary photo.

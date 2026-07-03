@@ -123,18 +123,51 @@ class ProfileViewModel : ViewModel() {
 
     fun dismissVerifyMessage() { verifyMessage.value = null }
 
-    // Photos from PhotoRepository (shared with onboarding)
-    val userPhotos: StateFlow<List<Uri>> = PhotoRepository.photos
+    // Photos from PhotoRepository (shared with onboarding). Index 0 = primary.
+    val userPhotos: StateFlow<List<com.mitimaiti.app.services.ProfilePhoto>> = PhotoRepository.photos
     val primaryPhotoUri: Uri? get() = PhotoRepository.primaryPhotoUri
 
     fun addPhoto(uri: Uri) { PhotoRepository.addPhoto(uri) }
-    fun removePhoto(index: Int) { PhotoRepository.removePhoto(index) }
-    fun setPrimaryPhoto(index: Int) { PhotoRepository.setPrimaryPhoto(index) }
+
+    /** Delete on the server first, then drop locally — previously this only
+     *  mutated local state and the photo reappeared on next launch. */
+    fun removePhoto(index: Int) {
+        val photo = PhotoRepository.photoAt(index) ?: return
+        if (photo.id == null) {
+            PhotoRepository.removePhoto(index)
+            return
+        }
+        viewModelScope.launch {
+            APIService.deletePhoto(photo.id)
+                .onSuccess { PhotoRepository.removePhoto(photo) }
+                .onFailure { err ->
+                    _error.value = if (err is com.mitimaiti.app.services.APIError.MinPhotosRequired) {
+                        "You can't delete your only photo — add another first."
+                    } else "Couldn't delete the photo. Try again."
+                }
+        }
+    }
+
+    /** Move to front locally AND persist: primary flag + new sort order. */
+    fun setPrimaryPhoto(index: Int) {
+        val photo = PhotoRepository.photoAt(index) ?: return
+        PhotoRepository.setPrimaryPhoto(index)
+        val id = photo.id ?: return
+        viewModelScope.launch {
+            APIService.setPrimaryPhoto(id).onFailure {
+                _error.value = "Couldn't update your main photo. Try again."
+            }
+            val orderedIds = PhotoRepository.photos.value.mapNotNull { it.id }
+            if (orderedIds.size > 1) APIService.reorderPhotos(orderedIds)
+        }
+    }
 
     fun uploadPhotoBytes(bytes: ByteArray, mimeType: String = "image/jpeg") {
         viewModelScope.launch {
             APIService.uploadPhoto(bytes, mimeType).onSuccess { photo ->
-                PhotoRepository.addPhoto(Uri.parse(photo.url))
+                PhotoRepository.addPhoto(
+                    com.mitimaiti.app.services.ProfilePhoto(id = photo.id, uri = Uri.parse(photo.url))
+                )
             }.onFailure {
                 _error.value = "Photo upload failed"
             }
@@ -215,6 +248,23 @@ class ProfileViewModel : ViewModel() {
                     } else fetched
                     _user.value = merged
                     populateEditFields(merged)
+                    // Hydrate the shared photo store from the server (primary
+                    // first, then sort order). Previously nothing rehydrated
+                    // it, so photos vanished from Profile after a relaunch.
+                    if (merged.photos.isNotEmpty()) {
+                        val ordered = merged.photos.sortedWith(
+                            compareByDescending<com.mitimaiti.app.models.UserPhoto> { it.isPrimary }
+                                .thenBy { it.sortOrder }
+                        )
+                        PhotoRepository.setPhotos(
+                            ordered.map {
+                                com.mitimaiti.app.services.ProfilePhoto(
+                                    id = it.id.ifBlank { null },
+                                    uri = Uri.parse(it.url.ifBlank { it.urlMedium ?: "" })
+                                )
+                            }.filter { it.uri.toString().isNotBlank() }
+                        )
+                    }
                 }
                 .onFailure { _error.value = "Failed to load profile" }
             _isLoading.value = false

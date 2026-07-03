@@ -292,6 +292,25 @@ object APIService {
     suspend fun deletePhoto(id: String): Result<Boolean> {
         return try {
             val response = api.deletePhoto(id)
+            if (response.isSuccessful) Result.success(true)
+            else if (response.code() == 400 && errorCodeOf(response) == "MIN_PHOTOS") {
+                Result.failure(APIError.MinPhotosRequired)
+            } else Result.failure(APIError.ServerError)
+        } catch (e: Exception) { Result.failure(APIError.NetworkError) }
+    }
+
+    /** PATCH /v1/me/media/:id/primary — make this photo the profile photo. */
+    suspend fun setPrimaryPhoto(id: String): Result<Boolean> {
+        return try {
+            val response = api.setPrimaryPhoto(id)
+            if (response.isSuccessful) Result.success(true) else Result.failure(APIError.ServerError)
+        } catch (e: Exception) { Result.failure(APIError.NetworkError) }
+    }
+
+    /** POST /v1/me/media/reorder — persist photo order (index = sort_order). */
+    suspend fun reorderPhotos(ids: List<String>): Result<Boolean> {
+        return try {
+            val response = api.reorderPhotos(mapOf("photo_ids" to ids))
             if (response.isSuccessful) Result.success(true) else Result.failure(APIError.ServerError)
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
@@ -844,4 +863,6 @@ sealed class APIError : Exception() {
     /** Daily like-with-comment budget exhausted (429 COMMENT_LIMIT_REACHED);
      *  a plain like is still possible. */
     object CommentLimitReached : APIError()
+    /** Can't delete your only photo (400 MIN_PHOTOS). */
+    object MinPhotosRequired : APIError()
 }

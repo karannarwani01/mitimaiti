@@ -15,19 +15,22 @@ final class SocketChat: ObservableObject {
     private var manager: SocketManager?
     private var socket: SocketIOClient?
 
-    private(set) var incomingMessages = AsyncStream<[String: Any]>.makeStream()
-    private(set) var typingEvents = AsyncStream<[String: Any]>.makeStream()
-    private(set) var readReceipts = AsyncStream<[String: Any]>.makeStream()
-    private(set) var matchUpdates = AsyncStream<[String: Any]>.makeStream()
-    private(set) var newMatches = AsyncStream<[String: Any]>.makeStream()
+    // Multicast event buses. These were single-consumer AsyncStreams, which
+    // meant a previous chat's still-retained ChatViewModel could steal an
+    // event meant for the newly opened chat and silently drop it (its
+    // matchId guard consumed the value). Any number of subscribers may listen
+    // to a PassthroughSubject without contending.
+    let typingEvents = PassthroughSubject<[String: Any], Never>()
+    let readReceipts = PassthroughSubject<[String: Any], Never>()
+    let matchUpdates = PassthroughSubject<[String: Any], Never>()
+    let newMatches = PassthroughSubject<[String: Any], Never>()
     /// Fires on RE-connects (not the initial connect) so open chats can
     /// backfill messages that arrived during the outage.
-    private(set) var reconnects = AsyncStream<Void>.makeStream()
+    let reconnects = PassthroughSubject<Void, Never>()
     private var wasEverConnected = false
 
-    /// Multicast copy of every new_msg — the AsyncStream above is
-    /// single-consumer (owned by the open ChatViewModel), so global listeners
-    /// (inbox badge / in-app alerts) subscribe here instead.
+    /// Every new_msg — consumed by the open ChatViewModel AND global
+    /// listeners (inbox badge / in-app alerts).
     let globalMessages = PassthroughSubject<[String: Any], Never>()
 
     /// The match whose chat screen is currently open (nil = none). Global
@@ -53,7 +56,7 @@ final class SocketChat: ObservableObject {
             guard let self else { return }
             self.isConnected = true
             self.socket?.emit("heartbeat")
-            if self.wasEverConnected { self.reconnects.continuation.yield(()) }
+            if self.wasEverConnected { self.reconnects.send(()) }
             self.wasEverConnected = true
         }
         socket?.on(clientEvent: .disconnect) { [weak self] _, _ in
@@ -61,29 +64,28 @@ final class SocketChat: ObservableObject {
         }
         socket?.on("new_msg") { [weak self] data, _ in
             if let payload = data.first as? [String: Any] {
-                self?.incomingMessages.continuation.yield(payload)
                 self?.globalMessages.send(payload)
             }
         }
         socket?.on("typing") { [weak self] data, _ in
             if let payload = data.first as? [String: Any] {
-                self?.typingEvents.continuation.yield(payload)
+                self?.typingEvents.send(payload)
             }
         }
         // Backend emits 'messages_read' (payload { matchId, readBy, readAt })
         socket?.on("messages_read") { [weak self] data, _ in
             if let payload = data.first as? [String: Any] {
-                self?.readReceipts.continuation.yield(payload)
+                self?.readReceipts.send(payload)
             }
         }
         socket?.on("match_update") { [weak self] data, _ in
             if let payload = data.first as? [String: Any] {
-                self?.matchUpdates.continuation.yield(payload)
+                self?.matchUpdates.send(payload)
             }
         }
         socket?.on("new_match") { [weak self] data, _ in
             if let payload = data.first as? [String: Any] {
-                self?.newMatches.continuation.yield(payload)
+                self?.newMatches.send(payload)
             }
         }
         socket?.on("error") { data, _ in

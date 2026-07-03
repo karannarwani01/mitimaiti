@@ -205,7 +205,7 @@ fun OnboardingScreen(onComplete: () -> Unit, onNavigateToEditProfile: () -> Unit
                             onSelect = { viewModel.selectedGender.value = it }
                         )
                         OnboardingStep.PHOTOS -> PhotosStep(
-                            photos = selectedPhotos,
+                            photos = selectedPhotos.map { it.uri },
                             onAddPhoto = {
                                 photoPickerLauncher.launch(
                                     PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)

@@ -20,11 +20,12 @@ class InboxViewModel: ObservableObject {
     init() {
         // Real-time: the backend emits new_match / match_update over the
         // socket. Refresh the inbox and surface an in-app notification even
-        // when the user isn't on the Discover screen. (These streams are
-        // single-consumer; InboxViewModel is their only subscriber.)
-        Task { @MainActor [weak self] in
-            for await payload in SocketChat.shared.newMatches.stream {
-                guard let self else { break }
+        // when the user isn't on the Discover screen. (Multicast subjects —
+        // subscribing here can't starve any other listener.)
+        SocketChat.shared.newMatches
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] payload in
+                guard let self else { return }
                 let name = (payload["displayName"] as? String) ?? "Someone"
                 NotificationManager.shared.addNotification(
                     type: .match,
@@ -34,15 +35,16 @@ class InboxViewModel: ObservableObject {
                 )
                 self.loadInbox()
             }
-        }
-        Task { @MainActor [weak self] in
-            for await payload in SocketChat.shared.matchUpdates.stream {
-                guard let self else { break }
-                guard let matchId = payload["matchId"] as? String,
-                      (payload["status"] as? String) == "active" else { continue }
+            .store(in: &cancellables)
+        SocketChat.shared.matchUpdates
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] payload in
+                guard let self,
+                      let matchId = payload["matchId"] as? String,
+                      (payload["status"] as? String) == "active" else { return }
                 self.activateMatch(id: matchId)
             }
-        }
+            .store(in: &cancellables)
         // Global message alerts: a user who is online but NOT inside this
         // chat gets no push (the server suppresses it) and previously nothing
         // in-app either. Bump the unread badge and surface a notification.

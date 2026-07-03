@@ -788,21 +788,10 @@ router.post(
       })
       .eq('id', matchId);
 
-    // Update unread count for the other user
-    const isUserA = match.user_a_id === user.id;
-    const unreadField = isUserA ? 'unread_b' : 'unread_a';
-    const { data: currentMatch } = await supabase
-      .from('matches')
-      .select(unreadField)
-      .eq('id', matchId)
-      .single();
-
-    if (currentMatch) {
-      await supabase
-        .from('matches')
-        .update({ [unreadField]: ((currentMatch as any)[unreadField] || 0) + 1 })
-        .eq('id', matchId);
-    }
+    // NOTE: matches.unread_a/unread_b are intentionally NOT maintained —
+    // nothing reads them (inbox unread counts come from messages.read_at) and
+    // nothing ever reset them, so the old increment here was two dead DB
+    // round-trips per message.
 
     await broadcastNewMessage(matchId, user.id, otherId, message);
 

@@ -884,6 +884,12 @@ struct EditProfileView: View {
                     profileVM.user.photos[i].sortOrder = i
                     profileVM.user.photos[i].isPrimary = (i == 0)
                 }
+                // Delete on the server too — previously local-only, so the
+                // photo stayed in other users' feeds and came back with /me.
+                Task {
+                    do { try await APIService.shared.deleteMedia(id: photo.id) }
+                    catch { ToastManager.shared.show("Couldn't delete the photo on the server.") }
+                }
             } label: {
                 Image(systemName: "xmark.circle.fill")
                     .font(.system(size: 20))
@@ -901,6 +907,7 @@ struct EditProfileView: View {
     /// Promote the photo at `photoIndex` to position 0 (primary).
     private func setAsPrimary(photoIndex: Int) {
         guard photoIndex > 0, photoIndex < profileVM.user.photos.count else { return }
+        let promotedId = profileVM.user.photos[photoIndex].id
         // Move in the image store (handles disk persistence)
         UserImageStore.shared.setPrimary(at: photoIndex)
         // Mirror the reorder in the user's photo model array
@@ -913,6 +920,18 @@ struct EditProfileView: View {
             photos[i].isPrimary = (i == 0)
         }
         profileVM.user.photos = photos
+        // Persist on the server: primary flag + new order — previously
+        // local-only, so the change was invisible to other users and lost
+        // on relaunch.
+        let orderedIds = photos.map(\.id)
+        Task {
+            do {
+                try await APIService.shared.setPrimaryPhoto(id: promotedId)
+                if orderedIds.count > 1 { try await APIService.shared.reorderPhotos(ids: orderedIds) }
+            } catch {
+                ToastManager.shared.show("Couldn't update your main photo on the server.")
+            }
+        }
         flashSaveToast()
     }
 

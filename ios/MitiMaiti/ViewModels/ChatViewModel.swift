@@ -499,25 +499,27 @@ class ChatViewModel: ObservableObject {
 
     private var didStartRealtime = false
     private var typingResetTask: Task<Void, Never>?
+    private var realtimeCancellables = Set<AnyCancellable>()
 
-    /// Subscribe once to the live socket streams for message/typing/read events.
+    /// Subscribe once to the multicast socket buses for message/typing/read
+    /// events. Subjects can have any number of subscribers, so a previous
+    /// chat's still-retained view model can no longer steal (and drop) events
+    /// meant for this chat — the old single-consumer AsyncStreams could.
     private func startRealtime() {
         guard !didStartRealtime else { return }
         didStartRealtime = true
 
-        // Note: the socket exposes single-consumer AsyncStreams, so break out of
-        // each loop once this view model is gone to free the stream for the next
-        // chat's view model (rather than silently draining its events).
-        Task { @MainActor [weak self] in
-            for await payload in SocketChat.shared.incomingMessages.stream {
-                guard let self else { break }
-                self.handleIncoming(payload)
+        SocketChat.shared.globalMessages
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] payload in
+                self?.handleIncoming(payload)
             }
-        }
-        Task { @MainActor [weak self] in
-            for await payload in SocketChat.shared.typingEvents.stream {
-                guard let self else { break }
-                guard payload["matchId"] as? String == self.match?.id else { continue }
+            .store(in: &realtimeCancellables)
+
+        SocketChat.shared.typingEvents
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] payload in
+                guard let self, payload["matchId"] as? String == self.match?.id else { return }
                 self.isOtherTyping = true
                 self.typingResetTask?.cancel()
                 self.typingResetTask = Task { @MainActor [weak self] in
@@ -525,31 +527,36 @@ class ChatViewModel: ObservableObject {
                     self?.isOtherTyping = false
                 }
             }
-        }
-        Task { @MainActor [weak self] in
-            for await payload in SocketChat.shared.readReceipts.stream {
-                guard let self else { break }
-                guard payload["matchId"] as? String == self.match?.id else { continue }
+            .store(in: &realtimeCancellables)
+
+        SocketChat.shared.readReceipts
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] payload in
+                guard let self, payload["matchId"] as? String == self.match?.id else { return }
                 for i in self.messages.indices where self.messages[i].isFromMe {
                     self.messages[i].status = .read
                 }
             }
-        }
+            .store(in: &realtimeCancellables)
+
         // Backfill after a network blip: messages the other person sent while
         // the socket was down were never delivered and never re-sent. Re-join
         // the chat room and refetch the thread from the server.
-        Task { @MainActor [weak self] in
-            for await _ in SocketChat.shared.reconnects.stream {
-                guard let self else { break }
-                guard let matchId = self.match?.id else { continue }
+        SocketChat.shared.reconnects
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in
+                guard let self, let matchId = self.match?.id else { return }
                 SocketChat.shared.enterChat(matchId: matchId)
-                if let fresh = try? await self.api.fetchMessages(matchId: matchId) {
-                    let sorted = fresh.messages.sorted { $0.createdAt < $1.createdAt }
-                    self.messages = sorted
-                    MessageRepository.shared.setMessages(matchId: matchId, msgs: sorted)
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    if let fresh = try? await self.api.fetchMessages(matchId: matchId) {
+                        let sorted = fresh.messages.sorted { $0.createdAt < $1.createdAt }
+                        self.messages = sorted
+                        MessageRepository.shared.setMessages(matchId: matchId, msgs: sorted)
+                    }
                 }
             }
-        }
+            .store(in: &realtimeCancellables)
     }
 
     /// Accept only the OTHER user's messages — our own are already shown

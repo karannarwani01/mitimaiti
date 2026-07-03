@@ -404,7 +404,7 @@ fun EditProfileScreen(
                         ) {
                             for (col in 0..2) {
                                 val index = row * 3 + col
-                                val photoUri = userPhotos.getOrNull(index)
+                                val photoUri = userPhotos.getOrNull(index)?.uri
                                 val isMain = index == 0 && photoUri != null
                                 Box(
                                     modifier = Modifier
@@ -913,12 +913,12 @@ fun EditProfileScreen(
     // Primary photo picker sheet for MAIN photo slot
     if (showPrimaryPhotoPicker) {
         PrimaryPhotoPickerSheet(
-            existingPhotos = userPhotos,
+            existingPhotos = userPhotos.map { it.uri },
             onDismiss = { showPrimaryPhotoPicker = false },
             onNewPhotoFromGallery = { uri ->
                 viewModel.addPhoto(uri)
                 // Move the newly added photo to primary position
-                val newIndex = com.mitimaiti.app.services.PhotoRepository.photos.value.indexOf(uri)
+                val newIndex = com.mitimaiti.app.services.PhotoRepository.photos.value.indexOfFirst { it.uri == uri }
                 if (newIndex > 0) viewModel.setPrimaryPhoto(newIndex)
             },
             onSetPrimary = { index -> viewModel.setPrimaryPhoto(index) }
