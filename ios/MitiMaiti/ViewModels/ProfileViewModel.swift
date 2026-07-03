@@ -125,8 +125,49 @@ class ProfileViewModel: ObservableObject {
         return Int((Double(filled) / Double(total)) * 100.0)
     }
 
+    // ── Daily question (Chai Chat) ──
+    struct DailyPromptState {
+        var question: String?
+        var answer: String?
+        var answeredToday: Bool
+    }
+    @Published var dailyPrompt: DailyPromptState?
+    @Published var isSavingPromptAnswer = false
+
+    func loadDailyPrompt() {
+        Task {
+            if let state = try? await api.fetchDailyPrompt() {
+                dailyPrompt = DailyPromptState(
+                    question: state.question,
+                    answer: state.answer,
+                    answeredToday: state.answeredToday
+                )
+            }
+        }
+    }
+
+    func answerDailyPrompt(_ answer: String) {
+        let trimmed = answer.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !isSavingPromptAnswer else { return }
+        isSavingPromptAnswer = true
+        Task {
+            do {
+                try await api.answerPrompt(trimmed)
+                dailyPrompt = DailyPromptState(
+                    question: dailyPrompt?.question,
+                    answer: trimmed,
+                    answeredToday: true
+                )
+            } catch {
+                self.error = "Couldn't save your answer. Try again."
+            }
+            isSavingPromptAnswer = false
+        }
+    }
+
     func loadProfile() {
         isLoading = true
+        loadDailyPrompt()
         Task {
             do {
                 var fetched = try await api.fetchProfile()

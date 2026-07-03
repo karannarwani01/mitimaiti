@@ -32,6 +32,10 @@ struct ProfileView: View {
                         getVerifiedCard
                             .sectionFadeIn(appeared: appeared, delay: 0.12)
                     }
+                    if profileVM.dailyPrompt?.question != nil {
+                        dailyQuestionCard
+                            .sectionFadeIn(appeared: appeared, delay: 0.13)
+                    }
                     statsRow
                         .sectionFadeIn(appeared: appeared, delay: 0.15)
                     bioSection
@@ -123,6 +127,95 @@ struct ProfileView: View {
                 Text(profileVM.verifyMessage ?? "")
             }
         }
+    }
+
+    // MARK: - Today's Question (Chai Chat) — the answer shows on your Discover card
+
+    @State private var promptEditing = false
+    @State private var promptText = ""
+
+    private var dailyQuestionCard: some View {
+        let prompt = profileVM.dailyPrompt
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("☕")
+                Text("Today's Question")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(AppTheme.saffron)
+                Spacer()
+                if prompt?.answeredToday == true && !promptEditing {
+                    Text("Answered ✓")
+                        .font(.system(size: 11))
+                        .foregroundColor(colors.textMuted)
+                }
+            }
+            Text(prompt?.question ?? "")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(colors.textPrimary)
+
+            if !promptEditing, let answer = prompt?.answer, !answer.isEmpty {
+                HStack {
+                    Text("“\(answer)”")
+                        .font(.system(size: 13))
+                        .foregroundColor(colors.textSecondary)
+                    Spacer()
+                    Button("Edit") {
+                        promptText = answer
+                        promptEditing = true
+                    }
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(AppTheme.rose)
+                }
+            } else if !promptEditing {
+                Button {
+                    promptText = ""
+                    promptEditing = true
+                } label: {
+                    Text("Answer — it shows on your card")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Capsule().fill(AppTheme.rose))
+                }
+            } else {
+                TextField("Your answer…", text: $promptText, axis: .vertical)
+                    .lineLimit(2...4)
+                    .padding(10)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(colors.surfaceMedium))
+                    .onChange(of: promptText) { _, newValue in
+                        if newValue.count > 500 { promptText = String(newValue.prefix(500)) }
+                    }
+                HStack {
+                    Text("\(promptText.count)/500")
+                        .font(.caption2)
+                        .foregroundColor(colors.textMuted)
+                    Spacer()
+                    Button("Cancel") { promptEditing = false }
+                        .font(.system(size: 13))
+                        .foregroundColor(colors.textMuted)
+                    Button {
+                        profileVM.answerDailyPrompt(promptText)
+                        promptEditing = false
+                    } label: {
+                        Text(profileVM.isSavingPromptAnswer ? "Saving…" : "Save")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 6)
+                            .background(Capsule().fill(AppTheme.rose))
+                    }
+                    .disabled(promptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || profileVM.isSavingPromptAnswer)
+                }
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(colors.cardDark)
+                .overlay(RoundedRectangle(cornerRadius: 14).stroke(colors.border, lineWidth: 0.5))
+        )
+        .padding(.horizontal, AppTheme.spacingMD)
     }
 
     // MARK: - Get Verified card (Bumble-style photo verification)

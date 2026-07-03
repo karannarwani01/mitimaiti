@@ -599,6 +599,62 @@ router.post(
   }),
 );
 
+// ─── GET /v1/action/prompt ──────────────────────────────────────────────────────
+// Today's daily question + the caller's current answer. Prefers the
+// cron/admin-scheduled prompt (daily_prompts.date/is_active, migration 008);
+// until that lands it falls back to a deterministic rotation through the
+// seeded question pool so the feature works either way.
+
+router.get(
+  '/prompt',
+  authenticate,
+  asyncHandler(async (req: Request, res: Response) => {
+    const user = (req as AuthenticatedRequest).user;
+    const today = todayKey();
+
+    let question: string | null = null;
+
+    const { data: scheduled, error: scheduledError } = await supabase
+      .from('daily_prompts')
+      .select('question')
+      .eq('date', today)
+      .eq('is_active', true)
+      .limit(1)
+      .maybeSingle();
+
+    if (!scheduledError && scheduled?.question) {
+      question = scheduled.question;
+    } else {
+      const { data: all } = await supabase
+        .from('daily_prompts')
+        .select('question')
+        .order('created_at', { ascending: true });
+      if (all && all.length > 0) {
+        const dayNumber = Math.floor(Date.now() / 86_400_000);
+        question = all[dayNumber % all.length].question;
+      }
+    }
+
+    const { data: me } = await supabase
+      .from('users')
+      .select('daily_prompt_answer, daily_prompt_answered_at')
+      .eq('id', user.id)
+      .single();
+
+    const answeredAt = me?.daily_prompt_answered_at || null;
+
+    res.json({
+      success: true,
+      data: {
+        question,
+        answer: me?.daily_prompt_answer || null,
+        answered_at: answeredAt,
+        answered_today: !!answeredAt && String(answeredAt).slice(0, 10) === today,
+      },
+    });
+  }),
+);
+
 // ─── POST /v1/action/prompt ─────────────────────────────────────────────────────
 
 router.post(

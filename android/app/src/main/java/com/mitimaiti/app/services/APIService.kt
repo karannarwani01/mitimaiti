@@ -322,6 +322,27 @@ object APIService {
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
 
+    /** Today's daily question + the caller's current answer. */
+    data class DailyPromptState(
+        val question: String?,
+        val answer: String?,
+        val answeredToday: Boolean,
+    )
+
+    suspend fun fetchDailyPrompt(): Result<DailyPromptState> {
+        return try {
+            val response = api.getDailyPrompt()
+            if (response.isSuccessful) {
+                val body = response.body()
+                Result.success(DailyPromptState(
+                    question = body?.get("question") as? String,
+                    answer = body?.get("answer") as? String,
+                    answeredToday = body?.get("answered_today") as? Boolean ?: false,
+                ))
+            } else Result.failure(APIError.ServerError)
+        } catch (e: Exception) { Result.failure(APIError.NetworkError) }
+    }
+
     suspend fun joinFamily(code: String, roleTag: String): Result<Boolean> {
         return try {
             val response = api.joinFamily(mapOf("code" to code, "role_tag" to roleTag))

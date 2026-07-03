@@ -260,7 +260,35 @@ class ProfileViewModel : ViewModel() {
     /** Kept for backward compat with any call sites that read the snapshot. */
     val computedCompleteness: Int get() = completenessFlow.value
 
+    // ── Daily question (Chai Chat) ──
+    private val _dailyPrompt = MutableStateFlow<APIService.DailyPromptState?>(null)
+    val dailyPrompt: StateFlow<APIService.DailyPromptState?> = _dailyPrompt.asStateFlow()
+    private val _isSavingPromptAnswer = MutableStateFlow(false)
+    val isSavingPromptAnswer: StateFlow<Boolean> = _isSavingPromptAnswer.asStateFlow()
+
+    fun loadDailyPrompt() {
+        viewModelScope.launch {
+            APIService.fetchDailyPrompt().onSuccess { _dailyPrompt.value = it }
+        }
+    }
+
+    fun answerDailyPrompt(answer: String) {
+        val trimmed = answer.trim()
+        if (trimmed.isEmpty() || _isSavingPromptAnswer.value) return
+        _isSavingPromptAnswer.value = true
+        viewModelScope.launch {
+            APIService.answerPrompt(trimmed)
+                .onSuccess {
+                    _dailyPrompt.value = _dailyPrompt.value?.copy(answer = trimmed, answeredToday = true)
+                        ?: APIService.DailyPromptState(question = null, answer = trimmed, answeredToday = true)
+                }
+                .onFailure { _error.value = "Couldn't save your answer. Try again." }
+            _isSavingPromptAnswer.value = false
+        }
+    }
+
     fun loadProfile() {
+        loadDailyPrompt()
         viewModelScope.launch {
             _isLoading.value = true
             APIService.fetchProfile()

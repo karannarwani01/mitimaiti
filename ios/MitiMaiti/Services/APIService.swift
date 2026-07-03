@@ -482,6 +482,17 @@ actor APIService {
         let _: EmptyData = try await authedRequest(.post, "/action/prompt", body: Body(answer: answer))
     }
 
+    /// GET /v1/action/prompt — today's daily question + the caller's answer.
+    func fetchDailyPrompt() async throws -> (question: String?, answer: String?, answeredToday: Bool) {
+        struct Resp: Decodable {
+            let question: String?
+            let answer: String?
+            let answeredToday: Bool?
+        }
+        let resp: Resp = try await authedRequest(.get, "/action/prompt")
+        return (resp.question, resp.answer, resp.answeredToday ?? false)
+    }
+
     func joinFamily(code: String, roleTag: String) async throws {
         struct Body: Encodable { let code: String; let roleTag: String }
         let _: EmptyData = try await authedRequest(.post, "/family/join", body: Body(code: code, roleTag: roleTag))

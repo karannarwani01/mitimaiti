@@ -87,6 +87,9 @@ interface MitiMaitiApi {
     @POST("me/fcm-token")
     suspend fun registerFcmToken(@Body body: Map<String, String>): Response<Map<String, Any>>
 
+    @GET("action/prompt")
+    suspend fun getDailyPrompt(): Response<Map<String, Any>>
+
     // ──────────────────── DISCOVERY (/v1/feed) ────────────────────
 
     @GET("feed")

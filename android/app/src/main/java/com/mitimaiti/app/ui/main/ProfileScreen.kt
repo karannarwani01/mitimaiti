@@ -379,6 +379,20 @@ fun ProfileScreen(
             Spacer(modifier = Modifier.height(12.dp))
         }
 
+        // Today's Question (Chai Chat) — the answer shows on your Discover card
+        val dailyPrompt by viewModel.dailyPrompt.collectAsState()
+        val isSavingAnswer by viewModel.isSavingPromptAnswer.collectAsState()
+        dailyPrompt?.question?.let { question ->
+            DailyQuestionCard(
+                question = question,
+                answer = dailyPrompt?.answer,
+                answeredToday = dailyPrompt?.answeredToday == true,
+                isSaving = isSavingAnswer,
+                onSave = { viewModel.answerDailyPrompt(it) }
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
         // Stats row — three separate cards with circular icon badges (matches web design)
         Row(
             modifier = Modifier
@@ -476,6 +490,106 @@ fun ProfileScreen(
             },
             onSetPrimary = { index -> viewModel.setPrimaryPhoto(index) }
         )
+    }
+}
+
+// ───────────────────────────────────────────
+// Today's Question (Chai Chat) — answer shows on the user's Discover card
+// ───────────────────────────────────────────
+@Composable
+private fun DailyQuestionCard(
+    question: String,
+    answer: String?,
+    answeredToday: Boolean,
+    isSaving: Boolean,
+    onSave: (String) -> Unit
+) {
+    val colors = LocalAdaptiveColors.current
+    var editing by remember(question) { mutableStateOf(false) }
+    var text by remember(question) { mutableStateOf(answer ?: "") }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        shape = RoundedCornerShape(AppTheme.radiusMd),
+        color = colors.surface,
+        shadowElevation = 2.dp
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("☕", fontSize = 16.sp)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    "Today's Question",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = AppColors.Saffron
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                if (answeredToday && !editing) {
+                    Text("Answered ✓", fontSize = 11.sp, color = colors.textMuted)
+                }
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                question,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                color = colors.textPrimary
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+
+            if (!editing && !answer.isNullOrBlank()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "“$answer”",
+                        fontSize = 13.sp,
+                        color = colors.textSecondary,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = { editing = true; text = answer }) {
+                        Text("Edit", fontSize = 12.sp, color = AppColors.Rose)
+                    }
+                }
+            } else if (!editing) {
+                Button(
+                    onClick = { editing = true },
+                    shape = RoundedCornerShape(AppTheme.radiusFull),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Rose),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
+                ) {
+                    Text("Answer — it shows on your card", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                }
+            } else {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { if (it.length <= 500) text = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Your answer…", color = colors.textMuted) },
+                    minLines = 2,
+                    maxLines = 4,
+                    supportingText = { Text("${text.length}/500") }
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row {
+                    Spacer(modifier = Modifier.weight(1f))
+                    TextButton(onClick = { editing = false }) {
+                        Text("Cancel", fontSize = 13.sp, color = colors.textMuted)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = { onSave(text); editing = false },
+                        enabled = text.isNotBlank() && !isSaving,
+                        shape = RoundedCornerShape(AppTheme.radiusFull),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Rose),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
+                    ) {
+                        Text(if (isSaving) "Saving…" else "Save", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
     }
 }
 
