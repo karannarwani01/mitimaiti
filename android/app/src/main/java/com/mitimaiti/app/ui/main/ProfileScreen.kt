@@ -323,7 +323,7 @@ fun ProfileScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         // Get Verified card (Bumble-style photo verification)
-        if (!profile.isVerified) {
+        if (!profile.isVerified && profile.selfieVerificationAvailable) {
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()

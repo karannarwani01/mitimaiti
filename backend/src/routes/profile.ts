@@ -575,6 +575,15 @@ router.get(
         settings,
         privileges,
         safety,
+        // Server-driven feature flags so clients hide UI for capabilities that
+        // aren't wired up in this environment (e.g. selfie verification needs
+        // AWS Rekognition creds). Flip a flag on the server and the UI appears
+        // without shipping an app update.
+        capabilities: {
+          selfie_verification: !!(
+            process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY
+          ),
+        },
       },
     });
   })

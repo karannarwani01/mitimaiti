@@ -28,7 +28,7 @@ struct ProfileView: View {
                         .sectionFadeIn(appeared: appeared, delay: 0.05)
                     completenessCard
                         .sectionFadeIn(appeared: appeared, delay: 0.1)
-                    if !profileVM.user.isVerified {
+                    if !profileVM.user.isVerified && profileVM.user.selfieVerificationAvailable {
                         getVerifiedCard
                             .sectionFadeIn(appeared: appeared, delay: 0.12)
                     }

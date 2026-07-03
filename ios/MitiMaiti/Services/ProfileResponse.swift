@@ -11,6 +11,11 @@ struct ProfileResponse: Decodable {
     let chatti: ChattiRow?
     let personality: PersonalityRow?
     let photos: [PhotoRow]?
+    let capabilities: CapabilitiesRow?
+
+    struct CapabilitiesRow: Decodable {
+        let selfieVerification: Bool?
+    }
 
     struct UserRow: Decodable {
         let id: String
@@ -106,6 +111,7 @@ struct ProfileResponse: Decodable {
             intent: user.intent,
             showMe: basics?.showMe,
             isVerified: user.isVerified ?? false,
+            selfieVerificationAvailable: capabilities?.selfieVerification ?? true,
             profileCompleteness: user.profileCompleteness ?? 0,
             photos: (photos ?? []).map {
                 UserPhoto(

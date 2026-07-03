@@ -172,6 +172,8 @@ object APIService {
             (body[key] as? Map<*, *>)?.forEach { (k, v) -> if (v != null) flat[k] = v }
         }
         body["photos"]?.let { flat["photos"] = it }
+        // Merge server capability flags so parseUser can read them
+        (body["capabilities"] as? Map<*, *>)?.forEach { (k, v) -> if (v != null) flat[k] = v }
         return flat
     }
 
@@ -701,6 +703,8 @@ object APIService {
             country = data["country"] as? String ?: "",
             intent = (data["intent"] as? String)?.let { i -> Intent.entries.firstOrNull { it.name.equals(i, true) } },
             isVerified = data["is_verified"] as? Boolean ?: false,
+            // capabilities.selfie_verification merged in by flattenMe (absent = true)
+            selfieVerificationAvailable = data["selfie_verification"] as? Boolean ?: true,
             photos = (data["photos"] as? List<*>)?.map { p ->
                 val photo = p as? Map<*, *> ?: return@map UserPhoto(url = "")
                 UserPhoto(

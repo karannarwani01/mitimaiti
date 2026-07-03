@@ -35,6 +35,9 @@ data class User(
     val intent: Intent? = null,
     val showMe: ShowMe? = null,
     val isVerified: Boolean = false,
+    /** Server capability flag: is selfie verification wired up in this env?
+     *  Defaults true so a missing flag doesn't hide the card unexpectedly. */
+    val selfieVerificationAvailable: Boolean = true,
     val photos: List<UserPhoto> = emptyList(),
     val prompts: List<UserPrompt> = emptyList(),
     val education: String? = null,

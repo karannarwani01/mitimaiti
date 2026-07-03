@@ -46,6 +46,9 @@ struct User: Identifiable, Codable, Hashable {
     var intent: Intent?
     var showMe: ShowMe?
     var isVerified: Bool
+    /// Server capability flag: is selfie verification wired up in this env?
+    /// Defaults true so a missing flag doesn't hide the card unexpectedly.
+    var selfieVerificationAvailable: Bool = true
     var profileCompleteness: Int
     var photos: [UserPhoto]
     var prompts: [UserPrompt]
@@ -121,6 +124,7 @@ struct User: Identifiable, Codable, Hashable {
         intent: Intent? = nil,
         showMe: ShowMe? = nil,
         isVerified: Bool = false,
+        selfieVerificationAvailable: Bool = true,
         profileCompleteness: Int = 0,
         photos: [UserPhoto] = [],
         prompts: [UserPrompt] = [],
@@ -172,6 +176,7 @@ struct User: Identifiable, Codable, Hashable {
         self.intent = intent
         self.showMe = showMe
         self.isVerified = isVerified
+        self.selfieVerificationAvailable = selfieVerificationAvailable
         self.profileCompleteness = profileCompleteness
         self.photos = photos
         self.prompts = prompts
