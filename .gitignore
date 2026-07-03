@@ -68,3 +68,7 @@ firebase_service_account.json
 # Firebase config - keep out of the public repo (each machine needs its own copy)
 android/app/google-services.json
 ios/MitiMaiti/GoogleService-Info.plist
+
+# scratch/runbook temp files
+*_tmp.mjs
+*_tmp.sh
