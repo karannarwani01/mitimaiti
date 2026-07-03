@@ -338,10 +338,14 @@ router.post(
           ? [user.id, targetUserId]
           : [targetUserId, user.id];
 
-        // Check if match already exists (race condition guard)
+        // Check if match already exists (race condition guard). The pair has
+        // a unique (user_a_id, user_b_id) row, so a re-match after an
+        // unmatch/expiry must REVIVE the dissolved row — returning it as-is
+        // handed clients a dead match (status=dissolved) where extend and
+        // every message 403'd.
         const { data: existingMatch } = await supabase
           .from('matches')
-          .select('id')
+          .select('id, status, is_dissolved')
           .eq('user_a_id', userA)
           .eq('user_b_id', userB)
           .limit(1)
@@ -349,6 +353,27 @@ router.post(
 
         if (existingMatch) {
           matchId = existingMatch.id;
+          if (existingMatch.is_dissolved || ['dissolved', 'expired', 'unmatched'].includes(existingMatch.status)) {
+            const { error: reviveError } = await supabase
+              .from('matches')
+              .update({
+                status: 'pending_first_message',
+                is_dissolved: false,
+                dissolved_at: null,
+                dissolved_reason: null,
+                matched_at: new Date().toISOString(),
+                expires_at: matchExpiresAt,
+                first_msg_by: null,
+                first_msg_at: null,
+                first_msg_locked: false,
+                extended_once: false,
+                cultural_score: culturalScore,
+              })
+              .eq('id', existingMatch.id);
+            if (reviveError) {
+              console.error('[Actions] Failed to revive dissolved match:', reviveError.message);
+            }
+          }
         } else {
           const { data: match, error: matchError } = await supabase
             .from('matches')
