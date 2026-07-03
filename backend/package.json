@@ -7,7 +7,8 @@
     "dev": "nodemon --exec ts-node src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@aws-sdk/client-rekognition": "^3.1009.0",
@@ -42,7 +43,8 @@
   },
   "devDependencies": {
     "nodemon": "^3.1.4",
-    "ts-node": "^10.9.2"
+    "ts-node": "^10.9.2",
+    "vitest": "^4.1.9"
   },
   "engines": {
     "node": ">=20.0.0"

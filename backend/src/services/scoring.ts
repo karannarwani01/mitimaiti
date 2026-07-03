@@ -46,7 +46,7 @@ interface UserData {
 
 // ─── Dimension 1: Family Values (max 25) ─────────────────────────────────────
 
-function scoreFamilyValues(a: FamilyInvolvement | null, b: FamilyInvolvement | null): number {
+export function scoreFamilyValues(a: FamilyInvolvement | null, b: FamilyInvolvement | null): number {
   if (!a || !b) return 0;
 
   // Both 'very involved' = 25
@@ -63,8 +63,11 @@ function scoreFamilyValues(a: FamilyInvolvement | null, b: FamilyInvolvement | n
 
 // ─── Dimension 2: Language (max 20) ──────────────────────────────────────────
 
-function scoreLanguage(a: SindhiFluency | null, b: SindhiFluency | null): number {
+export function scoreLanguage(a: SindhiFluency | null, b: SindhiFluency | null): number {
   if (!a || !b) return 0;
+
+  // 'none' on either side = no shared Sindhi
+  if (a === 'none' || b === 'none') return 0;
 
   // Both native = 20
   if (a === 'native' && b === 'native') return 20;
@@ -76,24 +79,24 @@ function scoreLanguage(a: SindhiFluency | null, b: SindhiFluency | null): number
   const highFluency: SindhiFluency[] = ['native', 'fluent'];
   if (highFluency.includes(a) && highFluency.includes(b)) return 18;
 
-  // One basic (other is native/fluent) = 8
-  if (a === 'basic' || b === 'basic') {
-    const other = a === 'basic' ? b : a;
-    if (highFluency.includes(other)) return 8;
-    // Both basic
-    if (other === 'basic') return 8;
-    return 4;
-  }
+  // Middle tiers. Previously 'conversational' and 'learning' fell through
+  // every branch and scored 0 — two conversational speakers ranked the same
+  // as two people with no Sindhi at all.
+  const rank = (f: SindhiFluency): number =>
+    ({ native: 4, fluent: 4, conversational: 3, basic: 2, learning: 1, none: 0 }[f] ?? 0);
+  const lower = Math.min(rank(a), rank(b));
+  const higher = Math.max(rank(a), rank(b));
 
-  // Neither speaks Sindhi = 0
-  if (a === 'none' || b === 'none') return 0;
+  if (lower === 3) return higher === 4 ? 12 : 10;      // conversational w/ high | both conversational
+  if (lower === 2) return higher >= 3 ? 8 : 8;         // basic with anyone who speaks
+  if (lower === 1) return higher >= 3 ? 8 : 6;         // learning w/ a speaker | learning+basic/learning
 
   return 0;
 }
 
 // ─── Dimension 3: Festivals (max 20) — Jaccard similarity ───────────────────
 
-function scoreFestivals(a: string[] | null, b: string[] | null): number {
+export function scoreFestivals(a: string[] | null, b: string[] | null): number {
   if (!a || !b) return 0;
 
   const setA = new Set(a.map((f) => f.toLowerCase().trim()));
@@ -116,34 +119,37 @@ function scoreFestivals(a: string[] | null, b: string[] | null): number {
 
 // ─── Dimension 4: Food / Dietary (max 15) ───────────────────────────────────
 
-function scoreFood(a: Dietary | null, b: Dietary | null): number {
+export function scoreFood(a: Dietary | null, b: Dietary | null): number {
   if (!a || !b) return 0;
 
+  // The Dietary type carries alias spellings ('vegetarian' vs 'veg',
+  // 'non_vegetarian' vs 'non-veg') — previously unnormalized, so
+  // vegetarian+veg scored 5 instead of 15.
+  const normalize = (d: Dietary): string =>
+    ({ vegetarian: 'veg', non_vegetarian: 'non-veg' }[d as string] ?? d);
+  const na = normalize(a);
+  const nb = normalize(b);
+
   // Same dietary = 15
-  if (a === b) return 15;
+  if (na === nb) return 15;
 
   // Compatible pairs = 10
   const compatiblePairs: Record<string, string[]> = {
-    veg: ['jain', 'vegan'],
+    veg: ['jain', 'vegan', 'eggetarian'],
     jain: ['veg', 'vegan'],
     vegan: ['veg', 'jain'],
-    'non-veg': [],
+    eggetarian: ['veg'],
+    'non-veg': ['eggetarian'],
   };
 
-  if (compatiblePairs[a]?.includes(b)) return 10;
-
-  // Veg + non-veg = 5
-  const vegTypes: Dietary[] = ['veg', 'vegan', 'jain'];
-  const aIsVeg = vegTypes.includes(a);
-  const bIsVeg = vegTypes.includes(b);
-  if ((aIsVeg && !bIsVeg) || (!aIsVeg && bIsVeg)) return 5;
+  if (compatiblePairs[na]?.includes(nb) || compatiblePairs[nb]?.includes(na)) return 10;
 
   return 5;
 }
 
 // ─── Dimension 5: Diaspora Generation (max 10) ──────────────────────────────
 
-function scoreDiaspora(a: number | null, b: number | null): number {
+export function scoreDiaspora(a: number | null, b: number | null): number {
   if (a == null || b == null) return 0;
 
   const diff = Math.abs(a - b);
@@ -160,7 +166,7 @@ function scoreDiaspora(a: number | null, b: number | null): number {
 
 // ─── Dimension 6: Intent Match (max 10) ──────────────────────────────────────
 
-function scoreIntent(a: Intent | null, b: Intent | null): number {
+export function scoreIntent(a: Intent | null, b: Intent | null): number {
   if (!a || !b) return 0;
 
   // Both marriage = 10
@@ -185,7 +191,7 @@ function scoreIntent(a: Intent | null, b: Intent | null): number {
 
 // ─── Badge Assignment ────────────────────────────────────────────────────────
 
-function assignBadge(total: number): CulturalBadge {
+export function assignBadge(total: number): CulturalBadge {
   if (total >= 85) return 'gold';
   if (total >= 65) return 'green';
   if (total >= 40) return 'orange';
