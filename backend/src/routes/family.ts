@@ -36,11 +36,21 @@ const inviteSchema = z.object({
   roleTag: z.string().max(50).optional(),
 });
 
+// Must match the family_access.role_tag CHECK constraint (migration 010).
+// Validating here turns an unknown role into a clean 400 instead of the
+// 500 (JOIN_FAILED) it used to produce when the DB rejected it.
+const FAMILY_ROLE_TAGS = [
+  'mom', 'dad', 'parent', 'sibling', 'grandparent',
+  'uncle_aunt', 'relative', 'friend', 'other',
+] as const;
+
 const joinSchema = z.object({
   code: z
     .string()
     .regex(/^MM-[A-Z0-9]{6}$/, 'Invalid invite code format (expected MM-XXXXXX)'),
-  role_tag: z.string().max(50, 'Role tag must be 50 characters or less'),
+  role_tag: z.enum(FAMILY_ROLE_TAGS, {
+    errorMap: () => ({ message: `Role must be one of: ${FAMILY_ROLE_TAGS.join(', ')}` }),
+  }),
 });
 
 const updateMemberSchema = z.object({
