@@ -916,10 +916,9 @@ fun EditProfileScreen(
             existingPhotos = userPhotos.map { it.uri },
             onDismiss = { showPrimaryPhotoPicker = false },
             onNewPhotoFromGallery = { uri ->
-                viewModel.addPhoto(uri)
-                // Move the newly added photo to primary position
-                val newIndex = com.mitimaiti.app.services.PhotoRepository.photos.value.indexOfFirst { it.uri == uri }
-                if (newIndex > 0) viewModel.setPrimaryPhoto(newIndex)
+                // Upload first, then promote — a local-only add was never
+                // uploaded and vanished on the next profile load
+                viewModel.uploadAndSetPrimary(context, uri)
             },
             onSetPrimary = { index -> viewModel.setPrimaryPhoto(index) }
         )

@@ -31,6 +31,11 @@ ALTER TABLE matches ADD COLUMN IF NOT EXISTS dissolved_at TIMESTAMPTZ;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now();
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT false;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS media_type TEXT;
+-- Backfill from the legacy columns: without this, every pre-existing row
+-- gets created_at = migration time, which scrambles thread ordering and
+-- breaks keyset pagination on the shared timestamp.
+UPDATE messages SET created_at = sent_at WHERE sent_at IS NOT NULL;
+UPDATE messages SET is_read = true WHERE read_at IS NOT NULL;
 
 -- ── users ────────────────────────────────────────────────────────────────────
 ALTER TABLE users ADD COLUMN IF NOT EXISTS ban_expires TIMESTAMPTZ;
@@ -68,7 +73,10 @@ ALTER TABLE strikes ADD COLUMN IF NOT EXISTS report_id UUID;
 ALTER TABLE daily_prompts ADD COLUMN IF NOT EXISTS date DATE;
 ALTER TABLE daily_prompts ADD COLUMN IF NOT EXISTS category TEXT;
 ALTER TABLE daily_prompts ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT false;
-CREATE INDEX IF NOT EXISTS idx_daily_prompts_date ON daily_prompts (date);
+-- NOTE: 001 already created an index NAMED idx_daily_prompts_date on the
+-- legacy active_date column, so IF NOT EXISTS would silently skip a reused
+-- name — this index (on the column the cron actually queries) needs its own.
+CREATE INDEX IF NOT EXISTS idx_daily_prompts_by_date ON daily_prompts (date);
 
 -- ── Missing tables ───────────────────────────────────────────────────────────
 

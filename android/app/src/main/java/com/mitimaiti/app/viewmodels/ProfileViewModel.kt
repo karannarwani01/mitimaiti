@@ -174,6 +174,31 @@ class ProfileViewModel : ViewModel() {
         }
     }
 
+    /** Primary-picker "new photo from gallery": upload FIRST, then promote the
+     *  server-backed photo. The old path added a local-only Uri and bailed on
+     *  set-primary (no id), so the pick was never uploaded and vanished on
+     *  the next profile load. */
+    fun uploadAndSetPrimary(context: android.content.Context, uri: Uri) {
+        viewModelScope.launch {
+            val bytes = com.mitimaiti.app.utils.ImageCompression.compressForUpload(context, uri)
+            if (bytes == null) {
+                _error.value = "Couldn't read that photo."
+                return@launch
+            }
+            APIService.uploadPhoto(bytes).onSuccess { photo ->
+                PhotoRepository.addPhoto(
+                    com.mitimaiti.app.services.ProfilePhoto(id = photo.id, uri = Uri.parse(photo.url))
+                )
+                val idx = PhotoRepository.photos.value.indexOfFirst { it.id == photo.id }
+                if (idx > 0) setPrimaryPhoto(idx)
+            }.onFailure { err ->
+                _error.value = if (err is com.mitimaiti.app.services.APIError.PhotoLimitReached) {
+                    "You already have the maximum of 6 photos."
+                } else "Photo upload failed"
+            }
+        }
+    }
+
     val profileStats = ProfileStats(views = 142, likes = 38, matches = 12)
 
     /**

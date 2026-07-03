@@ -1115,8 +1115,23 @@ router.patch(
     }
 
     if (!media.is_primary) {
-      await supabase.from('photos').update({ is_primary: false }).eq('user_id', user.id);
-      await supabase.from('photos').update({ is_primary: true }).eq('id', id);
+      // Promote FIRST, then demote the others. If the process dies between
+      // the two statements the user briefly has two primaries (harmless —
+      // readers take .eq(is_primary, true).limit(1)) instead of zero
+      // (which breaks chat headers, Liked You cards and selfie verification).
+      const { error: promoteError } = await supabase
+        .from('photos')
+        .update({ is_primary: true })
+        .eq('id', id)
+        .eq('user_id', user.id);
+      if (promoteError) {
+        throw new AppError(500, 'Failed to update primary photo', 'PRIMARY_UPDATE_FAILED');
+      }
+      await supabase
+        .from('photos')
+        .update({ is_primary: false })
+        .eq('user_id', user.id)
+        .neq('id', id);
     }
 
     res.json({ success: true, data: { primary_photo_id: id } });

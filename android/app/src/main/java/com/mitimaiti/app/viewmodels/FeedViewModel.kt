@@ -115,8 +115,14 @@ class FeedViewModel : ViewModel() {
         }
     }
 
-    fun likeUser(comment: String? = null) {
+    fun likeUser(comment: String? = null, expectedTopCardId: String? = null) {
         val cur = _cards.value.toMutableList(); if (cur.isEmpty()) return
+        // A comment written for one card must never land on another — if the
+        // deck head changed while the sheet was open, abort instead.
+        if (expectedTopCardId != null && cur.first().id != expectedTopCardId) {
+            _error.value = "That profile isn't on top anymore — try again."
+            return
+        }
         if (_dailyLikesUsed.value >= MAX_DAILY_LIKES) {
             _error.value = "You've used all $MAX_DAILY_LIKES likes for today. Come back tomorrow!"
             return

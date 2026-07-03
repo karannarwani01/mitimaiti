@@ -100,8 +100,14 @@ class FeedViewModel: ObservableObject {
         }
     }
 
-    func likeUser(comment: String? = nil) {
+    func likeUser(comment: String? = nil, expectedTopCardId: String? = nil) {
         guard !cards.isEmpty else { return }
+        // A comment written for one card must never land on another — if the
+        // deck head changed while the sheet was open, abort instead.
+        if let expected = expectedTopCardId, cards.first?.id != expected {
+            error = "That profile isn't on top anymore — try again."
+            return
+        }
         guard dailyLikesUsed < maxDailyLikes else {
             error = "You've used all \(maxDailyLikes) likes for today. Come back tomorrow!"
             return

@@ -45,7 +45,7 @@ struct DiscoverView: View {
                         maxComments: feedVM.maxDailyComments
                     ) { note in
                         showCommentSheet = false
-                        swipeOffCard(direction: .right, comment: note)
+                        swipeOffCard(direction: .right, comment: note, expectedTopCardId: card.id)
                     }
                 }
             }
@@ -426,7 +426,7 @@ struct DiscoverView: View {
 
     private enum SwipeDirection { case left, right }
 
-    private func swipeOffCard(direction: SwipeDirection, comment: String? = nil) {
+    private func swipeOffCard(direction: SwipeDirection, comment: String? = nil, expectedTopCardId: String? = nil) {
         isAnimating = true
         let screenWidth = UIScreen.main.bounds.width
 
@@ -439,7 +439,7 @@ struct DiscoverView: View {
             if direction == .left {
                 feedVM.passUser()
             } else {
-                feedVM.likeUser(comment: comment)
+                feedVM.likeUser(comment: comment, expectedTopCardId: expectedTopCardId)
             }
             // Reset instantly (no animation) before next card appears
             withAnimation(.none) {

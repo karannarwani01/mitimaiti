@@ -470,9 +470,9 @@ fun ProfileScreen(
             existingPhotos = repoPhotos.map { it.uri },
             onDismiss = { showPhotoPicker = false },
             onNewPhotoFromGallery = { uri ->
-                viewModel.addPhoto(uri)
-                val newIndex = PhotoRepository.photos.value.indexOfFirst { it.uri == uri }
-                if (newIndex > 0) viewModel.setPrimaryPhoto(newIndex)
+                // Upload first, then promote — a local-only add was never
+                // uploaded and vanished on the next profile load
+                viewModel.uploadAndSetPrimary(context, uri)
             },
             onSetPrimary = { index -> viewModel.setPrimaryPhoto(index) }
         )

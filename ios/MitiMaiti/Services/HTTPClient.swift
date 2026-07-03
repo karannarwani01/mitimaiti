@@ -7,12 +7,23 @@ enum HTTPMethod: String {
     case delete = "DELETE"
 }
 
+/// The backend's error field is an OBJECT ({ code, message }), never a
+/// string. Modeling it as String? made the whole envelope fail to decode on
+/// every error response, so error codes/messages were silently lost and all
+/// failures surfaced as generic "HTTP <status>".
+struct APIErrorBody: Decodable {
+    let code: String?
+    let message: String?
+}
+
 struct APIEnvelope<T: Decodable>: Decodable {
     let success: Bool
     let data: T?
-    let error: String?
-    let code: String?
+    let error: APIErrorBody?
     let message: String?
+
+    var errorCode: String? { error?.code }
+    var errorMessage: String? { error?.message ?? message }
 }
 
 struct EmptyData: Decodable {}
@@ -103,11 +114,11 @@ actor HTTPClient {
             // The comment budget (5/day) is separate from the like budget —
             // surface it distinctly so the UI can offer a plain like instead.
             let envelope = try? decoder.decode(APIEnvelope<EmptyData>.self, from: data)
-            if envelope?.code == "COMMENT_LIMIT_REACHED" { throw APIError.commentLimitReached }
+            if envelope?.errorCode == "COMMENT_LIMIT_REACHED" { throw APIError.commentLimitReached }
             throw APIError.rateLimited
         default:
             let envelope = try? decoder.decode(APIEnvelope<EmptyData>.self, from: data)
-            throw APIError.serverError(envelope?.error ?? envelope?.message ?? "HTTP \(http.statusCode)")
+            throw APIError.serverError(envelope?.errorMessage ?? "HTTP \(http.statusCode)")
         }
     }
 }

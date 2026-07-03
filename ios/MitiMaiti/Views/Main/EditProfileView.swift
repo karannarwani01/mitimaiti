@@ -876,19 +876,22 @@ struct EditProfileView: View {
                 }
 
             Button {
-                // Remove from store using the sortOrder index before mutating the array
-                UserImageStore.shared.remove(at: photo.sortOrder)
-                profileVM.user.photos.removeAll { $0.id == photo.id }
-                // Re-number sortOrders and isPrimary so they stay contiguous
-                for i in profileVM.user.photos.indices {
-                    profileVM.user.photos[i].sortOrder = i
-                    profileVM.user.photos[i].isPrimary = (i == 0)
-                }
-                // Delete on the server too — previously local-only, so the
-                // photo stayed in other users' feeds and came back with /me.
+                // Server-first: only drop the photo locally once the backend
+                // confirms. Deleting locally first desynced the UI whenever
+                // the server refused (e.g. MIN_PHOTOS on the last photo).
                 Task {
-                    do { try await APIService.shared.deleteMedia(id: photo.id) }
-                    catch { ToastManager.shared.show("Couldn't delete the photo on the server.") }
+                    do {
+                        try await APIService.shared.deleteMedia(id: photo.id)
+                        UserImageStore.shared.remove(at: photo.sortOrder)
+                        profileVM.user.photos.removeAll { $0.id == photo.id }
+                        // Re-number sortOrders and isPrimary so they stay contiguous
+                        for i in profileVM.user.photos.indices {
+                            profileVM.user.photos[i].sortOrder = i
+                            profileVM.user.photos[i].isPrimary = (i == 0)
+                        }
+                    } catch {
+                        ToastManager.shared.show(error.localizedDescription)
+                    }
                 }
             } label: {
                 Image(systemName: "xmark.circle.fill")

@@ -381,7 +381,7 @@ fun DiscoverScreen(
                 commentsRemaining = (FeedViewModel.MAX_DAILY_COMMENTS - dailyCommentsUsed).coerceAtLeast(0),
                 onSend = { note ->
                     commentCard = null
-                    viewModel.likeUser(note)
+                    viewModel.likeUser(note, expectedTopCardId = card.id)
                 },
                 onDismiss = { commentCard = null }
             )
