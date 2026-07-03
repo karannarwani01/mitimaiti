@@ -406,12 +406,14 @@ actor APIService {
 
     // MARK: - Feed
 
-    /// Server-authoritative daily like/rewind counters delivered with the feed.
+    /// Server-authoritative daily like/rewind/comment counters delivered with the feed.
     struct DailyLimits: Decodable {
         let likesUsedToday: Int?
         let likesRemaining: Int?
         let rewindsUsedToday: Int?
         let rewindsRemaining: Int?
+        let commentsUsedToday: Int?
+        let commentsRemaining: Int?
     }
 
     func fetchFeed(cursor: String? = nil) async throws -> (cards: [FeedCard], limits: DailyLimits?) {
@@ -431,12 +433,25 @@ actor APIService {
 
     // MARK: - Actions
 
-    func performAction(targetId: String, type: ActionType) async throws -> (isMatch: Bool, matchId: String?, likesUsedToday: Int?) {
-        // Field name snake-cases to target_user_id (what the backend expects).
-        struct Body: Encodable { let targetUserId: String; let type: String }
-        struct Resp: Decodable { let isMatch: Bool; let matchId: String?; let likesUsedToday: Int? }
-        let resp: Resp = try await authedRequest(.post, "/action", body: Body(targetUserId: targetId, type: type.rawValue))
-        return (resp.isMatch, resp.matchId, resp.likesUsedToday)
+    /// A non-nil `comment` on a like makes it a Hinge-style like-with-comment
+    /// (max 280 chars, 5/day). `commentSaved` comes back false only while the
+    /// backend can't persist comments yet — the like itself still landed.
+    func performAction(targetId: String, type: ActionType, comment: String? = nil) async throws
+        -> (isMatch: Bool, matchId: String?, likesUsedToday: Int?, commentSaved: Bool?, commentsUsedToday: Int?)
+    {
+        // Field names snake-case to target_user_id / comment (what the backend expects).
+        struct Body: Encodable { let targetUserId: String; let type: String; let comment: String? }
+        struct Resp: Decodable {
+            let isMatch: Bool
+            let matchId: String?
+            let likesUsedToday: Int?
+            let commentSaved: Bool?
+            let commentsUsedToday: Int?
+        }
+        let trimmed = comment?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let note = (type == .like && trimmed?.isEmpty == false) ? String(trimmed!.prefix(280)) : nil
+        let resp: Resp = try await authedRequest(.post, "/action", body: Body(targetUserId: targetId, type: type.rawValue, comment: note))
+        return (resp.isMatch, resp.matchId, resp.likesUsedToday, resp.commentSaved, resp.commentsUsedToday)
     }
 
     func registerFcmToken(_ token: String, platform: String = "ios") async throws {
@@ -486,6 +501,7 @@ actor APIService {
             let culturalScore: Int?
             let culturalBadge: CulturalBadge?
             let likeLabel: String?
+            let likeComment: String?
             let likedAt: Date?
         }
         struct LastMsg: Decodable {
@@ -538,6 +554,7 @@ actor APIService {
                 ),
                 likedAt: like.likedAt ?? Date(),
                 likeLabel: like.likeLabel ?? "Liked your profile",
+                likeComment: like.likeComment.flatMap { $0.isEmpty ? nil : $0 },
                 culturalScore: like.culturalScore ?? 0,
                 culturalBadge: like.culturalBadge ?? .none
             )
@@ -924,6 +941,7 @@ enum APIError: LocalizedError {
     case networkError
     case unauthorized
     case rateLimited
+    case commentLimitReached
     case photoLimitReached
     case serverError(String)
 
@@ -933,6 +951,7 @@ enum APIError: LocalizedError {
         case .networkError: return "Network error. Please check your connection."
         case .unauthorized: return "Session expired. Please log in again."
         case .rateLimited: return "Too many requests. Please wait a moment."
+        case .commentLimitReached: return "You've used all 5 like comments for today."
         case .photoLimitReached: return "You've reached the maximum of 6 photos."
         case .serverError(let msg): return msg
         }

@@ -12,6 +12,7 @@ struct DiscoverView: View {
     @State private var bannerDismissed = false
     @State private var showShareSheet = false
     @State private var newMatchToChat: Match?
+    @State private var showCommentSheet = false
     @ObservedObject private var notificationManager = NotificationManager.shared
 
     var body: some View {
@@ -35,6 +36,18 @@ struct DiscoverView: View {
             }
             .sheet(isPresented: $showNotifications) {
                 NotificationPanelView()
+            }
+            .sheet(isPresented: $showCommentSheet) {
+                if let card = feedVM.cards.first {
+                    LikeCommentSheet(
+                        card: card,
+                        commentsRemaining: feedVM.commentsRemaining,
+                        maxComments: feedVM.maxDailyComments
+                    ) { note in
+                        showCommentSheet = false
+                        swipeOffCard(direction: .right, comment: note)
+                    }
+                }
             }
             .alert(localization.t("discover.itsAMatch"), isPresented: $feedVM.showMatchAlert) {
                 Button(localization.t("discover.sendMessage")) {
@@ -334,6 +347,26 @@ struct DiscoverView: View {
                     }
                     .buttonStyle(ScaleButtonStyle())
                     .disabled(isAnimating)
+
+                    // Like with a comment (Hinge-style note, 5/day)
+                    Button {
+                        guard !isAnimating, !feedVM.cards.isEmpty else { return }
+                        let generator = UIImpactFeedbackGenerator(style: .medium)
+                        generator.impactOccurred()
+                        showCommentSheet = true
+                    } label: {
+                        Image(systemName: "plus.bubble")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundColor(AppTheme.saffron)
+                            .frame(width: 52, height: 52)
+                            .background(
+                                Circle()
+                                    .fill(colors.cardDark)
+                                    .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 3)
+                            )
+                    }
+                    .buttonStyle(ScaleButtonStyle())
+                    .disabled(isAnimating)
                 }
                 .padding(.vertical, 6)
 
@@ -393,7 +426,7 @@ struct DiscoverView: View {
 
     private enum SwipeDirection { case left, right }
 
-    private func swipeOffCard(direction: SwipeDirection) {
+    private func swipeOffCard(direction: SwipeDirection, comment: String? = nil) {
         isAnimating = true
         let screenWidth = UIScreen.main.bounds.width
 
@@ -406,7 +439,7 @@ struct DiscoverView: View {
             if direction == .left {
                 feedVM.passUser()
             } else {
-                feedVM.likeUser()
+                feedVM.likeUser(comment: comment)
             }
             // Reset instantly (no animation) before next card appears
             withAnimation(.none) {
@@ -1674,4 +1707,88 @@ struct ShareSheet: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
+// MARK: - Like with a Comment sheet (Hinge-style: a short note rides on the
+// like and is shown on the recipient's Liked You card; commented likes
+// surface first)
+
+struct LikeCommentSheet: View {
+    let card: FeedCard
+    let commentsRemaining: Int
+    let maxComments: Int
+    let onSend: (String) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.adaptiveColors) private var colors
+    @State private var text = ""
+    @FocusState private var focused: Bool
+
+    private var trimmed: String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Tell \(card.user.displayName) what caught your eye — likes with a note get seen first.")
+                    .font(.subheadline)
+                    .foregroundColor(colors.textSecondary)
+
+                TextField("“Your voice intro made me smile…”", text: $text, axis: .vertical)
+                    .lineLimit(3...5)
+                    .padding(12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(colors.surfaceMedium)
+                    )
+                    .focused($focused)
+                    .onChange(of: text) { _, newValue in
+                        if newValue.count > 280 { text = String(newValue.prefix(280)) }
+                    }
+
+                HStack {
+                    Text("\(commentsRemaining) of \(maxComments) comments left today")
+                    Spacer()
+                    Text("\(text.count)/280")
+                }
+                .font(.caption)
+                .foregroundColor(colors.textMuted)
+
+                Button {
+                    onSend(trimmed)
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "heart.fill")
+                        Text("Send Like")
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 52)
+                    .background(
+                        Capsule().fill(trimmed.isEmpty || commentsRemaining <= 0 ? AppTheme.rose.opacity(0.4) : AppTheme.rose)
+                    )
+                }
+                .disabled(trimmed.isEmpty || commentsRemaining <= 0)
+
+                if commentsRemaining <= 0 {
+                    Text("You've used today's \(maxComments) comments — send a regular like instead.")
+                        .font(.footnote)
+                        .foregroundColor(colors.textMuted)
+                }
+
+                Spacer()
+            }
+            .padding(20)
+            .appBackground()
+            .navigationTitle("Like with a comment")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+            .onAppear { focused = true }
+        }
+        .presentationDetents([.medium, .large])
+    }
 }

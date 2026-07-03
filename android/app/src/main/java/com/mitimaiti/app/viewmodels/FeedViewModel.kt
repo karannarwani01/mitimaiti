@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class FeedViewModel : ViewModel() {
-    companion object { const val MAX_DAILY_LIKES = 50; const val MAX_DAILY_REWINDS = 10 }
+    companion object { const val MAX_DAILY_LIKES = 50; const val MAX_DAILY_REWINDS = 10; const val MAX_DAILY_COMMENTS = 5 }
 
     private val _cards = MutableStateFlow<List<FeedCard>>(emptyList())
     val cards: StateFlow<List<FeedCard>> = _cards.asStateFlow()
@@ -23,6 +23,8 @@ class FeedViewModel : ViewModel() {
     val dailyLikesUsed: StateFlow<Int> = _dailyLikesUsed.asStateFlow()
     private val _dailyRewindsUsed = MutableStateFlow(0)
     val dailyRewindsUsed: StateFlow<Int> = _dailyRewindsUsed.asStateFlow()
+    private val _dailyCommentsUsed = MutableStateFlow(0)
+    val dailyCommentsUsed: StateFlow<Int> = _dailyCommentsUsed.asStateFlow()
     private val _showMatchAlert = MutableStateFlow(false)
     val showMatchAlert: StateFlow<Boolean> = _showMatchAlert.asStateFlow()
     private val _matchedUser = MutableStateFlow<User?>(null)
@@ -39,17 +41,19 @@ class FeedViewModel : ViewModel() {
     /** Last swipes in order (card + kind), so rewind undoes likes AND passes
      *  — matching the backend, which deletes the most recent swipe of either
      *  kind (previously undoing after a like restored the wrong profile). */
-    private data class Swipe(val card: FeedCard, val kind: String)
+    private data class Swipe(val card: FeedCard, val kind: String, val hadComment: Boolean = false)
     private val swipeHistory = mutableListOf<Swipe>()
 
     val likesRemaining: Int get() = MAX_DAILY_LIKES - _dailyLikesUsed.value
     val rewindsRemaining: Int get() = MAX_DAILY_REWINDS - _dailyRewindsUsed.value
+    val commentsRemaining: Int get() = MAX_DAILY_COMMENTS - _dailyCommentsUsed.value
 
     private fun applyFeedPage(page: APIService.FeedPage, replace: Boolean) {
         if (replace) _cards.value = page.cards
         // Seed daily counters from the server so they survive relaunch
         page.likesUsedToday?.let { _dailyLikesUsed.value = it }
         page.rewindsUsedToday?.let { _dailyRewindsUsed.value = it }
+        page.commentsUsedToday?.let { _dailyCommentsUsed.value = it }
     }
 
     // ── "Most Compatible" daily pick (Hinge Standouts-style) ──
@@ -111,18 +115,28 @@ class FeedViewModel : ViewModel() {
         }
     }
 
-    fun likeUser() {
+    fun likeUser(comment: String? = null) {
         val cur = _cards.value.toMutableList(); if (cur.isEmpty()) return
         if (_dailyLikesUsed.value >= MAX_DAILY_LIKES) {
             _error.value = "You've used all $MAX_DAILY_LIKES likes for today. Come back tomorrow!"
             return
         }
+        val trimmedComment = comment?.trim()?.takeIf { it.isNotEmpty() }
+        if (trimmedComment != null && _dailyCommentsUsed.value >= MAX_DAILY_COMMENTS) {
+            _error.value = "You've used all $MAX_DAILY_COMMENTS comments for today — you can still send a regular like."
+            return
+        }
         val card = cur.removeAt(0); _cards.value = cur; _dailyLikesUsed.value++
-        swipeHistory.add(Swipe(card, "like"))
+        if (trimmedComment != null) _dailyCommentsUsed.value++
+        swipeHistory.add(Swipe(card, "like", hadComment = trimmedComment != null))
         clearPickIfActedOn(card.id)
         viewModelScope.launch {
-            APIService.performAction(card.user.id, "like").onSuccess { result ->
+            APIService.performAction(card.user.id, "like", trimmedComment).onSuccess { result ->
                 result.likesUsedToday?.let { _dailyLikesUsed.value = it }
+                result.commentsUsedToday?.let { _dailyCommentsUsed.value = it }
+                if (trimmedComment != null && result.commentSaved == false) {
+                    _error.value = "Your like was sent, but the note couldn't be attached this time."
+                }
                 if (result.isMatch) {
                     // A matched like can't be rewound — drop it from the undo stack
                     swipeHistory.removeAll { it.card.id == card.id }
@@ -133,6 +147,14 @@ class FeedViewModel : ViewModel() {
                 if (err is com.mitimaiti.app.services.APIError.DailyLimitReached) {
                     _dailyLikesUsed.value = MAX_DAILY_LIKES
                     _error.value = "You've used all $MAX_DAILY_LIKES likes for today. Come back tomorrow!"
+                } else if (err is com.mitimaiti.app.services.APIError.CommentLimitReached) {
+                    // The like was NOT recorded — restore the card so the user
+                    // can re-like without a note.
+                    _dailyCommentsUsed.value = MAX_DAILY_COMMENTS
+                    if (_dailyLikesUsed.value > 0) _dailyLikesUsed.value--
+                    swipeHistory.removeAll { it.card.id == card.id }
+                    _cards.value = listOf(card) + _cards.value
+                    _error.value = "You've used all $MAX_DAILY_COMMENTS comments for today — try again with a regular like."
                 }
             }
             prefetchIfNeeded()
@@ -151,6 +173,7 @@ class FeedViewModel : ViewModel() {
         _cards.value = listOf(swipe.card) + _cards.value
         _dailyRewindsUsed.value++
         if (swipe.kind == "like" && _dailyLikesUsed.value > 0) _dailyLikesUsed.value--
+        if (swipe.hadComment && _dailyCommentsUsed.value > 0) _dailyCommentsUsed.value--
         viewModelScope.launch {
             APIService.rewind().onFailure { err ->
                 if (err is com.mitimaiti.app.services.APIError.CannotRewindMatched) {

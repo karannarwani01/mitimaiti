@@ -62,6 +62,8 @@ fun DiscoverScreen(
     val activeFilterCount = countActiveFilters(filterState)
     val dailyPick by viewModel.dailyPick.collectAsState()
     var detailCard by remember { mutableStateOf<FeedCard?>(null) }
+    var commentCard by remember { mutableStateOf<FeedCard?>(null) }
+    val dailyCommentsUsed by viewModel.dailyCommentsUsed.collectAsState()
 
     Box(modifier = Modifier.fillMaxSize().background(colors.backgroundGradient)) {
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
@@ -266,6 +268,25 @@ fun DiscoverScreen(
                         ) {
                             Icon(Icons.Default.Favorite, "Like", modifier = Modifier.size(24.dp))
                         }
+
+                        Spacer(modifier = Modifier.width(24.dp))
+
+                        // Like with a comment (Hinge-style note, 5/day)
+                        FloatingActionButton(
+                            onClick = {
+                                view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                cards.firstOrNull()?.let { commentCard = it }
+                            },
+                            containerColor = colors.surface,
+                            contentColor = AppColors.Saffron,
+                            shape = CircleShape,
+                            modifier = Modifier
+                                .size(52.dp)
+                                .shadow(6.dp, CircleShape),
+                            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 3.dp)
+                        ) {
+                            Icon(Icons.Default.AddComment, "Like with a comment", modifier = Modifier.size(20.dp))
+                        }
                     }
 
                     // ── Profile completeness banner ──
@@ -353,6 +374,19 @@ fun DiscoverScreen(
             )
         }
 
+        // ── Like with a Comment sheet (Hinge-style) ──
+        commentCard?.let { card ->
+            LikeWithCommentSheet(
+                card = card,
+                commentsRemaining = (FeedViewModel.MAX_DAILY_COMMENTS - dailyCommentsUsed).coerceAtLeast(0),
+                onSend = { note ->
+                    commentCard = null
+                    viewModel.likeUser(note)
+                },
+                onDismiss = { commentCard = null }
+            )
+        }
+
         // ── Filter Sheet ──
         if (showFilters) {
             FilterSheet(
@@ -391,6 +425,76 @@ private fun countActiveFilters(state: FilterState): Int {
     if (state.familyPlansFilter != null) count++
     if (state.exerciseFilter != null) count++
     return count
+}
+
+// ───────────────────────────────────────────
+// Like with a Comment sheet (Hinge-style: a short note rides on the like and
+// is shown on the recipient's Liked You card; commented likes surface first)
+// ───────────────────────────────────────────
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LikeWithCommentSheet(
+    card: FeedCard,
+    commentsRemaining: Int,
+    onSend: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val colors = LocalAdaptiveColors.current
+    var text by remember(card.id) { mutableStateOf("") }
+
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = colors.surface) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 24.dp)
+        ) {
+            Text("Like with a comment", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = colors.textPrimary)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                "Tell ${card.user.displayName} what caught your eye — likes with a note get seen first.",
+                fontSize = 14.sp,
+                color = colors.textSecondary
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            OutlinedTextField(
+                value = text,
+                onValueChange = { if (it.length <= 280) text = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("\"Your voice intro made me smile…\"", color = colors.textMuted) },
+                minLines = 3,
+                maxLines = 5,
+                supportingText = {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("$commentsRemaining of ${FeedViewModel.MAX_DAILY_COMMENTS} comments left today")
+                        Text("${text.length}/280")
+                    }
+                }
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(
+                onClick = { onSend(text) },
+                enabled = text.isNotBlank() && commentsRemaining > 0,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                shape = RoundedCornerShape(AppTheme.radiusFull),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Rose)
+            ) {
+                Icon(Icons.Default.Favorite, null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Send Like", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            }
+            if (commentsRemaining <= 0) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "You've used today's ${FeedViewModel.MAX_DAILY_COMMENTS} comments — send a regular like instead.",
+                    fontSize = 13.sp,
+                    color = colors.textMuted
+                )
+            }
+        }
+    }
 }
 
 // ───────────────────────────────────────────

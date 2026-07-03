@@ -75,7 +75,9 @@ data class LikedYouCard(
     val user: User,
     val culturalScore: Int = 0,
     val culturalBadge: CulturalBadge = CulturalBadge.NONE,
-    val likedAt: Long = System.currentTimeMillis()
+    val likedAt: Long = System.currentTimeMillis(),
+    /** Hinge-style note sent with the like ("Commented on your profile"). */
+    val likeComment: String? = null
 )
 
 data class Icebreaker(

@@ -15,14 +15,26 @@ const router = Router();
 
 export const DAILY_LIKE_LIMIT = 50;
 export const DAILY_REWIND_LIMIT = 10;
+export const DAILY_COMMENT_LIMIT = 5;
 const MATCH_EXPIRY_HOURS = 24;
 
 // ─── Schemas ────────────────────────────────────────────────────────────────────
 
-const actionSchema = z.object({
-  target_user_id: z.string().uuid('Invalid target user ID'),
-  type: z.enum(['like', 'pass']),
-});
+const actionSchema = z
+  .object({
+    target_user_id: z.string().uuid('Invalid target user ID'),
+    type: z.enum(['like', 'pass']),
+    comment: z
+      .string()
+      .trim()
+      .min(1, 'Comment cannot be empty')
+      .max(280, 'Comment must be 280 characters or less')
+      .optional(),
+  })
+  .refine((data) => !(data.comment && data.type === 'pass'), {
+    message: 'A comment can only accompany a like',
+    path: ['comment'],
+  });
 
 const promptSchema = z.object({
   answer: z.string().min(1, 'Answer is required').max(500, 'Answer must be 500 characters or less'),
@@ -35,6 +47,33 @@ const promptSchema = z.object({
  */
 function todayKey(): string {
   return new Date().toISOString().split('T')[0];
+}
+
+// Migration 007 adds actions.comment. Until it is applied in Supabase the
+// column is absent, so every comment-bearing query must degrade to the plain
+// like path. Cache the "missing" result briefly so we don't pay a failed
+// round-trip per request, but recheck so the feature switches on by itself
+// once the migration lands.
+let commentColumnMissingUntil = 0;
+const COMMENT_COLUMN_RECHECK_MS = 5 * 60 * 1000;
+
+function commentColumnKnownMissing(): boolean {
+  return Date.now() < commentColumnMissingUntil;
+}
+
+function isMissingCommentColumnError(err: { code?: string; message?: string } | null): boolean {
+  if (!err) return false;
+  if (err.code === '42703' || err.code === 'PGRST204') {
+    return /comment/i.test(err.message || '');
+  }
+  return false;
+}
+
+function markCommentColumnMissing(): void {
+  commentColumnMissingUntil = Date.now() + COMMENT_COLUMN_RECHECK_MS;
+  console.warn(
+    '[Actions] actions.comment column missing — apply supabase/migrations/007_like_comments.sql. Degrading to plain likes.',
+  );
 }
 
 /**
@@ -55,6 +94,25 @@ export async function getDailyCount(userId: string, actionType: string): Promise
 
   // Fallback: count from database
   const todayStart = `${todayKey()}T00:00:00.000Z`;
+
+  // 'comment' is not an action kind — it rides on likes. Count today's
+  // commented likes instead. Pre-migration-007 this errors (no column) and
+  // we treat usage as 0, which is safe because comments aren't persisted yet.
+  if (actionType === 'comment') {
+    const { count, error } = await supabase
+      .from('actions')
+      .select('*', { count: 'exact', head: true })
+      .eq('actor_id', userId)
+      .eq('kind', 'like')
+      .not('comment', 'is', null)
+      .gte('created_at', todayStart);
+    if (error) {
+      if (isMissingCommentColumnError(error)) markCommentColumnMissing();
+      return 0;
+    }
+    return count || 0;
+  }
+
   const { count } = await supabase
     .from('actions')
     .select('*', { count: 'exact', head: true })
@@ -115,7 +173,11 @@ router.post(
   validate(actionSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const user = (req as AuthenticatedRequest).user;
-    const { target_user_id: targetUserId, type } = req.body as { target_user_id: string; type: ActionType };
+    const { target_user_id: targetUserId, type, comment } = req.body as {
+      target_user_id: string;
+      type: ActionType;
+      comment?: string;
+    };
 
     // Self-action guard
     if (targetUserId === user.id) {
@@ -134,9 +196,11 @@ router.post(
     }
 
     // Block check (both directions)
+    // blocked_users has no id column (composite key) — selecting id made this
+    // check silently no-op
     const { data: block } = await supabase
       .from('blocked_users')
-      .select('id')
+      .select('blocker_id')
       .or(
         `and(blocker_id.eq.${user.id},blocked_id.eq.${targetUserId}),and(blocker_id.eq.${targetUserId},blocked_id.eq.${user.id})`,
       )
@@ -177,28 +241,60 @@ router.post(
       }
     }
 
+    // ── Daily comment limit: 5 per day (Hinge-style like-with-comment) ──────
+
+    let commentsUsed = 0;
+    const wantsComment = type === 'like' && !!comment;
+    if (wantsComment) {
+      commentsUsed = await getDailyCount(user.id, 'comment');
+      if (commentsUsed >= DAILY_COMMENT_LIMIT) {
+        throw new AppError(
+          429,
+          `Daily comment limit reached (${DAILY_COMMENT_LIMIT}). Your like can still be sent without a comment.`,
+          'COMMENT_LIMIT_REACHED',
+        );
+      }
+    }
+
     // ── Atomic INSERT into actions table ────────────────────────────────────
+    // If migration 007 hasn't been applied yet, retry without the comment so
+    // the like itself never fails; the client is told via comment_saved.
 
-    const { data: action, error: actionError } = await supabase
-      .from('actions')
-      .insert({
-        actor_id: user.id,
-        target_id: targetUserId,
-        kind: type,
-      })
-      .select('id, created_at')
-      .single();
+    let commentSaved = wantsComment && !commentColumnKnownMissing();
 
-    if (actionError) {
+    const insertAction = (withComment: boolean) =>
+      supabase
+        .from('actions')
+        .insert({
+          actor_id: user.id,
+          target_id: targetUserId,
+          kind: type,
+          ...(withComment ? { comment } : {}),
+        })
+        .select('id, created_at')
+        .single();
+
+    let { data: action, error: actionError } = await insertAction(commentSaved);
+
+    if (actionError && commentSaved && isMissingCommentColumnError(actionError)) {
+      markCommentColumnMissing();
+      commentSaved = false;
+      ({ data: action, error: actionError } = await insertAction(false));
+    }
+
+    if (actionError || !action) {
       // Handle unique constraint violation (race condition double-like)
-      if (actionError.code === '23505') {
+      if (actionError?.code === '23505') {
         throw new AppError(409, 'Action already recorded', 'DUPLICATE_ACTION');
       }
       throw new AppError(500, 'Failed to record action', 'ACTION_FAILED');
     }
 
-    // Increment daily counter
+    // Increment daily counters
     await incrementDailyCount(user.id, type);
+    if (commentSaved) {
+      await incrementDailyCount(user.id, 'comment');
+    }
 
     // Invalidate feed cache
     await invalidateFeedCache(user.id);
@@ -358,6 +454,18 @@ router.post(
               likes_remaining: Math.max(0, DAILY_LIKE_LIMIT - likesUsed - 1),
             }
           : {}),
+        ...(wantsComment
+          ? {
+              // false only while migration 007 is pending — the like went
+              // through but the note was dropped.
+              comment_saved: commentSaved,
+              comments_used_today: commentsUsed + (commentSaved ? 1 : 0),
+              comments_remaining: Math.max(
+                0,
+                DAILY_COMMENT_LIMIT - commentsUsed - (commentSaved ? 1 : 0),
+              ),
+            }
+          : {}),
       },
     });
   }),
@@ -386,14 +494,30 @@ router.post(
     // Previously only passes were rewindable, so hitting Undo right after a
     // like resurrected an older passed profile instead.
 
-    const { data: lastAction } = await supabase
-      .from('actions')
-      .select('id, target_id, kind, created_at')
-      .eq('actor_id', user.id)
-      .in('kind', ['like', 'pass'])
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    type LastAction = {
+      id: string;
+      target_id: string;
+      kind: string;
+      created_at: string;
+      comment?: string | null;
+    };
+    const selectLastAction = async (withComment: boolean) =>
+      (await supabase
+        .from('actions')
+        .select(withComment ? 'id, target_id, kind, created_at, comment' : 'id, target_id, kind, created_at')
+        .eq('actor_id', user.id)
+        .in('kind', ['like', 'pass'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()) as { data: LastAction | null; error: { code?: string; message?: string } | null };
+
+    let { data: lastAction, error: lastActionError } = await selectLastAction(
+      !commentColumnKnownMissing(),
+    );
+    if (lastActionError && isMissingCommentColumnError(lastActionError)) {
+      markCommentColumnMissing();
+      ({ data: lastAction } = await selectLastAction(false));
+    }
 
     if (!lastAction) {
       throw new AppError(404, 'No recent swipe to rewind', 'NO_PASS_TO_REWIND');
@@ -437,13 +561,21 @@ router.post(
     // Track the rewind in daily counters
     await incrementDailyCount(user.id, 'rewind');
 
-    // Undoing a like refunds it against the daily like limit
+    // Undoing a like refunds it against the daily like limit (and the daily
+    // comment limit if the like carried a comment)
     if (lastAction.kind === 'like') {
       try {
         const likeKey = `daily_like:${user.id}:${todayKey()}`;
         const current = await redis.get(likeKey);
         if (current && parseInt(current, 10) > 0) {
           await redis.decr(likeKey);
+        }
+        if ((lastAction as { comment?: string | null }).comment) {
+          const commentKey = `daily_comment:${user.id}:${todayKey()}`;
+          const usedComments = await redis.get(commentKey);
+          if (usedComments && parseInt(usedComments, 10) > 0) {
+            await redis.decr(commentKey);
+          }
         }
       } catch {
         // Redis down — DB fallback recounts naturally since the row is gone
@@ -524,13 +656,31 @@ router.get(
 
     // ── Section 1: Users who liked me (NOT blurred — every user is equal) ───
 
-    // Get all likes targeting current user
-    const { data: incomingLikes } = await supabase
-      .from('actions')
-      .select('id, actor_id, created_at')
-      .eq('target_id', user.id)
-      .eq('kind', 'like')
-      .order('created_at', { ascending: false });
+    // Get all likes targeting current user (incl. like-with-comment notes)
+    type IncomingLike = {
+      id: string;
+      actor_id: string;
+      created_at: string;
+      comment?: string | null;
+    };
+    const selectIncomingLikes = async (withComment: boolean) =>
+      (await supabase
+        .from('actions')
+        .select(withComment ? 'id, actor_id, created_at, comment' : 'id, actor_id, created_at')
+        .eq('target_id', user.id)
+        .eq('kind', 'like')
+        .order('created_at', { ascending: false })) as {
+        data: IncomingLike[] | null;
+        error: { code?: string; message?: string } | null;
+      };
+
+    let { data: incomingLikes, error: incomingError } = await selectIncomingLikes(
+      !commentColumnKnownMissing(),
+    );
+    if (incomingError && isMissingCommentColumnError(incomingError)) {
+      markCommentColumnMissing();
+      ({ data: incomingLikes } = await selectIncomingLikes(false));
+    }
 
     // Filter out anyone I've already acted on: likes became matches, and passes
     // were declined — neither should remain a pending like.
@@ -663,11 +813,20 @@ router.get(
           interests,
           cultural_score: cs.total,
           cultural_badge: cs.badge,
-          like_label: 'Liked your profile',
+          like_label: like.comment ? 'Commented on your profile' : 'Liked your profile',
+          like_comment: like.comment || null,
           daily_prompt_answer: userMeta?.daily_prompt_answer || null,
           liked_at: like.created_at,
         });
       }
+
+      // Hinge-style: likes that carry a comment float to the top (each group
+      // stays newest-first from the query order).
+      likedYouCards.sort((a, b) => {
+        const aHas = a.like_comment ? 1 : 0;
+        const bHas = b.like_comment ? 1 : 0;
+        return bHas - aHas;
+      });
     }
 
     // ── Section 2: Active matches with countdown data ───────────────────────

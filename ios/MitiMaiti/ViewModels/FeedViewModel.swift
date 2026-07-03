@@ -6,6 +6,7 @@ class FeedViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var dailyLikesUsed = 0
     @Published var dailyRewindsUsed = 0
+    @Published var dailyCommentsUsed = 0
     @Published var showMatchAlert = false
     @Published var matchedUser: User?
     @Published var matchedMatchId: String?
@@ -15,22 +16,25 @@ class FeedViewModel: ObservableObject {
 
     let maxDailyLikes = 50
     let maxDailyRewinds = 10
+    let maxDailyComments = 5
 
     /// Last swipes in order (card + kind), so rewind undoes likes AND passes
     /// — matching the backend, which deletes the most recent swipe of either
     /// kind (previously undoing after a like restored the wrong profile).
     private enum SwipeKind { case like, pass }
-    private var swipeHistory: [(card: FeedCard, kind: SwipeKind)] = []
+    private var swipeHistory: [(card: FeedCard, kind: SwipeKind, hadComment: Bool)] = []
 
     private let api = APIService.shared
 
     var likesRemaining: Int { maxDailyLikes - dailyLikesUsed }
     var rewindsRemaining: Int { maxDailyRewinds - dailyRewindsUsed }
+    var commentsRemaining: Int { max(0, maxDailyComments - dailyCommentsUsed) }
 
     /// Seed daily counters from the server so they survive relaunch.
     private func applyLimits(_ limits: APIService.DailyLimits?) {
         if let used = limits?.likesUsedToday { dailyLikesUsed = used }
         if let used = limits?.rewindsUsedToday { dailyRewindsUsed = used }
+        if let used = limits?.commentsUsedToday { dailyCommentsUsed = used }
     }
 
     // ── "Most Compatible" daily pick (Hinge Standouts-style) ──
@@ -96,22 +100,33 @@ class FeedViewModel: ObservableObject {
         }
     }
 
-    func likeUser() {
+    func likeUser(comment: String? = nil) {
         guard !cards.isEmpty else { return }
         guard dailyLikesUsed < maxDailyLikes else {
             error = "You've used all \(maxDailyLikes) likes for today. Come back tomorrow!"
             return
         }
+        let note = comment?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasNote = note?.isEmpty == false
+        if hasNote, dailyCommentsUsed >= maxDailyComments {
+            error = "You've used all \(maxDailyComments) comments for today — you can still send a regular like."
+            return
+        }
 
         let card = cards.removeFirst()
         dailyLikesUsed += 1
-        swipeHistory.append((card, .like))
+        if hasNote { dailyCommentsUsed += 1 }
+        swipeHistory.append((card, .like, hasNote))
         clearPickIfActedOn(card.id)
 
         Task {
             do {
-                let result = try await api.performAction(targetId: card.user.id, type: .like)
+                let result = try await api.performAction(targetId: card.user.id, type: .like, comment: hasNote ? note : nil)
                 if let used = result.likesUsedToday { dailyLikesUsed = used }
+                if let used = result.commentsUsedToday { dailyCommentsUsed = used }
+                if hasNote, result.commentSaved == false {
+                    self.error = "Your like was sent, but the note couldn't be attached this time."
+                }
                 if result.isMatch {
                     // A matched like can't be rewound — drop it from the undo stack
                     swipeHistory.removeAll { $0.card.id == card.id }
@@ -127,6 +142,14 @@ class FeedViewModel: ObservableObject {
                         actionData: card.user.id
                     )
                 }
+            } catch APIError.commentLimitReached {
+                // The like was NOT recorded — restore the card so the user can
+                // re-like without a note.
+                dailyCommentsUsed = maxDailyComments
+                if dailyLikesUsed > 0 { dailyLikesUsed -= 1 }
+                swipeHistory.removeAll { $0.card.id == card.id }
+                cards.insert(card, at: 0)
+                self.error = "You've used all \(maxDailyComments) comments for today — try again with a regular like."
             } catch APIError.rateLimited {
                 dailyLikesUsed = maxDailyLikes
                 self.error = "You've used all \(maxDailyLikes) likes for today. Come back tomorrow!"
@@ -141,7 +164,7 @@ class FeedViewModel: ObservableObject {
     func passUser() {
         guard !cards.isEmpty else { return }
         let card = cards.removeFirst()
-        swipeHistory.append((card, .pass))
+        swipeHistory.append((card, .pass, false))
         clearPickIfActedOn(card.id)
         Task {
             // Record the pass on the backend so the profile isn't re-served in
@@ -164,6 +187,7 @@ class FeedViewModel: ObservableObject {
         cards.insert(last.card, at: 0)
         dailyRewindsUsed += 1
         if last.kind == .like, dailyLikesUsed > 0 { dailyLikesUsed -= 1 }
+        if last.hadComment, dailyCommentsUsed > 0 { dailyCommentsUsed -= 1 }
         Task {
             do {
                 _ = try await api.rewind()

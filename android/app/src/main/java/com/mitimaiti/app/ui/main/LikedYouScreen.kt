@@ -326,9 +326,10 @@ fun FeaturedLikeCard(
                 modifier = Modifier.align(Alignment.TopEnd).padding(12.dp)
             )
 
-            // "What they liked" pill - top left (randomized label like web)
-            val likedLabels = remember { listOf("Liked your photos", "Liked your profile", "Liked your vibe", "Loved your bio", "Liked your style", "Liked your prompts") }
-            val likedLabel = remember(like.id) { likedLabels[like.id.hashCode().mod(likedLabels.size).let { if (it < 0) it + likedLabels.size else it }] }
+            // "What they liked" pill — top left. Real server-backed label only:
+            // a comment means they wrote a note (shown below); otherwise it
+            // was a plain profile like. No invented "liked your vibe" claims.
+            val likedLabel = if (like.likeComment != null) "Commented on your profile" else "Liked your profile"
             Surface(
                 shape = RoundedCornerShape(AppTheme.radiusFull),
                 color = AppColors.Rose.copy(alpha = 0.9f),
@@ -379,6 +380,24 @@ fun FeaturedLikeCard(
                     .fillMaxWidth()
                     .padding(20.dp)
             ) {
+                // Their note (like-with-comment) — the reason this card is up top
+                like.likeComment?.let { note ->
+                    Surface(
+                        shape = RoundedCornerShape(AppTheme.radiusMd),
+                        color = Color.Black.copy(alpha = 0.55f),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.25f))
+                    ) {
+                        Text(
+                            "“$note”",
+                            fontSize = 14.sp,
+                            color = Color.White,
+                            maxLines = 4,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
                         user.displayName,
@@ -603,6 +622,17 @@ fun LikeCard(
                     .fillMaxWidth()
                     .padding(10.dp)
             ) {
+                // One-line preview of their like-with-comment note
+                like.likeComment?.let { note ->
+                    Text(
+                        "💬 “$note”",
+                        fontSize = 12.sp,
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                }
                 Text(
                     "${user.displayName}, ${user.age ?: ""}",
                     fontSize = 16.sp,

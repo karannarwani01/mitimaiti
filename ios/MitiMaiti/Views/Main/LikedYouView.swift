@@ -120,8 +120,28 @@ struct LikedYouView: View {
     @ViewBuilder
     private func featuredCardSection(for like: LikedYouCard) -> some View {
         VStack(spacing: 12) {
-            // "What they liked" rotating badge
+            // "What they liked" badge (server-backed label)
             likedBadge(label: like.likeLabel)
+
+            // Their note (like-with-comment) — the reason this card is up top
+            if let note = like.likeComment {
+                Text("“\(note)”")
+                    .font(.system(size: 14))
+                    .foregroundColor(colors.textPrimary)
+                    .lineLimit(4)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(AppTheme.rose.opacity(0.08))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(AppTheme.rose.opacity(0.25), lineWidth: 1)
+                            )
+                    )
+                    .padding(.horizontal, 20)
+            }
 
             // Swipeable featured card wrapper
             ZStack {
@@ -337,10 +357,17 @@ struct LikedYouCardView: View {
 
                 culturalBadge
 
-                Text(like.likeLabel)
-                    .font(.system(size: 11))
-                    .foregroundColor(colors.textMuted)
-                    .lineLimit(1)
+                if let note = like.likeComment {
+                    Text("💬 “\(note)”")
+                        .font(.system(size: 11))
+                        .foregroundColor(colors.textPrimary)
+                        .lineLimit(1)
+                } else {
+                    Text(like.likeLabel)
+                        .font(.system(size: 11))
+                        .foregroundColor(colors.textMuted)
+                        .lineLimit(1)
+                }
 
                 Text(like.likedAt.timeAgoShort)
                     .font(.system(size: 10))
@@ -442,6 +469,24 @@ struct LikedYouFeaturedCard: View {
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
                         .background(Capsule().fill(Color.white.opacity(0.2)))
+
+                    // Their note (like-with-comment)
+                    if let note = like.likeComment {
+                        Text("“\(note)”")
+                            .font(.system(size: 13))
+                            .foregroundColor(.white)
+                            .lineLimit(3)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(Color.black.opacity(0.45))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .stroke(Color.white.opacity(0.25), lineWidth: 1)
+                                    )
+                            )
+                    }
                 }
                 .padding(20)
             }

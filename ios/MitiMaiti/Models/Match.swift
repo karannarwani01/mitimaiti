@@ -202,6 +202,8 @@ struct LikedYouCard: Identifiable, Codable, Hashable {
     let user: User
     let likedAt: Date
     var likeLabel: String
+    /// Hinge-style note sent with the like ("Commented on your profile").
+    var likeComment: String?
     var culturalScore: Int
     var culturalBadge: CulturalBadge
 
@@ -210,6 +212,7 @@ struct LikedYouCard: Identifiable, Codable, Hashable {
         user: User,
         likedAt: Date = Date(),
         likeLabel: String = "Liked your profile",
+        likeComment: String? = nil,
         culturalScore: Int = 0,
         culturalBadge: CulturalBadge = .none
     ) {
@@ -217,6 +220,7 @@ struct LikedYouCard: Identifiable, Codable, Hashable {
         self.user = user
         self.likedAt = likedAt
         self.likeLabel = likeLabel
+        self.likeComment = likeComment
         self.culturalScore = culturalScore
         self.culturalBadge = culturalBadge
     }

@@ -308,7 +308,7 @@ router.get(
           .maybeSingle(),
         supabase
           .from('users')
-          .select('is_verified, last_active_at')
+          .select('is_verified, last_active')
           .eq('id', otherId)
           .single(),
       ]);
@@ -371,7 +371,7 @@ router.get(
           country: otherBasic?.country,
           photo: otherPhoto?.url_thumb || null,
           isVerified: otherUser?.is_verified || false,
-          lastActiveAt: otherUser?.last_active_at || null,
+          lastActiveAt: otherUser?.last_active || null,
         },
         messages: formattedMessages,
         icebreakers: suggestedIcebreakers,

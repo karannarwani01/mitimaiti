@@ -100,6 +100,10 @@ actor HTTPClient {
         case 401:
             throw APIError.unauthorized
         case 429:
+            // The comment budget (5/day) is separate from the like budget —
+            // surface it distinctly so the UI can offer a plain like instead.
+            let envelope = try? decoder.decode(APIEnvelope<EmptyData>.self, from: data)
+            if envelope?.code == "COMMENT_LIMIT_REACHED" { throw APIError.commentLimitReached }
             throw APIError.rateLimited
         default:
             let envelope = try? decoder.decode(APIEnvelope<EmptyData>.self, from: data)

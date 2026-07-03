@@ -7,7 +7,7 @@ import { authenticate } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { getCulturalScore } from '../services/scoring';
 import { getKundliScore } from '../services/kundli';
-import { getDailyCount, DAILY_LIKE_LIMIT, DAILY_REWIND_LIMIT } from './actions';
+import { getDailyCount, DAILY_LIKE_LIMIT, DAILY_REWIND_LIMIT, DAILY_COMMENT_LIMIT } from './actions';
 import { AuthenticatedRequest, FeedCard, CulturalBadge, KundliTier, FamilyValues, FoodPreference, SindhiFluency } from '../types';
 import { cityDistance } from '../utils/geo';
 
@@ -286,15 +286,18 @@ router.get(
 
     // Server-authoritative daily counters — clients seed their like/rewind
     // budgets from the feed instead of resetting to 0 on every relaunch.
-    const [likesUsedToday, rewindsUsedToday] = await Promise.all([
+    const [likesUsedToday, rewindsUsedToday, commentsUsedToday] = await Promise.all([
       getDailyCount(user.id, 'like'),
       getDailyCount(user.id, 'rewind'),
+      getDailyCount(user.id, 'comment'),
     ]);
     const dailyLimits = {
       likes_used_today: likesUsedToday,
       likes_remaining: Math.max(0, DAILY_LIKE_LIMIT - likesUsedToday),
       rewinds_used_today: rewindsUsedToday,
       rewinds_remaining: Math.max(0, DAILY_REWIND_LIMIT - rewindsUsedToday),
+      comments_used_today: commentsUsedToday,
+      comments_remaining: Math.max(0, DAILY_COMMENT_LIMIT - commentsUsedToday),
     };
 
     // Determine discovery city: passport mode or actual city
@@ -972,7 +975,7 @@ router.get(
         daily_prompt_answer: dailyPromptMap.get(c.userId) || null,
         distance_km: cityDistance(discoveryCity || '', c.profile.city || ''),
         is_online: c.userMeta.is_online || false,
-        last_active: c.userMeta.last_active_at || c.userMeta.last_active || null,
+        last_active: c.userMeta.last_active || null,
         // Sindhi identity
         sindhi_fluency: (sindhiData?.sindhi_fluency as SindhiFluency) || null,
         family_values: (chattiData?.family_values as FamilyValues) || null,

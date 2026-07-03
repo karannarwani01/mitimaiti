@@ -82,13 +82,15 @@ router.get(
 
       return {
         ...report,
+        // DB column is reported_id; the admin frontend consumes reported_user_id
+        reported_user_id: report.reported_id,
         elapsed_time: elapsedDisplay,
         elapsed_minutes: elapsedMinutes,
       };
     });
 
     // Get reporter counts for each reported user (how many unique reporters)
-    const reportedUserIds = [...new Set((reports || []).map((r) => r.reported_user_id))];
+    const reportedUserIds = [...new Set((reports || []).map((r) => r.reported_id))];
     const reporterCounts: Record<string, number> = {};
 
     if (reportedUserIds.length > 0) {
@@ -96,7 +98,7 @@ router.get(
         const { count: reporterCount } = await supabase
           .from('reports')
           .select('reporter_id', { count: 'exact', head: true })
-          .eq('reported_user_id', reportedUserId)
+          .eq('reported_id', reportedUserId)
           .eq('status', 'pending');
 
         reporterCounts[reportedUserId] = reporterCount || 0;
@@ -105,7 +107,7 @@ router.get(
 
     const finalReports = enrichedReports.map((report) => ({
       ...report,
-      reporter_count: reporterCounts[report.reported_user_id] || 0,
+      reporter_count: reporterCounts[report.reported_id] || 0,
     }));
 
     res.json({
@@ -160,7 +162,7 @@ router.get(
       supabase
         .from('users')
         .select('id, phone, created_at, is_verified, is_suspended, is_banned, strikes')
-        .eq('id', report.reported_user_id)
+        .eq('id', report.reported_id)
         .single(),
       supabase
         .from('basic_profiles')
@@ -170,29 +172,29 @@ router.get(
       supabase
         .from('basic_profiles')
         .select('display_name, bio, city, country, date_of_birth')
-        .eq('user_id', report.reported_user_id)
+        .eq('user_id', report.reported_id)
         .single(),
       supabase
-        .from('user_sindhi')
+        .from('sindhi_profiles')
         .select('*')
-        .eq('user_id', report.reported_user_id)
+        .eq('user_id', report.reported_id)
         .single(),
       supabase
         .from('photos')
         .select('id, url_medium, url_thumb, is_primary, sort_order')
-        .eq('user_id', report.reported_user_id)
+        .eq('user_id', report.reported_id)
         .order('sort_order'),
       supabase
         .from('reports')
         .select('id, reason, priority, status, created_at')
-        .eq('reported_user_id', report.reported_user_id)
+        .eq('reported_id', report.reported_id)
         .neq('id', id)
         .order('created_at', { ascending: false })
         .limit(20),
       supabase
         .from('strikes')
         .select('id, reason, action, status, created_at, expires_at')
-        .eq('user_id', report.reported_user_id)
+        .eq('user_id', report.reported_id)
         .order('created_at', { ascending: false }),
     ]);
 
@@ -255,7 +257,7 @@ router.post(
       throw new AppError(400, 'Report has already been reviewed', 'ALREADY_REVIEWED');
     }
 
-    const reportedUserId = report.reported_user_id;
+    const reportedUserId = report.reported_id;
 
     // Get current strike count
     const { data: userRow } = await supabase
@@ -467,8 +469,8 @@ router.get(
     ] = await Promise.all([
       supabase.from('users').select('*').eq('id', id).single(),
       supabase.from('basic_profiles').select('*').eq('user_id', id).single(),
-      supabase.from('user_sindhi').select('*').eq('user_id', id).single(),
-      supabase.from('user_chatti').select('*').eq('user_id', id).single(),
+      supabase.from('sindhi_profiles').select('*').eq('user_id', id).single(),
+      supabase.from('chatti_profiles').select('*').eq('user_id', id).single(),
       supabase.from('personality_profiles').select('*').eq('user_id', id).single(),
       supabase.from('photos').select('*').eq('user_id', id).order('sort_order'),
       supabase.from('user_settings').select('*').eq('user_id', id).single(),
@@ -477,7 +479,7 @@ router.get(
       supabase
         .from('reports')
         .select('*')
-        .eq('reported_user_id', id)
+        .eq('reported_id', id)
         .order('created_at', { ascending: false })
         .limit(50),
       supabase
@@ -528,7 +530,7 @@ router.get(
       supabase
         .from('reports')
         .select('*', { count: 'exact', head: true })
-        .eq('reported_user_id', id),
+        .eq('reported_id', id),
       supabase
         .from('reports')
         .select('*', { count: 'exact', head: true })

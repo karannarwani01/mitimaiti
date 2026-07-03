@@ -324,6 +324,7 @@ object APIService {
         val cards: List<FeedCard>,
         val likesUsedToday: Int? = null,
         val rewindsUsedToday: Int? = null,
+        val commentsUsedToday: Int? = null,
     )
 
     suspend fun fetchFeed(cursor: String? = null): Result<FeedPage> {
@@ -336,6 +337,7 @@ object APIService {
                     cards = parseFeedCards(body["cards"] as? List<*>),
                     likesUsedToday = (limits?.get("likes_used_today") as? Number)?.toInt(),
                     rewindsUsedToday = (limits?.get("rewinds_used_today") as? Number)?.toInt(),
+                    commentsUsedToday = (limits?.get("comments_used_today") as? Number)?.toInt(),
                 ))
             } else Result.failure(APIError.ServerError)
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
@@ -359,21 +361,33 @@ object APIService {
         val isMatch: Boolean,
         val matchId: String?,
         val likesUsedToday: Int? = null,
+        /** null when no comment was sent; false while the backend can't
+         *  persist comments yet — the like itself still landed. */
+        val commentSaved: Boolean? = null,
+        val commentsUsedToday: Int? = null,
     )
 
-    /** The backend responds with { is_match, match_id, likes_used_today, ... }. */
-    suspend fun performAction(targetId: String, type: String): Result<ActionResult> {
+    /** The backend responds with { is_match, match_id, likes_used_today, ... }.
+     *  A non-blank [comment] on a like makes it a Hinge-style
+     *  like-with-comment (max 280 chars, 5/day). */
+    suspend fun performAction(targetId: String, type: String, comment: String? = null): Result<ActionResult> {
         return try {
-            val response = api.performAction(mapOf("target_user_id" to targetId, "type" to type))
+            val payload = mutableMapOf("target_user_id" to targetId, "type" to type)
+            if (type == "like" && !comment.isNullOrBlank()) payload["comment"] = comment.trim().take(280)
+            val response = api.performAction(payload)
             if (response.isSuccessful) {
                 val body = response.body()
                 Result.success(ActionResult(
                     isMatch = body?.get("is_match") as? Boolean ?: false,
                     matchId = body?.get("match_id") as? String,
                     likesUsedToday = (body?.get("likes_used_today") as? Number)?.toInt(),
+                    commentSaved = body?.get("comment_saved") as? Boolean,
+                    commentsUsedToday = (body?.get("comments_used_today") as? Number)?.toInt(),
                 ))
             } else if (response.code() == 429) {
-                Result.failure(APIError.DailyLimitReached)
+                if (errorCodeOf(response) == "COMMENT_LIMIT_REACHED") {
+                    Result.failure(APIError.CommentLimitReached)
+                } else Result.failure(APIError.DailyLimitReached)
             } else Result.failure(APIError.ServerError)
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
@@ -693,7 +707,8 @@ object APIService {
                 user = parseUser(like),
                 culturalScore = score,
                 culturalBadge = parseCulturalBadge(like["cultural_badge"], score),
-                likedAt = parseTimestamp(like["liked_at"]) ?: System.currentTimeMillis()
+                likedAt = parseTimestamp(like["liked_at"]) ?: System.currentTimeMillis(),
+                likeComment = (like["like_comment"] as? String)?.takeIf { it.isNotBlank() }
             )
         } ?: emptyList()
     }
@@ -826,4 +841,7 @@ sealed class APIError : Exception() {
     object DailyLimitReached : APIError()
     /** The last like already became a match — undo it via Unmatch instead. */
     object CannotRewindMatched : APIError()
+    /** Daily like-with-comment budget exhausted (429 COMMENT_LIMIT_REACHED);
+     *  a plain like is still possible. */
+    object CommentLimitReached : APIError()
 }

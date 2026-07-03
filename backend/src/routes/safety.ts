@@ -179,10 +179,11 @@ router.post(
       throw new AppError(404, 'User not found', 'USER_NOT_FOUND');
     }
 
-    // Check if already blocked (either direction)
+    // Check if already blocked (either direction). blocked_users has no id
+    // column (composite key) — selecting id made this check error out.
     const { data: existingBlock } = await supabase
       .from('blocked_users')
-      .select('id')
+      .select('blocker_id')
       .or(
         `and(blocker_id.eq.${user.id},blocked_id.eq.${blockedId}),and(blocker_id.eq.${blockedId},blocked_id.eq.${user.id})`
       )

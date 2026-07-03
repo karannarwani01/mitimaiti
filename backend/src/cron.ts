@@ -107,8 +107,11 @@ const matchExpiryJob = cron.schedule('*/15 * * * *', async () => {
           .from('matches')
           .update({
             status: 'dissolved',
+            is_dissolved: true,
             dissolved_at: nowISO,
-            dissolution_reason: 'expired_no_reply',
+            // Column is dissolved_reason (what unmatch/block also write) —
+            // dissolution_reason never existed
+            dissolved_reason: 'expired_no_reply',
           })
           .eq('id', match.id);
 
@@ -160,8 +163,9 @@ const matchExpiryJob = cron.schedule('*/15 * * * *', async () => {
         .from('matches')
         .update({
           status: 'dissolved',
+          is_dissolved: true,
           dissolved_at: nowISO,
-          dissolution_reason: 'expired_no_message',
+          dissolved_reason: 'expired_no_message',
         })
         .eq('id', match.id);
 
@@ -390,8 +394,10 @@ const cleanupJob = cron.schedule('0 3 * * *', async () => {
     const { data: expiredAccounts } = await supabase
       .from('users')
       .select('id, auth_id')
-      .not('delete_scheduled_at', 'is', null)
-      .lte('delete_scheduled_at', nowISO);
+      // Column is deletion_scheduled_for (what the delete-account flow in
+      // auth.ts writes) — delete_scheduled_at never existed
+      .not('deletion_scheduled_for', 'is', null)
+      .lte('deletion_scheduled_for', nowISO);
 
     for (const account of expiredAccounts || []) {
       const userId = account.id;
