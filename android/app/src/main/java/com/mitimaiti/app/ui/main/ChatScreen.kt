@@ -77,6 +77,7 @@ fun ChatScreen(
     val isOtherTyping by viewModel.isOtherTyping.collectAsState()
     val chatMatch by viewModel.match.collectAsState()
     val chatUnlocked by viewModel.chatUnlocked.collectAsState()
+    val isExtending by viewModel.isExtending.collectAsState()
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
@@ -445,6 +446,17 @@ fun ChatScreen(
 
                 // ── Match announcement ──
                 MatchAnnouncementCapsule(match = match)
+
+                // ── First-message deadline + one-time 24h extend (Bumble-style) ──
+                val bannerMatch = chatMatch ?: match
+                if (bannerMatch.status == MatchStatus.PENDING_FIRST_MESSAGE && bannerMatch.showCountdown) {
+                    ExpiryExtendBanner(
+                        expiresAt = bannerMatch.expiresAt ?: 0L,
+                        extendedOnce = bannerMatch.extendedOnce,
+                        isExtending = isExtending,
+                        onExtend = { viewModel.extendMatch() }
+                    )
+                }
 
                 // ── Messages list ──
                 LazyColumn(
@@ -1212,6 +1224,69 @@ private fun MatchAnnouncementCapsule(match: Match) {
                     "You matched on ${dateFormat.format(Date(match.matchedAt))}",
                     fontSize = 12.sp, color = AppColors.Rose, fontWeight = FontWeight.Medium
                 )
+            }
+        }
+    }
+}
+
+// ───────────────────────────────────────────
+// First-message deadline banner + one-time 24h extend (Bumble-style)
+// ───────────────────────────────────────────
+
+@Composable
+private fun ExpiryExtendBanner(
+    expiresAt: Long,
+    extendedOnce: Boolean,
+    isExtending: Boolean,
+    onExtend: () -> Unit
+) {
+    val colors = LocalAdaptiveColors.current
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(expiresAt) {
+        while (true) {
+            now = System.currentTimeMillis()
+            delay(30_000L)
+        }
+    }
+    val remaining = (expiresAt - now).coerceAtLeast(0L)
+    val hours = remaining / 3_600_000L
+    val minutes = (remaining % 3_600_000L) / 60_000L
+    val timeLabel = if (hours > 0) "${hours}h ${minutes}m" else "${minutes}m"
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 2.dp),
+        shape = RoundedCornerShape(AppTheme.radiusMd),
+        color = AppColors.Saffron.copy(alpha = 0.10f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, AppColors.Saffron.copy(alpha = 0.35f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.Schedule, null, tint = AppColors.Saffron, modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                "$timeLabel left for the first message",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = colors.textPrimary,
+                modifier = Modifier.weight(1f)
+            )
+            if (extendedOnce) {
+                Text("Extended ✓", fontSize = 12.sp, color = colors.textMuted)
+            } else {
+                TextButton(onClick = onExtend, enabled = !isExtending) {
+                    Text(
+                        if (isExtending) "Extending…" else "Extend 24h",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = AppColors.Saffron
+                    )
+                }
             }
         }
     }

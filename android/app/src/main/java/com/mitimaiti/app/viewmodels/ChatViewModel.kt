@@ -46,6 +46,31 @@ class ChatViewModel : ViewModel() {
      */
     var onMatchActivated: ((String, String) -> Unit)? = null
 
+    private val _isExtending = MutableStateFlow(false)
+    val isExtending: StateFlow<Boolean> = _isExtending.asStateFlow()
+
+    /** One-time 24h extension of the first-message deadline (Bumble-style). */
+    fun extendMatch() {
+        val m = _match.value ?: return
+        if (m.extendedOnce || _isExtending.value) return
+        _isExtending.value = true
+        viewModelScope.launch {
+            APIService.extendMatch(m.id)
+                .onSuccess { newExpiry ->
+                    _match.value = _match.value?.copy(expiresAt = newExpiry, extendedOnce = true)
+                }
+                .onFailure { err ->
+                    if (err is com.mitimaiti.app.services.APIError.AlreadyExtended) {
+                        _match.value = _match.value?.copy(extendedOnce = true)
+                        _error.value = "This match was already extended once."
+                    } else {
+                        _error.value = "Couldn't extend the match. Try again."
+                    }
+                }
+            _isExtending.value = false
+        }
+    }
+
     private var lastTypingEmit = 0L
 
     fun updateMessageText(value: String) {

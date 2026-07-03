@@ -22,6 +22,27 @@ class ChatViewModel: ObservableObject {
     @Published var isOtherTyping = false
     @Published var match: Match?
     @Published var error: String?
+    @Published var isExtending = false
+
+    /// One-time 24h extension of the first-message deadline (Bumble-style).
+    func extendMatch() {
+        guard let m = match, m.extendedOnce != true, !isExtending else { return }
+        isExtending = true
+        Task { @MainActor in
+            do {
+                let newExpiry = try await api.extendMatch(matchId: m.id)
+                match?.expiresAt = newExpiry ?? m.expiresAt?.addingTimeInterval(24 * 3600)
+                match?.extendedOnce = true
+                if let updated = match { inboxViewModel?.upsertMatch(updated) }
+            } catch APIError.serverError(let msg) where msg.contains("already been extended") {
+                match?.extendedOnce = true
+                error = "This match was already extended once."
+            } catch {
+                self.error = "Couldn't extend the match. Try again."
+            }
+            isExtending = false
+        }
+    }
     @Published var chatUnlocked = false
 
     /// Server-suggested ice breakers (Sindhi-flavored pool, 3 per empty chat)

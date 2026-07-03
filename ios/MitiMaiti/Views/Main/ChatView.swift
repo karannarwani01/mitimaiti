@@ -511,6 +511,12 @@ private struct ChatMessageList: View {
                 LazyVStack(spacing: 8) {
                     matchAnnouncementView
 
+                    // First-message deadline + one-time 24h extend (Bumble-style)
+                    if let live = chatVM.match ?? Optional(match),
+                       live.status == .pendingFirstMessage, live.showCountdown {
+                        expiryExtendBanner(for: live)
+                    }
+
                     if chatVM.match?.hasFirstMessage == false {
                         systemMessageText(LocalizationManager.shared.t("chat.matchedSendMessage"))
                     }
@@ -676,6 +682,52 @@ private struct ChatMessageList: View {
         )
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
+    }
+
+    // MARK: - First-message deadline banner + one-time 24h extend
+
+    private func expiryExtendBanner(for live: Match) -> some View {
+        TimelineView(.periodic(from: .now, by: 30)) { context in
+            let remaining = max(0, (live.expiresAt ?? context.date).timeIntervalSince(context.date))
+            let hours = Int(remaining) / 3600
+            let minutes = (Int(remaining) % 3600) / 60
+            let timeLabel = hours > 0 ? "\(hours)h \(minutes)m" : "\(minutes)m"
+
+            HStack(spacing: 8) {
+                Image(systemName: "clock")
+                    .font(.system(size: 13))
+                    .foregroundColor(AppTheme.saffron)
+                Text("\(timeLabel) left for the first message")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(colors.textPrimary)
+                Spacer()
+                if live.extendedOnce == true {
+                    Text("Extended ✓")
+                        .font(.system(size: 12))
+                        .foregroundColor(colors.textMuted)
+                } else {
+                    Button {
+                        chatVM.extendMatch()
+                    } label: {
+                        Text(chatVM.isExtending ? "Extending…" : "Extend 24h")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(AppTheme.saffron)
+                    }
+                    .disabled(chatVM.isExtending)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(AppTheme.saffron.opacity(0.10))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(AppTheme.saffron.opacity(0.35), lineWidth: 1)
+                    )
+            )
+            .padding(.horizontal, 16)
+        }
     }
 
     // MARK: - System Message

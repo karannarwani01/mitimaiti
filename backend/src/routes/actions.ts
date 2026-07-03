@@ -949,6 +949,7 @@ router.get(
           first_msg_by_me: match.first_msg_by != null && match.first_msg_by === user.id,
           first_msg_locked: match.first_msg_locked || false,
           first_msg_at: match.first_msg_at || null,
+          extended_once: match.extended_once || false,
           countdown,
           last_message: lastMessage
             ? {

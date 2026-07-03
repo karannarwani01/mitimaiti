@@ -118,6 +118,9 @@ struct Match: Identifiable, Codable, Hashable {
     var firstMsgByMe: Bool?
     var firstMsgLocked: Bool
     var firstMsgAt: Date?
+    /// Each match can be extended by 24h exactly once (Bumble-style).
+    /// Optional so older/partial payloads decode cleanly (treated as false).
+    var extendedOnce: Bool?
 
     // MARK: - Timer Logic
     // The 24h dissolution timer is based on firstMsgAt (when first message was sent).
@@ -181,7 +184,8 @@ struct Match: Identifiable, Codable, Hashable {
         firstMsgBy: String? = nil,
         firstMsgByMe: Bool? = nil,
         firstMsgLocked: Bool = false,
-        firstMsgAt: Date? = nil
+        firstMsgAt: Date? = nil,
+        extendedOnce: Bool? = nil
     ) {
         self.id = id
         self.otherUser = otherUser
@@ -194,6 +198,7 @@ struct Match: Identifiable, Codable, Hashable {
         self.firstMsgByMe = firstMsgByMe
         self.firstMsgLocked = firstMsgLocked
         self.firstMsgAt = firstMsgAt
+        self.extendedOnce = extendedOnce
     }
 }
 

@@ -545,6 +545,7 @@ actor APIService {
             let firstMsgByMe: Bool?
             let firstMsgLocked: Bool?
             let firstMsgAt: Date?
+            let extendedOnce: Bool?
             let lastMessage: LastMsg?
             let unreadCount: Int?
         }
@@ -610,7 +611,8 @@ actor APIService {
                 firstMsgBy: m.firstMsgBy,
                 firstMsgByMe: m.firstMsgByMe,
                 firstMsgLocked: m.firstMsgLocked ?? false,
-                firstMsgAt: m.firstMsgAt
+                firstMsgAt: m.firstMsgAt,
+                extendedOnce: m.extendedOnce
             )
         }
 
@@ -767,6 +769,22 @@ actor APIService {
     /// Dissolve a match (either participant can unmatch; irreversible).
     func unmatch(matchId: String) async throws {
         let _: EmptyData = try await authedRequest(.post, "/chat/\(matchId)/unmatch")
+    }
+
+    /// POST /v1/chat/:matchId/extend — one-time 24h extension of the
+    /// first-message deadline. Returns the new expiry.
+    func extendMatch(matchId: String) async throws -> Date? {
+        // This endpoint responds camelCase (expiresAt), so parse the ISO
+        // string manually rather than relying on snake_case decoding.
+        struct Resp: Decodable {
+            let expiresAt: String?
+            let extendedOnce: Bool?
+        }
+        let resp: Resp = try await authedRequest(.post, "/chat/\(matchId)/extend")
+        guard let iso = resp.expiresAt else { return nil }
+        let fmt = ISO8601DateFormatter()
+        fmt.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return fmt.date(from: iso) ?? ISO8601DateFormatter().date(from: iso)
     }
 
     /// Add/replace the current user's reaction on a message.

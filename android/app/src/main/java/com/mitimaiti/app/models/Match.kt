@@ -43,7 +43,9 @@ data class Match(
      *  for the Respect-First lock so we don't compare ids client-side. */
     val firstMsgByMe: Boolean = false,
     val firstMsgLocked: Boolean = false,
-    val firstMsgAt: Long? = null
+    val firstMsgAt: Long? = null,
+    /** Each match can be extended by 24h exactly once (Bumble-style). */
+    val extendedOnce: Boolean = false
 ) {
     val isExpired: Boolean
         get() = expiresAt?.let { System.currentTimeMillis() > it } ?: false

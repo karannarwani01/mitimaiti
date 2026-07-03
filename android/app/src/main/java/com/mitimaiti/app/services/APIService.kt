@@ -553,6 +553,23 @@ object APIService {
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
 
+    /** POST /v1/chat/:matchId/extend — one-time 24h extension of the
+     *  first-message deadline. Returns the new expiry (epoch millis). */
+    suspend fun extendMatch(matchId: String): Result<Long> {
+        return try {
+            val response = api.extendMatch(matchId)
+            if (response.isSuccessful) {
+                // This endpoint responds camelCase (expiresAt), unlike most routes
+                val body = response.body()
+                val newExpiry = parseTimestamp(body?.get("expiresAt") ?: body?.get("expires_at"))
+                    ?: return Result.failure(APIError.ServerError)
+                Result.success(newExpiry)
+            } else if (response.code() == 400 && errorCodeOf(response) == "ALREADY_EXTENDED") {
+                Result.failure(APIError.AlreadyExtended)
+            } else Result.failure(APIError.ServerError)
+        } catch (e: Exception) { Result.failure(APIError.NetworkError) }
+    }
+
     /** Add/replace the current user's reaction on a message. */
     suspend fun setReaction(matchId: String, messageId: String, emoji: String): Result<Boolean> {
         return try {
@@ -769,7 +786,8 @@ object APIService {
             firstMsgBy = data["first_msg_by"] as? String,
             firstMsgByMe = data["first_msg_by_me"] as? Boolean ?: false,
             firstMsgLocked = data["first_msg_locked"] as? Boolean ?: false,
-            firstMsgAt = parseTimestamp(data["first_msg_at"])
+            firstMsgAt = parseTimestamp(data["first_msg_at"]),
+            extendedOnce = data["extended_once"] as? Boolean ?: false
         )
     }
 
@@ -865,4 +883,6 @@ sealed class APIError : Exception() {
     object CommentLimitReached : APIError()
     /** Can't delete your only photo (400 MIN_PHOTOS). */
     object MinPhotosRequired : APIError()
+    /** Match was already extended once (400 ALREADY_EXTENDED). */
+    object AlreadyExtended : APIError()
 }
