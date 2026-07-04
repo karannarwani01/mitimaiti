@@ -14,6 +14,7 @@ const router = Router();
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
 export const DAILY_LIKE_LIMIT = 50;
+export const DAILY_ROSE_LIMIT = 1;
 export const DAILY_REWIND_LIMIT = 10;
 export const DAILY_COMMENT_LIMIT = 5;
 const MATCH_EXPIRY_HOURS = 24;
@@ -30,10 +31,15 @@ const actionSchema = z
       .min(1, 'Comment cannot be empty')
       .max(280, 'Comment must be 280 characters or less')
       .optional(),
+    is_rose: z.boolean().optional(),
   })
   .refine((data) => !(data.comment && data.type === 'pass'), {
     message: 'A comment can only accompany a like',
     path: ['comment'],
+  })
+  .refine((data) => !(data.is_rose && data.type === 'pass'), {
+    message: 'A Rose can only accompany a like',
+    path: ['is_rose'],
   });
 
 const promptSchema = z.object({
@@ -173,11 +179,14 @@ router.post(
   validate(actionSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const user = (req as AuthenticatedRequest).user;
-    const { target_user_id: targetUserId, type, comment } = req.body as {
+    const { target_user_id: targetUserId, type, comment, is_rose: isRose } = req.body as {
       target_user_id: string;
       type: ActionType;
       comment?: string;
+      is_rose?: boolean;
     };
+    // A Rose is a like flagged as priority (its own daily currency).
+    const rose = type === 'like' && isRose === true;
 
     // Self-action guard
     if (targetUserId === user.id) {
@@ -230,7 +239,17 @@ router.post(
     // ── Daily like limit: 50 per day ────────────────────────────────────────
 
     let likesUsed = 0;
-    if (type === 'like') {
+    if (rose) {
+      // Roses have their own small daily allowance, separate from likes.
+      const rosesUsed = await getDailyCount(user.id, 'rose');
+      if (rosesUsed >= DAILY_ROSE_LIMIT) {
+        throw new AppError(
+          429,
+          `You're out of Roses for today (${DAILY_ROSE_LIMIT}/day). Try again tomorrow.`,
+          'ROSE_LIMIT_REACHED',
+        );
+      }
+    } else if (type === 'like') {
       likesUsed = await getDailyCount(user.id, 'like');
       if (likesUsed >= DAILY_LIKE_LIMIT) {
         throw new AppError(
@@ -270,6 +289,7 @@ router.post(
           target_id: targetUserId,
           kind: type,
           ...(withComment ? { comment } : {}),
+          ...(rose ? { is_rose: true } : {}),
         })
         .select('id, created_at')
         .single();
@@ -290,8 +310,8 @@ router.post(
       throw new AppError(500, 'Failed to record action', 'ACTION_FAILED');
     }
 
-    // Increment daily counters
-    await incrementDailyCount(user.id, type);
+    // Increment daily counters. A Rose spends a Rose, not a regular like.
+    await incrementDailyCount(user.id, rose ? 'rose' : type);
     if (commentSaved) {
       await incrementDailyCount(user.id, 'comment');
     }
@@ -743,13 +763,15 @@ router.get(
       actor_id: string;
       created_at: string;
       comment?: string | null;
+      is_rose?: boolean;
     };
     const selectIncomingLikes = async (withComment: boolean) =>
       (await supabase
         .from('actions')
-        .select(withComment ? 'id, actor_id, created_at, comment' : 'id, actor_id, created_at')
+        .select(withComment ? 'id, actor_id, created_at, comment, is_rose' : 'id, actor_id, created_at, is_rose')
         .eq('target_id', user.id)
         .eq('kind', 'like')
+        .order('is_rose', { ascending: false })
         .order('created_at', { ascending: false })) as {
         data: IncomingLike[] | null;
         error: { code?: string; message?: string } | null;
@@ -873,6 +895,7 @@ router.get(
         likedYouCards.push({
           id: like.actor_id,
           action_id: like.id,
+          is_rose: like.is_rose || false,
           first_name: likerFirstName,
           display_name: likerHideFullName.has(like.actor_id)
             ? likerFirstName
@@ -894,7 +917,11 @@ router.get(
           interests,
           cultural_score: cs.total,
           cultural_badge: cs.badge,
-          like_label: like.comment ? 'Commented on your profile' : 'Liked your profile',
+          like_label: like.is_rose
+            ? 'Sent you a Rose 🌹'
+            : like.comment
+              ? 'Commented on your profile'
+              : 'Liked your profile',
           like_comment: like.comment || null,
           daily_prompt_answer: userMeta?.daily_prompt_answer || null,
           liked_at: like.created_at,
@@ -904,6 +931,10 @@ router.get(
       // Hinge-style: likes that carry a comment float to the top (each group
       // stays newest-first from the query order).
       likedYouCards.sort((a, b) => {
+        // Roses first, then commented likes, then the rest.
+        const aRose = a.is_rose ? 1 : 0;
+        const bRose = b.is_rose ? 1 : 0;
+        if (bRose !== aRose) return bRose - aRose;
         const aHas = a.like_comment ? 1 : 0;
         const bHas = b.like_comment ? 1 : 0;
         return bHas - aHas;
