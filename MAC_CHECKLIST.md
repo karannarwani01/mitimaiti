@@ -30,10 +30,88 @@ fixed fast.
       register → download the .p8 (once only!) — note the Key ID and Team ID
 - [ ] Firebase console → Project settings → **Cloud Messaging** tab → under
       "Apple app configuration" → upload the .p8 + Key ID + Team ID
-- [ ] Tell Claude when this is done — the AppDelegate wiring (register for
-      remote notifications, forward the APNs token to FirebaseMessaging, sync
-      the FCM token to POST /me/fcm-token, deep-link on tap) will be written
-      to mirror Android's MitiMaitiMessagingService
+### Current state (verified 2026-07-04)
+The iOS app can **display/handle** notifications but **never registers for
+remote push** — `MitiMaitiApp.swift`'s AppDelegate has no
+`registerForRemoteNotifications()`, no APNs-token callback, and no
+FirebaseMessaging. So the backend (which sends everything via FCM) has no iOS
+address to deliver to. Android push works; iOS is the missing half.
+
+### The code is already written — paste it after the SDK is added
+Once step-2 config above is done (plist + Push capability + FirebaseMessaging
+package + APNs key uploaded), **replace the `AppDelegate` class in
+`ios/MitiMaiti/App/MitiMaitiApp.swift` with this** (it mirrors Android's
+`FcmTokenRegistrar` + `MitiMaitiMessagingService`):
+
+```swift
+import SwiftUI
+import UIKit
+import FirebaseCore
+import FirebaseMessaging
+import UserNotifications
+
+class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate, MessagingDelegate {
+    func application(_ application: UIApplication,
+                     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        FirebaseApp.configure()
+        Messaging.messaging().delegate = self
+        UNUserNotificationCenter.current().delegate = self
+        // Ask permission, then register with APNs (must be on main thread).
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, _ in
+            guard granted else { return }
+            DispatchQueue.main.async { application.registerForRemoteNotifications() }
+        }
+        return true
+    }
+
+    // APNs handed us the device token → give it to Firebase (FCM relays to APNs).
+    func application(_ application: UIApplication,
+                     didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        Messaging.messaging().apnsToken = deviceToken
+    }
+
+    func application(_ application: UIApplication,
+                     didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        print("[Push] APNs registration failed: \(error)")
+    }
+
+    // Firebase issued/refreshed the FCM token → sync to our backend (same
+    // endpoint Android uses: POST /me/fcm-token).
+    func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+        guard let fcmToken else { return }
+        Task { try? await APIService.shared.registerFcmToken(fcmToken, platform: "ios") }
+    }
+
+    // Show banner while app is in the foreground.
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                willPresent notification: UNNotification,
+                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .sound])
+    }
+
+    // Deep-link to the right tab on tap (unchanged behaviour).
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                didReceive response: UNNotificationResponse,
+                                withCompletionHandler completionHandler: @escaping () -> Void) {
+        let userInfo = response.notification.request.content.userInfo
+        if let typeString = userInfo["type"] as? String,
+           let type = NotificationType(rawValue: typeString),
+           let tab = type.destinationTab {
+            Task { @MainActor in NotificationManager.shared.selectedTab = tab }
+        }
+        completionHandler()
+    }
+}
+```
+
+- [ ] After pasting: remove any duplicate `UNUserNotificationCenter` permission
+      prompt elsewhere (the AppDelegate now owns it), Cmd+B, and send a test
+      push from Firebase console → Cloud Messaging → "Send test message" using
+      the FCM token printed for the device.
+- [ ] Why this can't be committed ahead of time: it `import`s FirebaseMessaging,
+      which isn't in the Xcode project until you add the SPM package — so
+      committing it now would break the iOS CI build. Paste it *after* the
+      package is added, then commit.
 
 ## 3. TestFlight (10 min)
 - [ ] Bump build number if needed
