@@ -6,10 +6,9 @@
  *   E2E_BASE_URL=http://localhost:4000 npm run e2e
  *
  * Needs SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, TEST_ACCOUNTS_PASSWORD in the
- * env (they're in backend/.env). Uses the service-role key only to mint a
- * throwaway user + a real session, then hits the public API as that user over
- * HTTP exactly like a real client. Cleans the user up afterwards. Exit code 0 =
- * all passed, 1 = something failed (so it can gate CI / the loop).
+ * env (they're in backend/.env). Uses the service-role key only to mint
+ * throwaway users + real sessions, then hits the public API over HTTP exactly
+ * like real clients. Cleans everything up. Exit 0 = all passed, 1 = a failure.
  */
 import { createClient } from '@supabase/supabase-js';
 
@@ -36,7 +35,7 @@ async function mintUser() {
   const authId = cr.user.id;
   const { data: u, error: ue } = await admin.from('users').insert({
     auth_id: authId, display_name: 'E2E Smoke', is_active: true, is_banned: false,
-    is_hidden: false, profile_completeness: 60, strikes: 0, deletion_requested: false,
+    is_hidden: false, profile_completeness: 80, strikes: 0, deletion_requested: false,
     last_active: new Date().toISOString(),
   }).select('id').single();
   if (ue) throw new Error('users insert: ' + ue.message);
@@ -51,18 +50,28 @@ async function mintUser() {
   return { authId, userId: u.id, token };
 }
 
-async function cleanup(u) {
-  if (!u) return;
-  await admin.from('basic_profiles').delete().eq('user_id', u.userId).then(() => {}, () => {});
-  await admin.from('users').delete().eq('id', u.userId).then(() => {}, () => {});
-  await admin.auth.admin.deleteUser(u.authId).then(() => {}, () => {});
+async function cleanup(users) {
+  for (const u of users) {
+    await admin.from('matches').delete().or(`user_a_id.eq.${u.userId},user_b_id.eq.${u.userId}`).then(() => {}, () => {});
+    await admin.from('actions').delete().or(`actor_id.eq.${u.userId},target_id.eq.${u.userId}`).then(() => {}, () => {});
+    await admin.from('basic_profiles').delete().eq('user_id', u.userId).then(() => {}, () => {});
+    await admin.from('users').delete().eq('id', u.userId).then(() => {}, () => {});
+    await admin.auth.admin.deleteUser(u.authId).then(() => {}, () => {});
+  }
 }
 
-async function api(path, token) {
-  const res = await fetch(BASE + path, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-  let body = null;
-  try { body = await res.json(); } catch { /* non-JSON */ }
-  return { status: res.status, body };
+async function api(path, token, method = 'GET', body) {
+  const res = await fetch(BASE + path, {
+    method,
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  let out = null;
+  try { out = await res.json(); } catch { /* non-JSON */ }
+  return { status: res.status, body: out };
 }
 
 async function main() {
@@ -76,24 +85,35 @@ async function main() {
   const noauth = await api('/v1/me');
   check('auth enforced: no token → 401', noauth.status === 401, `status=${noauth.status}`);
 
-  let u;
+  const users = [];
   try {
-    u = await mintUser();
-    check('auth: minted a real session for a throwaway user', !!u.token, `user=${u.userId.slice(0, 8)}`);
+    const A = await mintUser(); users.push(A);
+    check('auth: minted a real session for a throwaway user', !!A.token, `A=${A.userId.slice(0, 8)}`);
 
-    const me = await api('/v1/me', u.token);
-    check('GET /v1/me (profile loads)', me.status === 200, `status=${me.status}`);
+    check('GET /v1/me (profile loads)', (await api('/v1/me', A.token)).status === 200);
+    check('GET /v1/feed (discovery query runs)', (await api('/v1/feed', A.token)).status === 200);
+    check('GET /v1/inbox (likes inbox)', (await api('/v1/inbox', A.token)).status === 200);
 
-    const feed = await api('/v1/feed', u.token);
-    check('GET /v1/feed (discovery query runs)', feed.status === 200, `status=${feed.status}`);
+    // ── the core dating loop: like → mutual like → match → open chat ──
+    const B = await mintUser(); users.push(B);
+    const likeAB = await api('/v1/action', A.token, 'POST', { target_user_id: B.userId, type: 'like' });
+    check('A likes B → 201, not a match yet',
+      likeAB.status === 201 && likeAB.body?.data?.is_match === false,
+      `status=${likeAB.status} is_match=${likeAB.body?.data?.is_match}`);
 
-    const inbox = await api('/v1/inbox', u.token);
-    check('GET /v1/inbox (likes inbox)', inbox.status === 200, `status=${inbox.status}`);
+    const likeBA = await api('/v1/action', B.token, 'POST', { target_user_id: A.userId, type: 'like' });
+    const matchId = likeBA.body?.data?.match_id;
+    check('B likes A back → MATCH created',
+      likeBA.status === 201 && likeBA.body?.data?.is_match === true && !!matchId,
+      `is_match=${likeBA.body?.data?.is_match} match_id=${matchId ? String(matchId).slice(0, 8) : 'null'}`);
+
+    const chat = await api(`/v1/chat/${matchId || 'none'}`, A.token);
+    check('A can open the matched chat', !!matchId && chat.status === 200, `status=${chat.status}`);
   } catch (e) {
     check('critical path', false, e.message);
   } finally {
-    await cleanup(u);
-    console.log('  · cleaned up throwaway user');
+    await cleanup(users);
+    console.log(`  · cleaned up ${users.length} throwaway user(s)`);
   }
 
   const passed = results.filter(Boolean).length;
