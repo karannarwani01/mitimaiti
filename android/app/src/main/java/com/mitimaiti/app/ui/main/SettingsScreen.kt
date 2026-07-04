@@ -781,7 +781,7 @@ fun SettingsScreen(
                 options = listOf("Any", "1st Gen", "2nd Gen", "3rd Gen", "4th Gen+"),
                 selected = generationFilter ?: "Any",
                 onSelect = { value ->
-                    viewModel.generationFilter.value = if (value == "Any") null else value
+                    viewModel.setGenerationFilter(if (value == "Any") null else value)
                     viewModel.showToast("Generation: $value")
                     showGenerationPicker = false
                 },
@@ -880,7 +880,7 @@ fun SettingsScreen(
                 options = listOf("Any", "Want kids", "Don't want kids", "Open to kids", "Have kids"),
                 selected = familyPlansFilter ?: "Any",
                 onSelect = { value ->
-                    viewModel.familyPlansFilter.value = if (value == "Any") null else value
+                    viewModel.setFamilyPlansFilter(if (value == "Any") null else value)
                     viewModel.showToast("Family plans: $value")
                     showFamilyPlansPicker = false
                 },

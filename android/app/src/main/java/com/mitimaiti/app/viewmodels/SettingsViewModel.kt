@@ -65,6 +65,8 @@ class SettingsViewModel : ViewModel() {
                 fluencyFilter.value = (s["fluency_filter"] as? String)?.let { v -> SindhiFluency.entries.firstOrNull { it.name.equals(v, true) } }
                 gotraFilter.value = s["gotra_filter"] as? String
                 dietaryFilter.value = (s["dietary_filter"] as? String)?.let { v -> FoodPreference.entries.firstOrNull { it.name.equals(v, true) } }
+                generationFilter.value = s["generation_filter"] as? String
+                familyPlansFilter.value = s["family_plans_filter"] as? String
             }
         }
     }
@@ -157,6 +159,16 @@ class SettingsViewModel : ViewModel() {
     fun setDietaryFilter(v: FoodPreference?) {
         dietaryFilter.value = v
         patchSettings(mapOf("dietary_filter" to v?.name?.lowercase()))
+    }
+
+    fun setGenerationFilter(v: String?) {
+        generationFilter.value = v
+        patchSettings(mapOf("generation_filter" to v))
+    }
+
+    fun setFamilyPlansFilter(v: String?) {
+        familyPlansFilter.value = v
+        patchSettings(mapOf("family_plans_filter" to v))
     }
 
     /** Delete the account on the backend, then invoke [onDone] (log out locally). */

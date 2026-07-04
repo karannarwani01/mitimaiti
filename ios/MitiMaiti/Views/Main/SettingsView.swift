@@ -755,5 +755,7 @@ private struct FilterPersistence: ViewModifier {
             .onChange(of: vm.fluencyFilter) { _, _ in vm.persistFluencyFilter() }
             .onChange(of: vm.gotraFilter) { _, _ in vm.persistGotraFilter() }
             .onChange(of: vm.dietaryFilter) { _, _ in vm.persistDietaryFilter() }
+            .onChange(of: vm.generationFilter) { _, _ in vm.persistGenerationFilter() }
+            .onChange(of: vm.familyPlansFilter) { _, _ in vm.persistFamilyPlansFilter() }
     }
 }

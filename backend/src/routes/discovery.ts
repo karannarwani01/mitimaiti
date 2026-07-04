@@ -646,12 +646,16 @@ router.get(
         ) continue;
       }
 
-      // Soft filter: generation (sindhi generation on sindhi_profiles —
-      // shown in both clients but never applied until now). Candidates who
-      // haven't set it pass through.
+      // Soft filter: generation (sindhi_profiles.generation — shown in both
+      // clients but never applied until now). Compare on the leading digit so
+      // it's robust to the inconsistent storage/display strings across the app
+      // ("1st" vs "1st Gen" vs "1st Generation"). Unset candidates pass through.
       if (mySettings?.generation_filter) {
         const sindhi = sindhiMap.get(cId);
-        if (sindhi?.generation && sindhi.generation !== mySettings.generation_filter) continue;
+        const digit = (s?: string) => (s || '').match(/\d/)?.[0] || '';
+        const cg = digit(sindhi?.generation);
+        const fg = digit(mySettings.generation_filter);
+        if (cg && fg && cg !== fg) continue;
       }
 
       // Soft filter: family plans (want_kids on basic_profiles — same fix).

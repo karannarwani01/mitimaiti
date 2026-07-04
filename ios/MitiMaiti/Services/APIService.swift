@@ -407,6 +407,8 @@ actor APIService {
         let fluencyFilter: String?
         let gotraFilter: String?
         let dietaryFilter: String?
+        let generationFilter: String?
+        let familyPlansFilter: String?
         let isSnoozed: Bool?
     }
 
@@ -433,6 +435,8 @@ actor APIService {
             fluencyFilter: s?.fluencyFilter,
             gotraFilter: s?.gotraFilter,
             dietaryFilter: s?.dietaryFilter,
+            generationFilter: s?.generationFilter,
+            familyPlansFilter: s?.familyPlansFilter,
             isSnoozed: resp.user?.isSnoozed
         )
     }

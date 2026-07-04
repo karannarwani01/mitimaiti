@@ -39,7 +39,9 @@ class SettingsViewModel: ObservableObject {
     static let educationOptions = ["Any", "Bachelors", "Masters", "PhD", "Professional", "Business Owner"]
     static let smokingOptions = ["Any", "Never", "Socially", "Regularly"]
     static let drinkingOptions = ["Any", "Never", "Socially", "Regularly"]
-    static let familyPlansOptions = ["Any", "Yes wants kids", "Maybe", "No"]
+    // Must match the values EditProfile saves to basic_profiles.want_kids so
+    // the feed's exact (case-insensitive) match works.
+    static let familyPlansOptions = ["Any", "Want kids", "Don't want kids", "Open to kids", "Have kids"]
 
     // Notifications - backed by NotificationManager.shared.settings
     var notifyMatches: Bool {
@@ -160,6 +162,8 @@ class SettingsViewModel: ObservableObject {
         fluencyFilter = s.fluencyFilter.map { $0.capitalized } ?? "Any"
         gotraFilter = s.gotraFilter.map { $0 == "exclude_same" ? "Exclude same gotra" : $0 } ?? "Any"
         dietaryFilter = Self.dietaryDisplay(from: s.dietaryFilter) ?? "Any"
+        generationFilter = s.generationFilter ?? "Any"
+        familyPlansFilter = s.familyPlansFilter ?? "Any"
     }
 
     private func patchSettings(_ settings: [String: Any]) {
@@ -248,6 +252,15 @@ class SettingsViewModel: ObservableObject {
         patchSettings(["dietary_filter": filterValue(dietaryFilter) {
             $0.lowercased().replacingOccurrences(of: "-", with: "_")
         }])
+    }
+
+    func persistGenerationFilter() {
+        // Backend normalises on the leading digit, so "1st Gen" matches "1st".
+        patchSettings(["generation_filter": filterValue(generationFilter)])
+    }
+
+    func persistFamilyPlansFilter() {
+        patchSettings(["family_plans_filter": filterValue(familyPlansFilter)])
     }
 
     enum AppearanceTheme: String, CaseIterable, Identifiable {
