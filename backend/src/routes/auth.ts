@@ -1288,6 +1288,10 @@ router.post(
 const linkEmailSchema = z.object({
   email: z.string().email('Enter a valid email address'),
 });
+const linkEmailVerifySchema = z.object({
+  email: z.string().email('Enter a valid email address'),
+  code: z.string().min(4, 'Enter the code').max(10),
+});
 const linkGoogleSchema = z.object({
   idToken: z.string().min(10, 'Missing Google ID token'),
 });
@@ -1470,6 +1474,68 @@ router.get(
         complete: !!(phone && email),
       },
     });
+  })
+);
+
+// POST /v1/auth/link/email/start — send an OTP to an email the caller wants to
+// add to their account (proves ownership before we attach it).
+router.post(
+  '/link/email/start',
+  authenticate,
+  otpSendRateLimit,
+  validate(linkEmailSchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    const email = (req.body.email as string).toLowerCase().trim();
+    const { error } = await supabaseAuth.auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: true },
+    });
+    if (error) {
+      throw new AppError(500, error.message || 'Could not send the code', 'OTP_SEND_FAILED');
+    }
+    res.json({ success: true, data: { email, sent: true } });
+  })
+);
+
+// POST /v1/auth/link/email/verify — verify the OTP, then attach the email to the
+// caller's account (or auto-merge if it belongs to another empty profile). The
+// verified code proves ownership, so the merge here is safe.
+router.post(
+  '/link/email/verify',
+  authenticate,
+  otpVerifyRateLimit,
+  validate(linkEmailVerifySchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    const user = (req as AuthenticatedRequest).user;
+    const email = (req.body.email as string).toLowerCase().trim();
+    const code = (req.body.code as string).trim();
+
+    const { data: v, error } = await supabaseAuth.auth.verifyOtp({
+      email,
+      token: code,
+      type: 'email',
+    });
+    if (error || !v?.user) {
+      throw new AppError(401, 'That code is invalid or expired', 'OTP_INVALID');
+    }
+
+    // Supabase may have created a "shadow" auth user for this email (no app
+    // profile). If so, delete it so the address is free to attach; a real
+    // account keeps its profile and the merge path handles it.
+    const emailAuthId = v.user.id;
+    if (emailAuthId !== user.authId) {
+      const { data: prof } = await supabase
+        .from('users')
+        .select('id')
+        .eq('auth_id', emailAuthId)
+        .maybeSingle();
+      if (!prof) {
+        await supabaseAuth.auth.admin.deleteUser(emailAuthId).then(() => {}, () => {});
+      }
+    }
+
+    const { merged } = await attachEmailToUser(user.authId, user.id, email, 'LINK_EMAIL_FAILED', true);
+    res.json({ success: true, data: { email, verified: true, merged } });
   })
 );
 
