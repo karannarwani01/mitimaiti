@@ -7,7 +7,7 @@ struct PhoneAuthView: View {
     @Environment(\.dismiss) var dismiss
     @Environment(\.adaptiveColors) private var colors
     private let localization = LocalizationManager.shared
-    @State private var selectedCountry = CountryCode.india
+    @State private var selectedCountry = CountryCode.detected()
     @State private var showCountryPicker = false
     @State private var navigateToOTP = false
     @State private var animateIn = false
@@ -35,6 +35,21 @@ struct PhoneAuthView: View {
             CountryCode(short: "KE", name: "Kenya", code: "+254"),
             CountryCode(short: "NG", name: "Nigeria", code: "+234")
         ]
+
+        /// Best guess of the user's country from the device region setting.
+        /// (Carrier ISO via CoreTelephony is deprecated/unreliable on modern
+        /// iOS, so the device region is the standard signal.) No permission
+        /// needed. Falls back to India if the region isn't in our list.
+        static func detected() -> CountryCode {
+            let region: String?
+            if #available(iOS 16, *) {
+                region = Locale.current.region?.identifier
+            } else {
+                region = Locale.current.regionCode
+            }
+            guard let iso = region?.uppercased() else { return .india }
+            return all.first { $0.short == iso } ?? .india
+        }
     }
 
     // MARK: - Body

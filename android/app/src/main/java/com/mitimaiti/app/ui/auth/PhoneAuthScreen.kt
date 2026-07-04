@@ -1,6 +1,8 @@
 @file:Suppress("DEPRECATION")
 package com.mitimaiti.app.ui.auth
 
+import android.content.Context
+import android.telephony.TelephonyManager
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -85,6 +87,25 @@ private val countryCodes = listOf(
     CountryCode("+234", "Nigeria", "NG"),
 )
 
+/**
+ * Best guess of the user's country for the phone-code picker, in order of
+ * reliability for a phone number: SIM card country → registered network
+ * country → device locale region. None of these require any permission.
+ * Falls back to the first entry (India) if the region isn't in our list.
+ */
+private fun detectCountryCode(context: Context): CountryCode {
+    val iso = try {
+        val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
+        tm?.simCountryIso?.takeIf { it.isNotBlank() }
+            ?: tm?.networkCountryIso?.takeIf { it.isNotBlank() }
+            ?: java.util.Locale.getDefault().country
+    } catch (_: Exception) {
+        java.util.Locale.getDefault().country
+    }
+    return countryCodes.firstOrNull { it.shortName.equals(iso, ignoreCase = true) }
+        ?: countryCodes[0]
+}
+
 @Composable
 fun PhoneAuthScreen(viewModel: AuthViewModel, onOTPSent: () -> Unit, onEmailSelected: () -> Unit, onBack: () -> Unit) {
     val colors = LocalAdaptiveColors.current
@@ -95,7 +116,7 @@ fun PhoneAuthScreen(viewModel: AuthViewModel, onOTPSent: () -> Unit, onEmailSele
     val error by viewModel.error.collectAsState()
     val otpSent by viewModel.otpSent.collectAsState()
     val isAuthenticated by viewModel.isAuthenticated.collectAsState()
-    var selectedCountry by remember { mutableStateOf(countryCodes[0]) }
+    var selectedCountry by remember { mutableStateOf(detectCountryCode(context)) }
     var showDropdown by remember { mutableStateOf(false) }
     var isPhoneFocused by remember { mutableStateOf(false) }
     // Local digits-only state (no country code). The viewmodel's `phone` holds
