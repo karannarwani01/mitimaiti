@@ -20,6 +20,7 @@ import com.mitimaiti.app.navigation.Screen
 import com.mitimaiti.app.navigation.SplashDestination
 import com.mitimaiti.app.services.APIService
 import com.mitimaiti.app.ui.auth.EmailAuthScreen
+import com.mitimaiti.app.ui.auth.LinkAccountScreen
 import com.mitimaiti.app.ui.auth.OTPVerificationScreen
 import com.mitimaiti.app.ui.auth.PhoneAuthScreen
 import com.mitimaiti.app.ui.auth.SplashScreen
@@ -169,10 +170,22 @@ class MainActivity : ComponentActivity() {
                             OTPVerificationScreen(
                                 viewModel = authViewModel,
                                 onVerified = {
-                                    val dest = if (authViewModel.hasCompletedOnboarding.value) Screen.Main.route else Screen.Onboarding.route
+                                    // New users get the optional "add a backup sign-in" step
+                                    // before onboarding; returning users go straight in.
+                                    val dest = if (authViewModel.hasCompletedOnboarding.value) Screen.Main.route else Screen.LinkAccount.route
                                     navController.navigate(dest) { popUpTo(Screen.Welcome.route) { inclusive = true } }
                                 },
                                 onBack = { navController.popBackStack() }
+                            )
+                        }
+                        composable(Screen.LinkAccount.route) {
+                            LinkAccountScreen(
+                                viewModel = authViewModel,
+                                onDone = {
+                                    navController.navigate(Screen.Onboarding.route) {
+                                        popUpTo(Screen.LinkAccount.route) { inclusive = true }
+                                    }
+                                }
                             )
                         }
                         composable(Screen.Onboarding.route) {

@@ -3,6 +3,7 @@ package com.mitimaiti.app.viewmodels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mitimaiti.app.models.User
+import com.mitimaiti.app.services.APIError
 import com.mitimaiti.app.services.APIService
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,11 +35,51 @@ class AuthViewModel : ViewModel() {
     private val _currentUser = MutableStateFlow<User?>(null)
     val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
 
+    // Account linking (post-OTP "add a backup sign-in" screen + Settings)
+    private val _linkInProgress = MutableStateFlow(false)
+    val linkInProgress: StateFlow<Boolean> = _linkInProgress.asStateFlow()
+    /** null = idle, "success" = linked, otherwise a user-facing error message. */
+    private val _linkResult = MutableStateFlow<String?>(null)
+    val linkResult: StateFlow<String?> = _linkResult.asStateFlow()
+
     fun updatePhone(value: String) { _phone.value = value }
     fun updateEmail(value: String) { _email.value = value.trim() }
     fun updateOtpCode(value: String) { _otpCode.value = value.take(6) }
     fun clearError() { _error.value = null }
     fun resetOtpState() { _otpSent.value = false; _otpCode.value = ""; _error.value = null }
+    fun clearLinkResult() { _linkResult.value = null }
+
+    fun linkEmail(rawEmail: String) {
+        val email = rawEmail.trim()
+        if (!isValidEmail(email)) { _linkResult.value = "Please enter a valid email address"; return }
+        viewModelScope.launch {
+            _linkInProgress.value = true
+            APIService.linkEmail(email)
+                .onSuccess { _linkResult.value = "success" }
+                .onFailure {
+                    _linkResult.value = when (it) {
+                        is APIError.LinkConflict -> "That email is already linked to another account"
+                        else -> "Couldn't link that email. Please try again."
+                    }
+                }
+            _linkInProgress.value = false
+        }
+    }
+
+    fun linkGoogle(idToken: String) {
+        viewModelScope.launch {
+            _linkInProgress.value = true
+            APIService.linkGoogle(idToken)
+                .onSuccess { _linkResult.value = "success" }
+                .onFailure {
+                    _linkResult.value = when (it) {
+                        is APIError.LinkConflict -> "That Google account is already linked elsewhere"
+                        else -> "Couldn't link Google. Please try again."
+                    }
+                }
+            _linkInProgress.value = false
+        }
+    }
 
     fun sendOTP() {
         if (_phone.value.length < 10) { _error.value = "Please enter a valid phone number"; return }

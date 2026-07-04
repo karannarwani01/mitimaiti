@@ -17,6 +17,12 @@ struct ContentView: View {
                         insertion: .move(edge: .trailing).combined(with: .opacity),
                         removal: .opacity
                     ))
+            } else if authVM.showLinkStep {
+                LinkAccountView()
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                        removal: .opacity
+                    ))
             } else if !authVM.hasCompletedOnboarding {
                 OnboardingContainerView()
                     .transition(.asymmetric(
@@ -36,6 +42,7 @@ struct ContentView: View {
         }
         .animation(.easeInOut(duration: 0.5), value: showSplash)
         .animation(.easeInOut(duration: 0.5), value: authVM.isAuthenticated)
+        .animation(.easeInOut(duration: 0.5), value: authVM.showLinkStep)
         .animation(.easeInOut(duration: 0.5), value: authVM.hasCompletedOnboarding)
         .task {
             // Resume a saved session (if any) while the splash is visible,

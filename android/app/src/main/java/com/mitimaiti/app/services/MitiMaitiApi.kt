@@ -28,6 +28,16 @@ interface MitiMaitiApi {
     @POST("auth/google/verify")
     suspend fun verifyGoogleIdToken(@Body body: Map<String, String>): Response<Map<String, Any>>
 
+    // Account linking — attach email/Google to the CURRENT signed-in account.
+    @POST("auth/link/email")
+    suspend fun linkEmail(@Body body: Map<String, String>): Response<Map<String, Any>>
+
+    @POST("auth/link/google")
+    suspend fun linkGoogle(@Body body: Map<String, String>): Response<Map<String, Any>>
+
+    @GET("auth/link/status")
+    suspend fun linkStatus(): Response<Map<String, Any>>
+
     @POST("auth/refresh")
     suspend fun refreshToken(@Body body: Map<String, String>): Response<Map<String, Any>>
 

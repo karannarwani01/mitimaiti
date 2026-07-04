@@ -28,6 +28,12 @@ class AuthViewModel: ObservableObject {
     @Published var resendCooldown = 0
     @Published var resendCount = 0
 
+    // Account linking (post-OTP "add a backup sign-in" step + Settings)
+    @Published var showLinkStep = false
+    @Published var linkInProgress = false
+    /// nil = idle, "success" = linked, otherwise a user-facing error message.
+    @Published var linkResult: String? = nil
+
     private let api = APIService.shared
     private var timer: Timer?
 
@@ -68,6 +74,8 @@ class AuthViewModel: ObservableObject {
                 let result = try await api.verifyOTP(phone: e164Phone, code: otpCode)
                 isLoading = false
                 hasCompletedOnboarding = !result.needsOnboarding
+                // New phone users get the optional "add a backup sign-in" step first.
+                showLinkStep = result.needsOnboarding
                 isAuthenticated = true
                 SocketChat.shared.connect(token: result.accessToken)
             } catch {
@@ -119,6 +127,46 @@ class AuthViewModel: ObservableObject {
             } catch {
                 isLoading = false
                 self.error = "Invalid code. Please try again."
+            }
+        }
+    }
+
+    func clearLinkResult() { linkResult = nil }
+    func finishLinkStep() { showLinkStep = false; linkResult = nil }
+
+    func linkEmailAddress(_ rawEmail: String) {
+        let email = rawEmail.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard email.contains("@"), email.contains(".") else {
+            linkResult = "Please enter a valid email address"; return
+        }
+        linkInProgress = true
+        linkResult = nil
+        Task {
+            do {
+                try await api.linkEmail(email)
+                linkInProgress = false
+                linkResult = "success"
+            } catch {
+                linkInProgress = false
+                linkResult = "Couldn't link that email — it may already be in use."
+            }
+        }
+    }
+
+    func linkGoogleAccount() {
+        linkInProgress = true
+        linkResult = nil
+        Task {
+            do {
+                let idToken = try await GoogleSignInService.signIn()
+                try await api.linkGoogle(idToken: idToken)
+                linkInProgress = false
+                linkResult = "success"
+            } catch GoogleSignInError.canceled {
+                linkInProgress = false
+            } catch {
+                linkInProgress = false
+                linkResult = "Couldn't link Google. Please try again."
             }
         }
     }

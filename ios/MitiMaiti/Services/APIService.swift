@@ -115,6 +115,19 @@ actor APIService {
         return (resp.session.accessToken, resp.session.refreshToken, resp.user.isNew, resp.user.profileCompleteness ?? 0, resp.user.firstName, resp.user.needsOnboarding ?? resp.user.isNew)
     }
 
+    // MARK: - Account linking (attach email/Google to the current account)
+
+    func linkEmail(_ email: String) async throws {
+        struct Body: Encodable { let email: String }
+        let _: EmptyData = try await authedRequest(.post, "/auth/link/email", body: Body(email: email))
+    }
+
+    func linkGoogle(idToken: String) async throws {
+        // Backend expects camelCase `idToken`; bypass the snake-casing encoder.
+        let raw = try JSONSerialization.data(withJSONObject: ["idToken": idToken])
+        let _: EmptyData = try await authedRequest(.post, "/auth/link/google", rawBody: raw)
+    }
+
     func verifyAppleIdToken(
         _ idToken: String,
         nonce: String?,

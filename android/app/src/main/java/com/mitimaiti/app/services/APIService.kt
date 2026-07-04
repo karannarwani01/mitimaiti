@@ -82,6 +82,31 @@ object APIService {
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
 
+    /** Attach an email to the current account so future email logins land on
+     *  the same profile. 409 => the email already belongs to another account. */
+    suspend fun linkEmail(email: String): Result<Unit> {
+        return try {
+            val r = api.linkEmail(mapOf("email" to email))
+            when {
+                r.isSuccessful -> Result.success(Unit)
+                r.code() == 409 -> Result.failure(APIError.LinkConflict)
+                else -> Result.failure(APIError.ServerError)
+            }
+        } catch (e: Exception) { Result.failure(APIError.NetworkError) }
+    }
+
+    /** Attach the user's Google email to the current account. */
+    suspend fun linkGoogle(idToken: String): Result<Unit> {
+        return try {
+            val r = api.linkGoogle(mapOf("idToken" to idToken))
+            when {
+                r.isSuccessful -> Result.success(Unit)
+                r.code() == 409 -> Result.failure(APIError.LinkConflict)
+                else -> Result.failure(APIError.ServerError)
+            }
+        } catch (e: Exception) { Result.failure(APIError.NetworkError) }
+    }
+
     /** GDPR data export: returns the raw JSON of everything the backend
      *  stores about the user (rate-limited to 2/hour server-side). */
     suspend fun exportData(): Result<String> {
@@ -891,6 +916,7 @@ object APIService {
 
 sealed class APIError : Exception() {
     object InvalidOTP : APIError()
+    object LinkConflict : APIError()
     object NetworkError : APIError()
     object Unauthorized : APIError()
     object RateLimited : APIError()
