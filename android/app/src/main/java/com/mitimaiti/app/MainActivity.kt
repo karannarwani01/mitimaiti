@@ -257,8 +257,12 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onOpenTerms = { navController.navigate(Screen.Terms.route) },
                                 onOpenPrivacy = { navController.navigate(Screen.Privacy.route) },
-                                onOpenGuidelines = { navController.navigate(Screen.Guidelines.route) }
+                                onOpenGuidelines = { navController.navigate(Screen.Guidelines.route) },
+                                onOpenSignInMethods = { navController.navigate(Screen.SignInMethods.route) }
                             )
+                        }
+                        composable(Screen.SignInMethods.route) {
+                            SignInMethodsScreen(viewModel = authViewModel, onBack = { navController.popBackStack() })
                         }
                         composable(Screen.Guidelines.route) {
                             GuidelinesScreen(onBack = { navController.popBackStack() })

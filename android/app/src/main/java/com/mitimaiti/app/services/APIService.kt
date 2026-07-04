@@ -107,6 +107,26 @@ object APIService {
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
 
+    data class LinkStatus(val phone: String?, val email: String?, val google: Boolean, val apple: Boolean)
+
+    /** Which sign-in methods are on the current account (for Settings). */
+    suspend fun linkStatus(): Result<LinkStatus> {
+        return try {
+            val r = api.linkStatus()
+            if (r.isSuccessful) {
+                val m = r.body() ?: emptyMap<String, Any?>()
+                Result.success(
+                    LinkStatus(
+                        phone = m["phone"] as? String,
+                        email = m["email"] as? String,
+                        google = (m["google"] as? Boolean) ?: false,
+                        apple = (m["apple"] as? Boolean) ?: false
+                    )
+                )
+            } else Result.failure(APIError.ServerError)
+        } catch (e: Exception) { Result.failure(APIError.NetworkError) }
+    }
+
     /** GDPR data export: returns the raw JSON of everything the backend
      *  stores about the user (rate-limited to 2/hour server-side). */
     suspend fun exportData(): Result<String> {

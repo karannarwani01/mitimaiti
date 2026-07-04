@@ -40,7 +40,8 @@ fun SettingsScreen(
     onLogout: () -> Unit,
     onOpenTerms: () -> Unit = {},
     onOpenPrivacy: () -> Unit = {},
-    onOpenGuidelines: () -> Unit = {}
+    onOpenGuidelines: () -> Unit = {},
+    onOpenSignInMethods: () -> Unit = {}
 ) {
     val colors = LocalAdaptiveColors.current
     val scrollState = rememberScrollState()
@@ -464,6 +465,23 @@ fun SettingsScreen(
                             Spacer(modifier = Modifier.weight(1f))
                             Text("+91 ****3210", fontSize = 13.sp, color = colors.textMuted)
                             Spacer(modifier = Modifier.width(4.dp))
+                            Icon(Icons.Default.ChevronRight, null, tint = colors.textMuted, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                    HorizontalDivider(color = colors.borderSubtle)
+                    // Sign-in methods (link email / Google to this account)
+                    TextButton(
+                        onClick = onOpenSignInMethods,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Key, null, tint = colors.textSecondary, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text("Sign-in methods", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = colors.textPrimary)
+                            Spacer(modifier = Modifier.weight(1f))
                             Icon(Icons.Default.ChevronRight, null, tint = colors.textMuted, modifier = Modifier.size(18.dp))
                         }
                     }

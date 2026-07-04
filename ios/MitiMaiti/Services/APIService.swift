@@ -128,6 +128,18 @@ actor APIService {
         let _: EmptyData = try await authedRequest(.post, "/auth/link/google", rawBody: raw)
     }
 
+    struct LinkStatus: Decodable {
+        let phone: String?
+        let email: String?
+        let google: Bool
+        let apple: Bool
+    }
+
+    /// Which sign-in methods are on the current account (for Settings).
+    func linkStatus() async throws -> LinkStatus {
+        return try await authedRequest(.get, "/auth/link/status")
+    }
+
     func verifyAppleIdToken(
         _ idToken: String,
         nonce: String?,

@@ -417,6 +417,12 @@ struct SettingsView: View {
                 settingsRow(icon: "person.3.fill", title: localization.t("settings.familyMode"), color: AppTheme.rose)
             }
 
+            NavigationLink {
+                SignInMethodsView()
+            } label: {
+                settingsRow(icon: "key.fill", title: "Sign-in methods", color: AppTheme.rose)
+            }
+
             // Export Data (GDPR) — downloads the JSON and opens the share sheet
             Button {
                 exportMyData()
