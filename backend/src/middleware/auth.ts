@@ -48,14 +48,32 @@ export async function authenticate(
     // Redis down — continue without blacklist check
   }
 
-  // Lookup user in PostgreSQL
-  const { data: dbUser, error: dbError } = await supabase
+  // Lookup user in PostgreSQL by primary auth_id.
+  let { data: dbUser } = await supabase
     .from('users')
     .select('id, auth_id, phone, is_banned, is_hidden')
     .eq('auth_id', authUser.id)
-    .single();
+    .maybeSingle();
 
-  if (dbError || !dbUser) {
+  // Fallback: this token may be a linked/secondary identity (e.g. a Google
+  // login attached to a phone profile). Resolve the alias → the real profile.
+  if (!dbUser) {
+    const { data: alias } = await supabase
+      .from('auth_identities')
+      .select('user_id')
+      .eq('auth_id', authUser.id)
+      .maybeSingle();
+    if (alias) {
+      const { data: aliased } = await supabase
+        .from('users')
+        .select('id, auth_id, phone, is_banned, is_hidden')
+        .eq('id', alias.user_id)
+        .maybeSingle();
+      dbUser = aliased ?? null;
+    }
+  }
+
+  if (!dbUser) {
     throw new AppError(404, 'User account not found', 'USER_NOT_FOUND');
   }
 

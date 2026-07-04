@@ -727,23 +727,74 @@ router.post(
       token: idToken,
     });
 
-    if (authError || !authUser || !session) {
-      throw new AppError(
-        401,
-        authError?.message || 'Google sign-in failed',
-        'GOOGLE_SUPABASE_SIGNIN_FAILED'
-      );
+    let authUserId: string;
+    let sessionData: { access_token: string; refresh_token: string; expires_at?: number };
+
+    if (authUser && session) {
+      authUserId = authUser.id;
+      sessionData = session;
+    } else {
+      // GoTrue wouldn't issue a Google session. The common cause is that this
+      // Google email was linked to another auth user (e.g. a phone profile) and
+      // GoTrue won't auto-link. If we recognise the email as an existing
+      // profile, mint a session for THAT auth user directly so linked-Google
+      // login lands on the right profile regardless of GoTrue's linking policy.
+      const { data: byEmail } = await supabase
+        .from('users')
+        .select('auth_id')
+        .eq('email', email)
+        .maybeSingle();
+
+      if (!byEmail?.auth_id) {
+        throw new AppError(401, authError?.message || 'Google sign-in failed', 'GOOGLE_SUPABASE_SIGNIN_FAILED');
+      }
+
+      const { data: link, error: linkErr } = await supabaseAuth.auth.admin.generateLink({
+        type: 'magiclink',
+        email,
+      });
+      const otp = link?.properties?.email_otp;
+      if (linkErr || !otp) {
+        throw new AppError(401, 'Google sign-in failed', 'GOOGLE_SUPABASE_SIGNIN_FAILED');
+      }
+      const { data: verified, error: verifyErr } = await supabaseAuth.auth.verifyOtp({
+        email,
+        token: otp,
+        type: 'email',
+      });
+      if (verifyErr || !verified?.session || !verified?.user) {
+        throw new AppError(401, 'Google sign-in failed', 'GOOGLE_SUPABASE_SIGNIN_FAILED');
+      }
+      authUserId = verified.user.id;
+      sessionData = verified.session;
     }
 
-    const authUserId = authUser.id;
-    const sessionData = session;
-
     // 3. Look up or provision our application-side users row.
-    const { data: existingUser } = await supabase
+    let { data: existingUser } = await supabase
       .from('users')
       .select('*')
       .eq('auth_id', authUserId)
-      .single();
+      .maybeSingle();
+
+    // Hardening: if GoTrue didn't route this Google login to the auth user the
+    // email was linked to (no profile for this auth_id), but the verified email
+    // already belongs to a profile, resolve to THAT profile and record this
+    // auth_id as an alias so it — and every future request with this session —
+    // maps to the right user. This makes linked-Google login work regardless of
+    // Supabase's automatic same-email linking behaviour.
+    if (!existingUser) {
+      const { data: byEmail } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .maybeSingle();
+      if (byEmail) {
+        await supabase
+          .from('auth_identities')
+          .upsert({ auth_id: authUserId, user_id: byEmail.id, provider: 'google' });
+        existingUser = byEmail;
+      }
+    }
 
     if (existingUser) {
       const updates: Record<string, any> = {
