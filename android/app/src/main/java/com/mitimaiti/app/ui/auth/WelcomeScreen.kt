@@ -1,6 +1,7 @@
 package com.mitimaiti.app.ui.auth
 
 import androidx.compose.animation.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -17,7 +18,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import com.mitimaiti.app.R
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -58,6 +61,12 @@ fun WelcomeScreen(
         ) {
             androidx.compose.animation.AnimatedVisibility(visible = isVisible, enter = fadeIn() + slideInVertically { -40 }) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Image(
+                        painter = painterResource(id = R.drawable.logo_mark),
+                        contentDescription = "MitiMaiti",
+                        modifier = Modifier.size(104.dp)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         "MitiMaiti",
                         fontSize = 52.sp,

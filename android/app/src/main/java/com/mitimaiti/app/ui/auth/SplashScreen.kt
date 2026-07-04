@@ -1,13 +1,13 @@
 package com.mitimaiti.app.ui.auth
 
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.ui.res.painterResource
+import com.mitimaiti.app.R
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -114,22 +114,21 @@ fun SplashScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            // Heart icon with glow
+            // Logo mark with glow
             Box(contentAlignment = Alignment.Center) {
                 Box(
                     modifier = Modifier
-                        .size(120.dp)
+                        .size(150.dp)
                         .scale(if (heartBeat) 1.2f else 0.9f)
-                        .blur(18.dp)
-                        .background(AppColors.Rose.copy(alpha = 0.12f), CircleShape)
+                        .blur(22.dp)
+                        .background(AppColors.Rose.copy(alpha = 0.16f), CircleShape)
                 )
-                Icon(
-                    imageVector = Icons.Filled.Favorite,
-                    contentDescription = null,
+                Image(
+                    painter = painterResource(id = R.drawable.logo_mark),
+                    contentDescription = "MitiMaiti",
                     modifier = Modifier
-                        .size(56.dp)
-                        .scale(heartScale),
-                    tint = AppColors.Rose
+                        .size(132.dp)
+                        .scale(heartScale)
                 )
             }
 
