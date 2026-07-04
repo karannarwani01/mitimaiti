@@ -329,6 +329,30 @@ router.get(
       }
     }
 
+    // Attach reactions (stored per-message in Redis as { userId: emoji }).
+    // The client shows a single reaction chip per message, so surface the
+    // reaction placed by the OTHER participant (falling back to any). Without
+    // this the POST-stored reactions were never loaded back — they vanished on
+    // reload and never reached the other person. Best-effort: Redis down → none.
+    const reactionByMsg: Record<string, string> = {};
+    try {
+      const ids = (messages || []).map((m: any) => m.id);
+      if (ids.length) {
+        const pipe = redis.pipeline();
+        ids.forEach((id: string) => pipe.hgetall(`reactions:${id}`));
+        const results = await pipe.exec();
+        (messages || []).forEach((m: any, i: number) => {
+          const hash = (results?.[i]?.[1] || {}) as Record<string, string>;
+          const entries = Object.entries(hash);
+          if (!entries.length) return;
+          const chosen = entries.find(([uid]) => uid !== m.sender_id) || entries[0];
+          reactionByMsg[m.id] = chosen[1];
+        });
+      }
+    } catch {
+      // reactions are best-effort; a Redis hiccup must not break chat history
+    }
+
     // Format messages (reverse to chronological order for display)
     const formattedMessages = (messages || []).reverse().map((m: any) => ({
       id: m.id,
@@ -340,6 +364,7 @@ router.get(
       mediaType: m.media_type,
       isRead: m.is_read,
       readAt: m.read_at || null,
+      reaction: reactionByMsg[m.id] || null,
       createdAt: m.created_at,
     }));
 
