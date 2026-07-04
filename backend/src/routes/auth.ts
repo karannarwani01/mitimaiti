@@ -1519,23 +1519,51 @@ router.post(
       throw new AppError(401, 'That code is invalid or expired', 'OTP_INVALID');
     }
 
-    // Supabase may have created a "shadow" auth user for this email (no app
-    // profile). If so, delete it so the address is free to attach; a real
-    // account keeps its profile and the merge path handles it.
+    // The email's authoritative owner is this auth user (from the OTP), not the
+    // mirror users.email column. Decide from it.
     const emailAuthId = v.user.id;
-    if (emailAuthId !== user.authId) {
-      const { data: prof } = await supabase
-        .from('users')
-        .select('id')
-        .eq('auth_id', emailAuthId)
-        .maybeSingle();
-      if (!prof) {
-        await supabaseAuth.auth.admin.deleteUser(emailAuthId).then(() => {}, () => {});
-      }
+    const { data: prof } = await supabase
+      .from('users')
+      .select('id')
+      .eq('auth_id', emailAuthId)
+      .maybeSingle();
+
+    // Already this account's email — nothing to do.
+    if (prof && prof.id === user.id) {
+      res.json({ success: true, data: { email, verified: true, merged: false } });
+      return;
     }
 
-    const { merged } = await attachEmailToUser(user.authId, user.id, email, 'LINK_EMAIL_FAILED', true);
-    res.json({ success: true, data: { email, verified: true, merged } });
+    // The email belongs to ANOTHER real account. Ownership is proven (OTP), so
+    // merge when the current profile is empty; never silently merge two active
+    // accounts.
+    if (prof) {
+      if (await isProfileEmpty(user.id)) {
+        await absorbEmptyProfileInto(user.id, user.authId, prof.id);
+        res.json({ success: true, data: { email, verified: true, merged: true } });
+        return;
+      }
+      throw new AppError(
+        409,
+        'That email belongs to another active account. Contact support to merge them.',
+        'MERGE_CONFLICT'
+      );
+    }
+
+    // No profile → Supabase's throwaway shadow user. Delete it so the address is
+    // free, then attach the email to the caller.
+    if (emailAuthId !== user.authId) {
+      await supabaseAuth.auth.admin.deleteUser(emailAuthId).then(() => {}, () => {});
+    }
+    const { error: upErr } = await supabaseAuth.auth.admin.updateUserById(user.authId, {
+      email,
+      email_confirm: true,
+    });
+    if (upErr) {
+      throw new AppError(500, upErr.message || 'Failed to link email', 'LINK_EMAIL_FAILED');
+    }
+    await supabase.from('users').update({ email }).eq('id', user.id).then(() => {}, () => {});
+    res.json({ success: true, data: { email, verified: true, merged: false } });
   })
 );
 
