@@ -431,7 +431,8 @@ router.get(
         occupation,
         religion,
         smoking,
-        drinking
+        drinking,
+        want_kids
       `)
       .gte('date_of_birth', minDob)
       .lte('date_of_birth', maxDob);
@@ -555,7 +556,7 @@ router.get(
     // against MY gotra (candidates-only meant it always no-oped).
     const { data: sindhiProfiles } = await supabase
       .from('sindhi_profiles')
-      .select('user_id, sindhi_fluency, gotra')
+      .select('user_id, sindhi_fluency, gotra, generation')
       .in('user_id', [...candidateIds, user.id]);
 
     const sindhiMap = new Map<string, any>();
@@ -642,6 +643,23 @@ router.get(
         if (
           chatti?.food_preference &&
           chatti.food_preference.toLowerCase() !== mySettings.dietary_filter.toLowerCase()
+        ) continue;
+      }
+
+      // Soft filter: generation (sindhi generation on sindhi_profiles —
+      // shown in both clients but never applied until now). Candidates who
+      // haven't set it pass through.
+      if (mySettings?.generation_filter) {
+        const sindhi = sindhiMap.get(cId);
+        if (sindhi?.generation && sindhi.generation !== mySettings.generation_filter) continue;
+      }
+
+      // Soft filter: family plans (want_kids on basic_profiles — same fix).
+      if (mySettings?.family_plans_filter) {
+        const candidate = profileMap.get(cId);
+        if (
+          candidate?.want_kids &&
+          candidate.want_kids.toLowerCase() !== mySettings.family_plans_filter.toLowerCase()
         ) continue;
       }
 

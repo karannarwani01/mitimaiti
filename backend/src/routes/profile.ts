@@ -204,6 +204,10 @@ const settingsSchema = z
       .enum(['vegetarian', 'non_vegetarian', 'vegan', 'jain', 'eggetarian'])
       .nullable()
       .optional(),
+    // Shown in both clients' filter UI but previously had no column, so they
+    // could not be saved OR applied (discovery.ts now reads these names).
+    generation_filter: z.string().max(20).nullable().optional(),
+    family_plans_filter: z.string().max(50).nullable().optional(),
     kundli_min: z.number().int().min(0).max(36).optional(),
   })
   .strict();
