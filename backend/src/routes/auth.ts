@@ -1327,7 +1327,12 @@ async function absorbEmptyProfileInto(
   ]) {
     await supabase.from(t).delete().eq('user_id', loserUserId).then(() => {}, () => {});
   }
-  await supabase.from('users').delete().eq('id', loserUserId);
+  const { error: delErr } = await supabase.from('users').delete().eq('id', loserUserId);
+  if (delErr) {
+    // A foreign-key row still references this profile (so it wasn't truly
+    // empty) — abort rather than leave a half-merged, orphaned-auth state.
+    throw new AppError(500, 'Could not merge accounts safely; please contact support.', 'MERGE_FAILED');
+  }
   await supabaseAuth.auth.admin.deleteUser(loserAuthId).then(() => {}, () => {});
 
   if (phone && survivorAuthId) {
