@@ -8,7 +8,8 @@
     "build": "tsc",
     "start": "node dist/migrate.js && node dist/server.js",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "e2e": "node scripts/e2e-smoke.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-rekognition": "^3.1009.0",

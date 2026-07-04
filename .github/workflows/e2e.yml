@@ -1,0 +1,41 @@
+name: E2E Smoke
+
+# Runs the live smoke test (backend/scripts/e2e-smoke.mjs) against prod on every
+# push to main, plus on demand. It SKIPS cleanly until the three repo secrets are
+# configured — so nothing here exposes credentials until you opt in. To enable:
+# add SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, TEST_ACCOUNTS_PASSWORD under
+# Settings → Secrets and variables → Actions.
+#
+# NOTE: this repo is public. Those secrets grant full DB access, so only enable
+# this if you accept that a repo collaborator / workflow change could read them.
+# (The local loop already runs `npm run e2e` safely from the gitignored .env, so
+# enabling CI here is optional.)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Run E2E smoke (skips if secrets not configured)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TEST_ACCOUNTS_PASSWORD: ${{ secrets.TEST_ACCOUNTS_PASSWORD }}
+        run: |
+          if [ -z "$SUPABASE_URL" ]; then
+            echo "::notice::E2E secrets not configured — skipping. Add SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, TEST_ACCOUNTS_PASSWORD to enable."
+            exit 0
+          fi
+          npm run e2e
