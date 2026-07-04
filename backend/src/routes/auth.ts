@@ -1292,21 +1292,91 @@ const linkGoogleSchema = z.object({
   idToken: z.string().min(10, 'Missing Google ID token'),
 });
 
-/** Attach `email` to the caller's auth user, guarding against collisions. */
+/** True if a profile has no dating data worth preserving (safe to absorb). */
+async function isProfileEmpty(userId: string): Promise<boolean> {
+  const c = async (t: string, filter: string) =>
+    (await supabase.from(t).select('*', { count: 'exact', head: true }).or(filter)).count ?? 0;
+  const total =
+    (await c('matches', `user_a_id.eq.${userId},user_b_id.eq.${userId}`)) +
+    (await c('actions', `actor_id.eq.${userId},target_id.eq.${userId}`)) +
+    ((await supabase.from('messages').select('*', { count: 'exact', head: true }).eq('sender_id', userId)).count ?? 0) +
+    ((await supabase.from('user_photos').select('*', { count: 'exact', head: true }).eq('user_id', userId)).count ?? 0);
+  return total === 0;
+}
+
+/**
+ * Absorb an EMPTY current profile into the survivor that owns the target email.
+ * The survivor keeps its OAuth identities (those can't move between Supabase
+ * users); we move the loser's phone onto the survivor if it lacks one, then
+ * delete the loser. Only call when the loser is confirmed empty.
+ */
+async function absorbEmptyProfileInto(
+  loserUserId: string,
+  loserAuthId: string,
+  survivorUserId: string
+): Promise<void> {
+  const { data: sUser } = await supabase.from('users').select('auth_id').eq('id', survivorUserId).maybeSingle();
+  const survivorAuthId = sUser?.auth_id as string | undefined;
+
+  const { data: la } = await supabaseAuth.auth.admin.getUserById(loserAuthId);
+  let phone = la?.user?.phone || '';
+
+  for (const t of [
+    'basic_profiles', 'sindhi_profiles', 'chatti_profiles', 'user_settings',
+    'user_photos', 'user_interests', 'user_fcm_tokens', 'auth_identities',
+  ]) {
+    await supabase.from(t).delete().eq('user_id', loserUserId).then(() => {}, () => {});
+  }
+  await supabase.from('users').delete().eq('id', loserUserId);
+  await supabaseAuth.auth.admin.deleteUser(loserAuthId).then(() => {}, () => {});
+
+  if (phone && survivorAuthId) {
+    const { data: sa } = await supabaseAuth.auth.admin.getUserById(survivorAuthId);
+    if (!sa?.user?.phone) {
+      if (!phone.startsWith('+')) phone = '+' + phone;
+      await supabaseAuth.auth.admin.updateUserById(survivorAuthId, { phone, phone_confirm: true });
+      await supabase.from('users').update({ phone }).eq('id', survivorUserId).then(() => {}, () => {});
+    }
+  }
+}
+
+/**
+ * Attach `email` to the caller's auth user. If another profile already owns the
+ * email and the CURRENT profile is empty, auto-merge (absorb the current empty
+ * profile into that account) since the caller has proven ownership of both.
+ * Returns { merged } — merged=true means the caller must re-authenticate.
+ */
 async function attachEmailToUser(
   authId: string,
   appUserId: string,
   email: string,
-  failCode: string
-): Promise<void> {
-  // Reject if another app profile already owns this email.
+  failCode: string,
+  emailVerified: boolean
+): Promise<{ merged: boolean }> {
   const { data: clash } = await supabase
     .from('users')
     .select('id')
     .eq('email', email)
     .neq('id', appUserId)
     .maybeSingle();
+
   if (clash) {
+    // SECURITY: only auto-merge when ownership of the email is PROVEN (e.g.
+    // Google OAuth, or an OTP-verified email). A merely typed email must never
+    // trigger a merge — otherwise an attacker could type a victim's email and
+    // have their empty account absorbed into the victim's (account takeover).
+    if (emailVerified && (await isProfileEmpty(appUserId))) {
+      await absorbEmptyProfileInto(appUserId, authId, clash.id);
+      return { merged: true };
+    }
+    if (emailVerified) {
+      // Both accounts are active with real data — never silently merge those.
+      throw new AppError(
+        409,
+        'That email belongs to another active account. Contact support to merge them.',
+        'MERGE_CONFLICT'
+      );
+    }
     throw new AppError(409, 'That email is already linked to another account', 'EMAIL_IN_USE');
   }
 
@@ -1322,6 +1392,7 @@ async function attachEmailToUser(
   }
 
   await supabase.from('users').update({ email }).eq('id', appUserId);
+  return { merged: false };
 }
 
 // POST /v1/auth/link/email — attach a typed email to the current account.
@@ -1333,8 +1404,9 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const user = (req as AuthenticatedRequest).user;
     const email = (req.body.email as string).toLowerCase().trim();
-    await attachEmailToUser(user.authId, user.id, email, 'LINK_EMAIL_FAILED');
-    res.json({ success: true, data: { email } });
+    // Typed email is NOT proven — no auto-merge (see attachEmailToUser).
+    const { merged } = await attachEmailToUser(user.authId, user.id, email, 'LINK_EMAIL_FAILED', false);
+    res.json({ success: true, data: { email, merged } });
   })
 );
 
@@ -1364,8 +1436,9 @@ router.post(
     }
 
     const email = payload.email.toLowerCase();
-    await attachEmailToUser(user.authId, user.id, email, 'LINK_GOOGLE_FAILED');
-    res.json({ success: true, data: { email, provider: 'google' } });
+    // Google OAuth proves ownership → auto-merge is safe.
+    const { merged } = await attachEmailToUser(user.authId, user.id, email, 'LINK_GOOGLE_FAILED', true);
+    res.json({ success: true, data: { email, provider: 'google', merged } });
   })
 );
 
@@ -1378,13 +1451,18 @@ router.get(
     const { data } = await supabaseAuth.auth.admin.getUserById(user.authId);
     const au = data?.user;
     const providers = new Set((au?.identities || []).map((i) => i.provider));
+    const phone = au?.phone || user.phone || null;
+    const email = au?.email || null;
     res.json({
       success: true,
       data: {
-        phone: au?.phone || user.phone || null,
-        email: au?.email || null,
+        phone,
+        email,
         google: providers.has('google'),
         apple: providers.has('apple'),
+        // Contact info is complete once BOTH a phone and an email are present —
+        // no need to prompt the user to add another.
+        complete: !!(phone && email),
       },
     });
   })
