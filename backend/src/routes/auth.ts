@@ -1218,4 +1218,125 @@ router.post(
   })
 );
 
+// ─── Account linking ─────────────────────────────────────────────────────────
+// Let a signed-in user attach an email / Google identity to their EXISTING
+// auth user, so future logins via any method resolve to the same profile.
+// The whole app keys a profile off users.auth_id, and Supabase mints a
+// separate auth user per sign-in method — so without this, "Sign in with
+// Google" after a phone signup silently created a second empty profile.
+//
+// Mechanism: set the email on the phone auth user (admin.updateUserById).
+// Email-OTP login then lands on the same auth user; and because the email is
+// confirmed, a later Google sign-in with the same address auto-links to it.
+//
+// v1 note: a typed email is attached without a separate ownership challenge —
+// logging in via it still requires the email OTP, and an address already tied
+// to another account is rejected. An explicit verify-before-attach step is a
+// planned hardening.
+
+const linkEmailSchema = z.object({
+  email: z.string().email('Enter a valid email address'),
+});
+const linkGoogleSchema = z.object({
+  idToken: z.string().min(10, 'Missing Google ID token'),
+});
+
+/** Attach `email` to the caller's auth user, guarding against collisions. */
+async function attachEmailToUser(
+  authId: string,
+  appUserId: string,
+  email: string,
+  failCode: string
+): Promise<void> {
+  // Reject if another app profile already owns this email.
+  const { data: clash } = await supabase
+    .from('users')
+    .select('id')
+    .eq('email', email)
+    .neq('id', appUserId)
+    .maybeSingle();
+  if (clash) {
+    throw new AppError(409, 'That email is already linked to another account', 'EMAIL_IN_USE');
+  }
+
+  const { error } = await supabaseAuth.auth.admin.updateUserById(authId, {
+    email,
+    email_confirm: true,
+  });
+  if (error) {
+    if (/already|exist|registered|duplicate/i.test(error.message || '')) {
+      throw new AppError(409, 'That email is already registered', 'EMAIL_IN_USE');
+    }
+    throw new AppError(500, error.message || 'Failed to link email', failCode);
+  }
+
+  await supabase.from('users').update({ email }).eq('id', appUserId);
+}
+
+// POST /v1/auth/link/email — attach a typed email to the current account.
+router.post(
+  '/link/email',
+  authenticate,
+  strictRateLimit,
+  validate(linkEmailSchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    const user = (req as AuthenticatedRequest).user;
+    const email = (req.body.email as string).toLowerCase().trim();
+    await attachEmailToUser(user.authId, user.id, email, 'LINK_EMAIL_FAILED');
+    res.json({ success: true, data: { email } });
+  })
+);
+
+// POST /v1/auth/link/google — attach the caller's Google email (ownership
+// proven by the verified ID token) so Google login resolves to this profile.
+router.post(
+  '/link/google',
+  authenticate,
+  strictRateLimit,
+  validate(linkGoogleSchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    if (!googleClientId) {
+      throw new AppError(500, 'Google sign-in is not configured on the server', 'GOOGLE_NOT_CONFIGURED');
+    }
+    const user = (req as AuthenticatedRequest).user;
+    const { idToken } = req.body;
+
+    let payload: import('google-auth-library').TokenPayload | undefined;
+    try {
+      const ticket = await googleVerifier.verifyIdToken({ idToken, audience: googleClientId });
+      payload = ticket.getPayload();
+    } catch {
+      throw new AppError(401, 'Invalid Google ID token', 'GOOGLE_TOKEN_INVALID');
+    }
+    if (!payload?.email || payload.email_verified !== true) {
+      throw new AppError(401, 'Google account email not verified', 'GOOGLE_EMAIL_UNVERIFIED');
+    }
+
+    const email = payload.email.toLowerCase();
+    await attachEmailToUser(user.authId, user.id, email, 'LINK_GOOGLE_FAILED');
+    res.json({ success: true, data: { email, provider: 'google' } });
+  })
+);
+
+// GET /v1/auth/link/status — which sign-in methods are on this account.
+router.get(
+  '/link/status',
+  authenticate,
+  asyncHandler(async (req: Request, res: Response) => {
+    const user = (req as AuthenticatedRequest).user;
+    const { data } = await supabaseAuth.auth.admin.getUserById(user.authId);
+    const au = data?.user;
+    const providers = new Set((au?.identities || []).map((i) => i.provider));
+    res.json({
+      success: true,
+      data: {
+        phone: au?.phone || user.phone || null,
+        email: au?.email || null,
+        google: providers.has('google'),
+        apple: providers.has('apple'),
+      },
+    });
+  })
+);
+
 export default router;
