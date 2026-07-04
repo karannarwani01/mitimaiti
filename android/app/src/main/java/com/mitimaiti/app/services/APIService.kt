@@ -95,6 +95,31 @@ object APIService {
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
 
+    /** Send an OTP to an email the user wants to add to their account. */
+    suspend fun linkEmailStart(email: String): Result<Unit> {
+        return try {
+            val r = api.linkEmailStart(mapOf("email" to email))
+            if (r.isSuccessful) Result.success(Unit) else Result.failure(APIError.ServerError)
+        } catch (e: Exception) { Result.failure(APIError.NetworkError) }
+    }
+
+    /** Verify the emailed OTP and attach it (or auto-merge into an existing
+     *  account). Returns true if a merge happened (caller should re-authenticate). */
+    suspend fun linkEmailVerify(email: String, code: String): Result<Boolean> {
+        return try {
+            val r = api.linkEmailVerify(mapOf("email" to email, "code" to code))
+            when {
+                r.isSuccessful -> {
+                    val data = r.body()?.get("data") as? Map<*, *>
+                    Result.success((data?.get("merged") as? Boolean) ?: false)
+                }
+                r.code() == 401 -> Result.failure(APIError.InvalidOtp)
+                r.code() == 409 -> Result.failure(APIError.LinkConflict)
+                else -> Result.failure(APIError.ServerError)
+            }
+        } catch (e: Exception) { Result.failure(APIError.NetworkError) }
+    }
+
     /** Attach the user's Google email to the current account. */
     suspend fun linkGoogle(idToken: String): Result<Unit> {
         return try {
@@ -937,6 +962,7 @@ object APIService {
 sealed class APIError : Exception() {
     object InvalidOTP : APIError()
     object LinkConflict : APIError()
+    object InvalidOtp : APIError()
     object NetworkError : APIError()
     object Unauthorized : APIError()
     object RateLimited : APIError()

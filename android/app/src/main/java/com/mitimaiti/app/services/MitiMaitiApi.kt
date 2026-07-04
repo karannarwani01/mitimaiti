@@ -35,6 +35,13 @@ interface MitiMaitiApi {
     @POST("auth/link/google")
     suspend fun linkGoogle(@Body body: Map<String, String>): Response<Map<String, Any>>
 
+    // Add an email with OTP verification (proves ownership, enables safe merge).
+    @POST("auth/link/email/start")
+    suspend fun linkEmailStart(@Body body: Map<String, String>): Response<Map<String, Any>>
+
+    @POST("auth/link/email/verify")
+    suspend fun linkEmailVerify(@Body body: Map<String, String>): Response<Map<String, Any>>
+
     @GET("auth/link/status")
     suspend fun linkStatus(): Response<Map<String, Any>>
 

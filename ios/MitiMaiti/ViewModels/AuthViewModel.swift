@@ -33,6 +33,8 @@ class AuthViewModel: ObservableObject {
     @Published var linkInProgress = false
     /// nil = idle, "success" = linked, otherwise a user-facing error message.
     @Published var linkResult: String? = nil
+    @Published var linkEmailOtpSent = false
+    @Published var pendingLinkEmail = ""
 
     private let api = APIService.shared
     private var timer: Timer?
@@ -152,6 +154,45 @@ class AuthViewModel: ObservableObject {
             }
         }
     }
+
+    /// Step 1: send an OTP to the email the user wants to add.
+    func linkEmailStart(_ rawEmail: String) {
+        let email = rawEmail.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard email.contains("@"), email.contains(".") else {
+            linkResult = "Please enter a valid email address"; return
+        }
+        linkInProgress = true
+        linkResult = nil
+        Task {
+            do {
+                try await api.linkEmailStart(email)
+                pendingLinkEmail = email
+                linkEmailOtpSent = true
+                linkInProgress = false
+            } catch {
+                linkInProgress = false
+                linkResult = "Couldn't send the code. Please try again."
+            }
+        }
+    }
+
+    /// Step 2: verify the emailed code → attaches the email (or auto-merges).
+    func linkEmailVerify(_ code: String) {
+        linkInProgress = true
+        linkResult = nil
+        Task {
+            do {
+                let merged = try await api.linkEmailVerify(pendingLinkEmail, code: code)
+                linkInProgress = false
+                linkResult = merged ? "merged" : "success"
+            } catch {
+                linkInProgress = false
+                linkResult = "That code is invalid or expired."
+            }
+        }
+    }
+
+    func resetLinkEmailOtp() { linkEmailOtpSent = false; pendingLinkEmail = "" }
 
     func linkGoogleAccount() {
         linkInProgress = true

@@ -128,6 +128,20 @@ actor APIService {
         let _: EmptyData = try await authedRequest(.post, "/auth/link/google", rawBody: raw)
     }
 
+    // Add an email with OTP verification (proves ownership → enables safe merge).
+    func linkEmailStart(_ email: String) async throws {
+        struct Body: Encodable { let email: String }
+        let _: EmptyData = try await authedRequest(.post, "/auth/link/email/start", body: Body(email: email))
+    }
+
+    struct LinkEmailVerifyResult: Decodable { let merged: Bool }
+    /// Verify the emailed OTP + attach (or auto-merge). Returns true if merged.
+    func linkEmailVerify(_ email: String, code: String) async throws -> Bool {
+        struct Body: Encodable { let email: String; let code: String }
+        let r: LinkEmailVerifyResult = try await authedRequest(.post, "/auth/link/email/verify", body: Body(email: email, code: code))
+        return r.merged
+    }
+
     struct LinkStatus: Decodable {
         let phone: String?
         let email: String?

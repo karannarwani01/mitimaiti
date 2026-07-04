@@ -11,6 +11,7 @@ struct SignInMethodsView: View {
     @State private var loading = true
     @State private var showEmailSheet = false
     @State private var emailInput = ""
+    @State private var codeInput = ""
 
     private var errorMessage: String? {
         guard let r = authVM.linkResult, r != "success" else { return nil }
@@ -51,8 +52,8 @@ struct SignInMethodsView: View {
         }
         .task { await refresh() }
         .onChange(of: authVM.linkResult) { newValue in
-            if newValue == "success" {
-                showEmailSheet = false
+            if newValue == "success" || newValue == "merged" {
+                showEmailSheet = false; codeInput = ""; authVM.resetLinkEmailOtp()
                 Task { await refresh(); authVM.clearLinkResult() }
             }
         }
@@ -93,33 +94,54 @@ struct SignInMethodsView: View {
     private var emailSheet: some View {
         NavigationView {
             VStack(alignment: .leading, spacing: 16) {
-                Text("We'll link it to your account. You can sign in with it later.")
-                    .font(.system(size: 14)).foregroundColor(colors.textSecondary)
-                TextField("you@example.com", text: $emailInput)
-                    .textInputAutocapitalization(.never)
-                    .keyboardType(.emailAddress)
-                    .autocorrectionDisabled()
-                    .padding()
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(colors.border, lineWidth: 1))
-                if let msg = errorMessage {
-                    Text(msg).font(.system(size: 12)).foregroundColor(.red)
+                if !authVM.linkEmailOtpSent {
+                    Text("We'll send a code to verify it, then link it to your account.")
+                        .font(.system(size: 14)).foregroundColor(colors.textSecondary)
+                    TextField("you@example.com", text: $emailInput)
+                        .textInputAutocapitalization(.never)
+                        .keyboardType(.emailAddress)
+                        .autocorrectionDisabled()
+                        .padding()
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(colors.border, lineWidth: 1))
+                    if let msg = errorMessage {
+                        Text(msg).font(.system(size: 12)).foregroundColor(.red)
+                    }
+                    Button(action: { authVM.linkEmailStart(emailInput) }) {
+                        Text(authVM.linkInProgress ? "Sending…" : "Send code")
+                            .font(.system(size: 16, weight: .semibold)).foregroundColor(.white)
+                            .frame(maxWidth: .infinity).frame(height: 52)
+                            .background(emailInput.isEmpty ? AppTheme.rose.opacity(0.5) : AppTheme.rose)
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+                    .disabled(authVM.linkInProgress || emailInput.isEmpty)
+                } else {
+                    Text("Enter the 6-digit code we sent to \(emailInput).")
+                        .font(.system(size: 14)).foregroundColor(colors.textSecondary)
+                    TextField("000000", text: $codeInput)
+                        .keyboardType(.numberPad)
+                        .onChange(of: codeInput) { v in codeInput = String(v.filter { $0.isNumber }.prefix(6)) }
+                        .padding()
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(colors.border, lineWidth: 1))
+                    if let msg = errorMessage {
+                        Text(msg).font(.system(size: 12)).foregroundColor(.red)
+                    }
+                    Button(action: { authVM.linkEmailVerify(codeInput) }) {
+                        Text(authVM.linkInProgress ? "Verifying…" : "Verify")
+                            .font(.system(size: 16, weight: .semibold)).foregroundColor(.white)
+                            .frame(maxWidth: .infinity).frame(height: 52)
+                            .background(codeInput.count < 4 ? AppTheme.rose.opacity(0.5) : AppTheme.rose)
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+                    .disabled(authVM.linkInProgress || codeInput.count < 4)
                 }
-                Button(action: { authVM.linkEmailAddress(emailInput) }) {
-                    Text(authVM.linkInProgress ? "Linking…" : "Link email")
-                        .font(.system(size: 16, weight: .semibold)).foregroundColor(.white)
-                        .frame(maxWidth: .infinity).frame(height: 52)
-                        .background(emailInput.isEmpty ? AppTheme.rose.opacity(0.5) : AppTheme.rose)
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                }
-                .disabled(authVM.linkInProgress || emailInput.isEmpty)
                 Spacer()
             }
             .padding(24)
-            .navigationTitle("Add your email")
+            .navigationTitle(authVM.linkEmailOtpSent ? "Enter the code" : "Add your email")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { showEmailSheet = false }.disabled(authVM.linkInProgress)
+                    Button("Cancel") { showEmailSheet = false; codeInput = ""; authVM.resetLinkEmailOtp() }.disabled(authVM.linkInProgress)
                 }
             }
         }

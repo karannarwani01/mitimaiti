@@ -41,6 +41,11 @@ class AuthViewModel : ViewModel() {
     /** null = idle, "success" = linked, otherwise a user-facing error message. */
     private val _linkResult = MutableStateFlow<String?>(null)
     val linkResult: StateFlow<String?> = _linkResult.asStateFlow()
+    /** true once the email OTP has been sent → show the code step. */
+    private val _linkEmailOtpSent = MutableStateFlow(false)
+    val linkEmailOtpSent: StateFlow<Boolean> = _linkEmailOtpSent.asStateFlow()
+    private val _pendingLinkEmail = MutableStateFlow("")
+    val pendingLinkEmail: StateFlow<String> = _pendingLinkEmail.asStateFlow()
 
     fun updatePhone(value: String) { _phone.value = value }
     fun updateEmail(value: String) { _email.value = value.trim() }
@@ -65,6 +70,38 @@ class AuthViewModel : ViewModel() {
             _linkInProgress.value = false
         }
     }
+
+    /** Step 1: send an OTP to the email the user wants to add. */
+    fun linkEmailStart(rawEmail: String) {
+        val email = rawEmail.trim()
+        if (!isValidEmail(email)) { _linkResult.value = "Please enter a valid email address"; return }
+        viewModelScope.launch {
+            _linkInProgress.value = true
+            APIService.linkEmailStart(email)
+                .onSuccess { _pendingLinkEmail.value = email; _linkEmailOtpSent.value = true }
+                .onFailure { _linkResult.value = "Couldn't send the code. Please try again." }
+            _linkInProgress.value = false
+        }
+    }
+
+    /** Step 2: verify the emailed code → attaches the email (or auto-merges). */
+    fun linkEmailVerify(code: String) {
+        viewModelScope.launch {
+            _linkInProgress.value = true
+            APIService.linkEmailVerify(_pendingLinkEmail.value, code)
+                .onSuccess { merged -> _linkResult.value = if (merged) "merged" else "success" }
+                .onFailure {
+                    _linkResult.value = when (it) {
+                        is APIError.InvalidOtp -> "That code is invalid or expired"
+                        is APIError.LinkConflict -> "That email belongs to another active account"
+                        else -> "Couldn't verify the code. Please try again."
+                    }
+                }
+            _linkInProgress.value = false
+        }
+    }
+
+    fun resetLinkEmailOtp() { _linkEmailOtpSent.value = false; _pendingLinkEmail.value = "" }
 
     fun linkGoogle(idToken: String) {
         viewModelScope.launch {

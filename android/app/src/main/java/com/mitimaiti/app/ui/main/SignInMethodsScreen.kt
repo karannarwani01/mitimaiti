@@ -48,7 +48,9 @@ fun SignInMethodsScreen(viewModel: AuthViewModel, onBack: () -> Unit) {
     var loading by remember { mutableStateOf(true) }
     var showEmailDialog by remember { mutableStateOf(false) }
     var emailInput by remember { mutableStateOf("") }
+    var codeInput by remember { mutableStateOf("") }
     var localError by remember { mutableStateOf<String?>(null) }
+    val otpSent by viewModel.linkEmailOtpSent.collectAsState()
 
     suspend fun refresh() {
         loading = true
@@ -58,7 +60,20 @@ fun SignInMethodsScreen(viewModel: AuthViewModel, onBack: () -> Unit) {
     LaunchedEffect(Unit) { refresh() }
     // Re-load after a successful link and close the dialog.
     LaunchedEffect(result) {
-        if (result == "success") { showEmailDialog = false; refresh(); viewModel.clearLinkResult() }
+        when (result) {
+            "success" -> {
+                showEmailDialog = false; emailInput = ""; codeInput = ""
+                viewModel.resetLinkEmailOtp(); refresh(); viewModel.clearLinkResult()
+            }
+            "merged" -> {
+                // The email belonged to another (empty) account; this one was
+                // absorbed into it. The session is now stale — prompt re-login.
+                showEmailDialog = false; emailInput = ""; codeInput = ""
+                viewModel.resetLinkEmailOtp()
+                localError = "We found and merged your other account. Please sign in again."
+                viewModel.clearLinkResult()
+            }
+        }
     }
     DisposableEffect(Unit) { onDispose { viewModel.clearLinkResult() } }
 
@@ -147,31 +162,53 @@ fun SignInMethodsScreen(viewModel: AuthViewModel, onBack: () -> Unit) {
     }
 
     if (showEmailDialog) {
+        val closeDialog = { showEmailDialog = false; codeInput = ""; viewModel.resetLinkEmailOtp() }
         AlertDialog(
-            onDismissRequest = { if (!inProgress) showEmailDialog = false },
-            title = { Text("Add your email") },
+            onDismissRequest = { if (!inProgress) closeDialog() },
+            title = { Text(if (otpSent) "Enter the code" else "Add your email") },
             text = {
                 Column {
-                    Text("We'll link it to your account. You can sign in with it later.",
-                        fontSize = 13.sp, color = colors.textSecondary)
-                    Spacer(Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = emailInput, onValueChange = { emailInput = it.trim() }, singleLine = true,
-                        placeholder = { Text("you@example.com") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    (result?.takeIf { it != "success" })?.let {
+                    if (!otpSent) {
+                        Text("We'll send a code to verify it, then link it to your account.",
+                            fontSize = 13.sp, color = colors.textSecondary)
+                        Spacer(Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = emailInput, onValueChange = { emailInput = it.trim() }, singleLine = true,
+                            placeholder = { Text("you@example.com") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    } else {
+                        Text("Enter the 6-digit code we sent to $emailInput.",
+                            fontSize = 13.sp, color = colors.textSecondary)
+                        Spacer(Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = codeInput,
+                            onValueChange = { codeInput = it.filter { c -> c.isDigit() }.take(6) },
+                            singleLine = true, placeholder = { Text("000000") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    (result?.takeIf { it != "success" && it != "merged" })?.let {
                         Spacer(Modifier.height(8.dp)); Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
                     }
                 }
             },
             confirmButton = {
-                TextButton(onClick = { viewModel.linkEmail(emailInput) }, enabled = !inProgress && emailInput.isNotBlank()) {
-                    Text(if (inProgress) "Linking…" else "Link email", color = AppColors.Rose)
+                if (!otpSent) {
+                    TextButton(onClick = { viewModel.linkEmailStart(emailInput) },
+                        enabled = !inProgress && emailInput.isNotBlank()) {
+                        Text(if (inProgress) "Sending…" else "Send code", color = AppColors.Rose)
+                    }
+                } else {
+                    TextButton(onClick = { viewModel.linkEmailVerify(codeInput) },
+                        enabled = !inProgress && codeInput.length >= 4) {
+                        Text(if (inProgress) "Verifying…" else "Verify", color = AppColors.Rose)
+                    }
                 }
             },
-            dismissButton = { TextButton(onClick = { showEmailDialog = false }, enabled = !inProgress) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { closeDialog() }, enabled = !inProgress) { Text("Cancel") } }
         )
     }
 }
