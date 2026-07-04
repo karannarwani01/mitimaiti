@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction, RequestHandler } from 'express';
+import { captureError } from '../config/sentry';
 
 /**
  * Custom application error with HTTP status code and machine-readable error code.
@@ -46,6 +47,7 @@ export function globalErrorHandler(
         `[AppError ${err.statusCode}] ${err.code}: ${err.message}`,
         err.stack
       );
+      captureError(err, { code: err.code, statusCode: err.statusCode });
     }
     res.status(err.statusCode).json({
       success: false,
@@ -57,8 +59,9 @@ export function globalErrorHandler(
     return;
   }
 
-  // Log unexpected errors
+  // Log + report unexpected errors (the ones you most need to see in prod)
   console.error('[Unhandled Error]', err);
+  captureError(err);
 
   // Supabase errors often have a status property
   const supaErr = err as any;

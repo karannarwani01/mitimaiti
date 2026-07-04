@@ -1,6 +1,9 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+// Initialise error tracking as early as possible (after env is loaded).
+import './config/sentry';
+
 import 'express-async-errors';
 
 import express from 'express';
@@ -99,6 +102,7 @@ app.get('/health', async (_req, res) => {
   res.json({
     status,
     version: '1.0.0',
+    commit: process.env.RENDER_GIT_COMMIT?.slice(0, 7) || 'dev',
     platforms: ['web', 'android', 'ios'],
     db: { status: dbOk ? 'ok' : 'error', latencyMs: dbLatency },
     redis: { status: redisOk ? 'ok' : 'error', latencyMs: redisLatency },
