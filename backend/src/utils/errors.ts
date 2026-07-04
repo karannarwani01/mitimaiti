@@ -33,9 +33,27 @@ export function asyncHandler(
 /**
  * Global Express error handler. Must be registered after all routes.
  */
+/** Best-effort: persist an error to the error_log table (viewable in the
+ *  Supabase dashboard). Fire-and-forget — never blocks or throws. */
+function logErrorToDb(req: Request, err: any, code: string, statusCode: number): void {
+  import('../config/supabase')
+    .then(({ supabase }) =>
+      supabase.from('error_log').insert({
+        code,
+        status_code: statusCode,
+        method: req.method,
+        path: (req.originalUrl || req.url || '').slice(0, 500),
+        message: (err?.message || String(err)).slice(0, 1000),
+        stack: (err?.stack || '').slice(0, 4000),
+      })
+    )
+    .then(() => {})
+    .catch(() => {});
+}
+
 export function globalErrorHandler(
   err: Error | AppError,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction
 ): void {
@@ -48,6 +66,7 @@ export function globalErrorHandler(
         err.stack
       );
       captureError(err, { code: err.code, statusCode: err.statusCode });
+      logErrorToDb(req, err, err.code, err.statusCode);
     }
     res.status(err.statusCode).json({
       success: false,
@@ -62,6 +81,7 @@ export function globalErrorHandler(
   // Log + report unexpected errors (the ones you most need to see in prod)
   console.error('[Unhandled Error]', err);
   captureError(err);
+  logErrorToDb(req, err, 'UNHANDLED', 500);
 
   // Supabase errors often have a status property
   const supaErr = err as any;
