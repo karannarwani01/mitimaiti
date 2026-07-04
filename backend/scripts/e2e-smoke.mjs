@@ -109,6 +109,21 @@ async function main() {
 
     const chat = await api(`/v1/chat/${matchId || 'none'}`, A.token);
     check('A can open the matched chat', !!matchId && chat.status === 200, `status=${chat.status}`);
+
+    // ── Rose / Super Like (priority like) ──
+    const C = await mintUser(); users.push(C);
+    const D = await mintUser(); users.push(D);
+    const E = await mintUser(); users.push(E);
+    const rose1 = await api('/v1/action', C.token, 'POST', { target_user_id: D.userId, type: 'like', is_rose: true });
+    check('Rose: C sends a Rose to D → 201', rose1.status === 201, `status=${rose1.status}`);
+    const top = (await api('/v1/inbox', D.token)).body?.data?.liked_you?.profiles?.[0];
+    check('Rose: D inbox shows it first + flagged',
+      top?.id === C.userId && top?.is_rose === true,
+      `top=${top?.id?.slice(0, 8)} is_rose=${top?.is_rose} label="${top?.like_label}"`);
+    const rose2 = await api('/v1/action', C.token, 'POST', { target_user_id: E.userId, type: 'like', is_rose: true });
+    check('Rose: 2nd same-day Rose blocked (1/day limit)',
+      rose2.status === 429 && rose2.body?.error?.code === 'ROSE_LIMIT_REACHED',
+      `status=${rose2.status} code=${rose2.body?.error?.code}`);
   } catch (e) {
     check('critical path', false, e.message);
   } finally {
