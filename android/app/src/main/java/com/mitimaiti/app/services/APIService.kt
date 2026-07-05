@@ -880,7 +880,21 @@ object APIService {
             generation = data["generation"] as? String,
             familyOriginCity = data["family_origin_city"] as? String,
             familyOriginCountry = data["family_origin_country"] as? String,
-            languages = (data["languages"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
+            languages = (data["languages"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
+            // These were ALSO never read back (write-only): the profile
+            // re-load / completeness / chips saw them as empty even though the
+            // server saved them, so filled fields looked unsaved.
+            smoking = data["smoking"] as? String,
+            drinking = data["drinking"] as? String,
+            exercise = data["exercise"] as? String,
+            motherTongue = data["mother_tongue"] as? String,
+            sindhiDialect = data["sindhi_dialect"] as? String,
+            communitySubGroup = data["community_sub_group"] as? String,
+            festivalsCelebrated = (data["festivals_celebrated"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
+            cuisinePreferences = (data["cuisine_preferences"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
+            musicPreferences = (data["music_preferences"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
+            movieGenres = (data["movie_genres"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
+            travelStyle = data["travel_style"] as? String
         )
     }
 
