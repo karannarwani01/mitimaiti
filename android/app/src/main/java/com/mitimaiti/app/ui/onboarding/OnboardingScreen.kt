@@ -857,12 +857,48 @@ private fun LocationStep(location: String, onLocationChange: (String) -> Unit, o
             .addOnFailureListener { fail() }
     }
 
+    // If the SYSTEM location toggle is off (the case we hit on a real device:
+    // permission granted but location_mode=0), pop Android's one-tap
+    // "turn on device location?" dialog instead of failing.
+    val resolutionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) detectLocation()
+        else android.widget.Toast.makeText(context, "Location is off — turn it on or type your city below.", android.widget.Toast.LENGTH_SHORT).show()
+    }
+
+    fun ensureLocationOnThenDetect() {
+        val request = com.google.android.gms.location.LocationSettingsRequest.Builder()
+            .addLocationRequest(
+                com.google.android.gms.location.LocationRequest.Builder(
+                    Priority.PRIORITY_BALANCED_POWER_ACCURACY, 10_000L
+                ).build()
+            )
+            .build()
+        LocationServices.getSettingsClient(context)
+            .checkLocationSettings(request)
+            .addOnSuccessListener { detectLocation() }
+            .addOnFailureListener { e ->
+                if (e is com.google.android.gms.common.api.ResolvableApiException) {
+                    try {
+                        resolutionLauncher.launch(
+                            androidx.activity.result.IntentSenderRequest.Builder(e.resolution).build()
+                        )
+                    } catch (_: Exception) {
+                        android.widget.Toast.makeText(context, "Turn on Location in quick settings, then try again.", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    android.widget.Toast.makeText(context, "Location unavailable — type your city below.", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+    }
+
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
                 permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-        if (granted) detectLocation()
+        if (granted) ensureLocationOnThenDetect()
         else android.widget.Toast.makeText(context, "Location permission denied — type your city below.", android.widget.Toast.LENGTH_SHORT).show()
     }
 
@@ -888,7 +924,7 @@ private fun LocationStep(location: String, onLocationChange: (String) -> Unit, o
                 val granted = androidx.core.content.ContextCompat.checkSelfPermission(
                     context, Manifest.permission.ACCESS_COARSE_LOCATION
                 ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-                if (granted) detectLocation()
+                if (granted) ensureLocationOnThenDetect()
                 else locationPermissionLauncher.launch(
                     arrayOf(
                         Manifest.permission.ACCESS_FINE_LOCATION,
