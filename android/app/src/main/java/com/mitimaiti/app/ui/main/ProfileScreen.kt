@@ -363,7 +363,7 @@ fun ProfileScreen(
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            "${completeness}%",
+                            "${profile.profileCompleteness}%",
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             color = AppColors.Rose
@@ -378,7 +378,7 @@ fun ProfileScreen(
                 }
                 Spacer(modifier = Modifier.height(10.dp))
                 LinearProgressIndicator(
-                    progress = { completeness / 100f },
+                    progress = { profile.profileCompleteness / 100f },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(8.dp)

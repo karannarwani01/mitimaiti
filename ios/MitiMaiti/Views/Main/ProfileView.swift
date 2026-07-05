@@ -586,7 +586,7 @@ struct ProfileView: View {
 
                         Spacer()
 
-                        Text("\(profileVM.computedCompleteness)%")
+                        Text("\(profileVM.user.profileCompleteness)%")
                             .font(.system(size: 15, weight: .bold))
                             .foregroundColor(AppTheme.rose)
 

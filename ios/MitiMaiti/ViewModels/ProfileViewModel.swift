@@ -286,7 +286,13 @@ class ProfileViewModel: ObservableObject {
 
         Task {
             do {
-                _ = try await api.updateProfile(payload)
+                // updateProfile re-fetches the fresh server profile — ADOPT it so
+                // profile_completeness (recalculated by the backend) and every
+                // saved field are authoritative. Previously the result was
+                // discarded, so the completeness % stuck at a stale value.
+                let fresh = try await api.updateProfile(payload)
+                user = fresh
+                populateEditFields()
                 isSaving = false
                 saveSuccess = true
 

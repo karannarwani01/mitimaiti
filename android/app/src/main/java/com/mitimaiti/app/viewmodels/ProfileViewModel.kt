@@ -462,6 +462,11 @@ class ProfileViewModel : ViewModel() {
                         languages = editLanguages.value,
                         prompts = editPrompts.value
                     )
+                    // Re-pull server truth so profile_completeness (recalculated
+                    // by the backend) and every field are authoritative. The old
+                    // code left completeness to a local formula that diverged and
+                    // stuck at a stale % even though the save succeeded.
+                    APIService.fetchProfile().onSuccess { fresh -> _user.value = fresh }
                 }
                 .onFailure { _error.value = "Failed to save profile" }
             _isSaving.value = false
