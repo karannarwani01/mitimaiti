@@ -812,35 +812,58 @@ private fun ShowMeStep(selected: ShowMe?, onSelect: (ShowMe) -> Unit) {
 private fun LocationStep(location: String, onLocationChange: (String) -> Unit, onCountryChange: (String) -> Unit = {}) {
     val colors = LocalAdaptiveColors.current
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var isLocating by remember { mutableStateOf(false) }
     var detectedCity by remember { mutableStateOf("") }
     var detectedCountry by remember { mutableStateOf("") }
+
+    // GPS fix → city, with the failure modes that bit us on a real device:
+    // getCurrentLocation returns null indoors (fall back to lastLocation),
+    // Geocoder is a blocking network call (run off the main thread), and
+    // every failure tells the user to type the city instead of going silent.
+    fun detectLocation() {
+        isLocating = true
+        val fusedClient = LocationServices.getFusedLocationProviderClient(context)
+        fun geocode(lat: Double, lng: Double) {
+            scope.launch {
+                val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    getCityAndCountryFromLocation(context, lat, lng)
+                }
+                isLocating = false
+                if (result != null && result.first != "Unknown") {
+                    onLocationChange(result.first)
+                    onCountryChange(result.second)
+                    detectedCity = result.first
+                    detectedCountry = result.second
+                } else {
+                    android.widget.Toast.makeText(context, "Couldn't work out your city — please type it below.", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+        fun fail() {
+            isLocating = false
+            android.widget.Toast.makeText(context, "Couldn't get a location fix — please type your city below.", android.widget.Toast.LENGTH_SHORT).show()
+        }
+        // City-level accuracy is enough and works indoors, unlike HIGH_ACCURACY.
+        fusedClient.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null)
+            .addOnSuccessListener { loc ->
+                if (loc != null) geocode(loc.latitude, loc.longitude)
+                else fusedClient.lastLocation
+                    .addOnSuccessListener { last ->
+                        if (last != null) geocode(last.latitude, last.longitude) else fail()
+                    }
+                    .addOnFailureListener { fail() }
+            }
+            .addOnFailureListener { fail() }
+    }
 
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
                 permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-        if (granted) {
-            isLocating = true
-            val fusedClient = LocationServices.getFusedLocationProviderClient(context)
-            fusedClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
-                .addOnSuccessListener { loc ->
-                    isLocating = false
-                    if (loc != null) {
-                        val result = getCityAndCountryFromLocation(context, loc.latitude, loc.longitude)
-                        val city = result?.first ?: "Unknown"
-                        val country = result?.second ?: ""
-                        onLocationChange(city)
-                        onCountryChange(country)
-                        detectedCity = city
-                        detectedCountry = country
-                    }
-                }
-                .addOnFailureListener {
-                    isLocating = false
-                }
-        }
+        if (granted) detectLocation()
+        else android.widget.Toast.makeText(context, "Location permission denied — type your city below.", android.widget.Toast.LENGTH_SHORT).show()
     }
 
     Column {
@@ -862,7 +885,11 @@ private fun LocationStep(location: String, onLocationChange: (String) -> Unit, o
         // Use current location button
         Surface(
             onClick = {
-                locationPermissionLauncher.launch(
+                val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+                    context, Manifest.permission.ACCESS_COARSE_LOCATION
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                if (granted) detectLocation()
+                else locationPermissionLauncher.launch(
                     arrayOf(
                         Manifest.permission.ACCESS_FINE_LOCATION,
                         Manifest.permission.ACCESS_COARSE_LOCATION
