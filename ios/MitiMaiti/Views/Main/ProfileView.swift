@@ -106,7 +106,7 @@ struct ProfileView: View {
                     showUploadedPhotosPicker = false
                 }
             }
-            // Bumble-style pose challenge — "copy this pose", then the camera.
+            // pose challenge — "copy this pose", then the camera.
             .alert(
                 "Copy this pose",
                 isPresented: Binding(
@@ -233,7 +233,7 @@ struct ProfileView: View {
         .padding(.horizontal, AppTheme.spacingMD)
     }
 
-    // MARK: - Get Verified card (Bumble-style photo verification)
+    // MARK: - Get Verified card (photo verification)
 
     private var getVerifiedCard: some View {
         HStack(spacing: 12) {

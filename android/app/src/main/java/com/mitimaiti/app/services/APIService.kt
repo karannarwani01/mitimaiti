@@ -120,7 +120,7 @@ object APIService {
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
 
-    /** Attach the user's Google email to the current account (Bumble-style:
+    /** Attach the user's Google email to the current account (standard:
      *  OAuth proves ownership, no extra email OTP). Returns true if the account
      *  auto-merged into an existing profile (caller should re-authenticate). */
     suspend fun linkGoogle(idToken: String): Result<Boolean> {
@@ -340,7 +340,7 @@ object APIService {
 
     data class VerifyChallenge(val poseId: String, val emoji: String, val name: String, val instruction: String)
 
-    /** Bumble-style gesture challenge: fetch the random pose the user must copy
+    /** gesture challenge: fetch the random pose the user must copy
      *  in the verification selfie. Valid for 10 minutes. */
     suspend fun fetchVerifyChallenge(): Result<VerifyChallenge> {
         return try {

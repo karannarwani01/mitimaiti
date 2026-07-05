@@ -114,7 +114,7 @@ class AuthViewModel : ViewModel() {
         }
         viewModelScope.launch {
             _linkInProgress.value = true
-            // Bumble-style: Google OAuth is trusted directly — no email OTP.
+            // Google OAuth is trusted directly — no email OTP.
             APIService.linkGoogle(idToken)
                 .onSuccess { merged -> _linkResult.value = if (merged) "merged" else "success" }
                 .onFailure {

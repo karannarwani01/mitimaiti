@@ -535,7 +535,7 @@ router.post(
       );
     }
 
-    // ── Find the last swipe (like OR pass) — Bumble/Hinge-style undo ────────
+    // ── Find the last swipe (like OR pass) — standard undo ────────
     // Previously only passes were rewindable, so hitting Undo right after a
     // like resurrected an older passed profile instead.
 

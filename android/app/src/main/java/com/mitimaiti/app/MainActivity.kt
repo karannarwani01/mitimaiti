@@ -146,7 +146,7 @@ class MainActivity : ComponentActivity() {
                                 onPhone = { navController.navigate(Screen.PhoneAuth.route) },
                                 onAuthenticated = {
                                     // Google sign-in from the landing screen:
-                                    // same Bumble routing as the OTP screen.
+                                    // same routing as the OTP screen.
                                     val dest = when {
                                         authViewModel.hasCompletedOnboarding.value -> Screen.Main.route
                                         authViewModel.currentUser.value?.phone.isNullOrBlank() -> Screen.LinkAccount.route
@@ -183,7 +183,7 @@ class MainActivity : ComponentActivity() {
                             OTPVerificationScreen(
                                 viewModel = authViewModel,
                                 onVerified = {
-                                    // Bumble-style routing: returning users go straight in;
+                                    // Routing: returning users go straight in;
                                     // new users who already verified a phone (phone-first
                                     // signup) go to onboarding; new users WITHOUT a phone
                                     // (Google-first lands here too) get the "Can we get

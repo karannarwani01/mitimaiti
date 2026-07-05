@@ -1476,7 +1476,7 @@ router.post(
     }
 
     const email = payload.email.toLowerCase();
-    // Bumble-style: Google OAuth proves ownership of the email — trust it
+    // Google OAuth proves ownership of the email — trust it
     // directly (no extra email OTP) → attach or auto-merge.
     const { merged } = await attachEmailToUser(user.authId, user.id, email, 'LINK_GOOGLE_FAILED', true);
 

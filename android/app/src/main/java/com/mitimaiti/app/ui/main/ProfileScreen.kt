@@ -91,7 +91,7 @@ fun ProfileScreen(
         else Toast.makeText(context, "Camera permission is needed to take a verification selfie", Toast.LENGTH_SHORT).show()
     }
 
-    // Bumble-style: verification starts with a pose challenge, then the camera.
+    // verification starts with a pose challenge, then the camera.
     fun startVerification() {
         viewModel.startVerifyChallenge()
     }
@@ -103,7 +103,7 @@ fun ProfileScreen(
         if (granted) launchSelfieCamera() else selfiePermissionLauncher.launch(Manifest.permission.CAMERA)
     }
 
-    // Pose challenge dialog — "copy this pose" (Bumble's gesture verification)
+    // Pose challenge dialog — "copy this pose" 
     val challenge by viewModel.verifyChallenge.collectAsState()
     challenge?.let { pose ->
         AlertDialog(
@@ -358,7 +358,7 @@ fun ProfileScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Get Verified card (Bumble-style photo verification)
+        // Get Verified card (photo verification)
         if (!profile.isVerified && profile.selfieVerificationAvailable) {
             Surface(
                 modifier = Modifier

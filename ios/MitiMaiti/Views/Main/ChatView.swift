@@ -511,7 +511,7 @@ private struct ChatMessageList: View {
                 LazyVStack(spacing: 8) {
                     matchAnnouncementView
 
-                    // First-message deadline + one-time 24h extend (Bumble-style)
+                    // First-message deadline + one-time 24h extend
                     if let live = chatVM.match ?? Optional(match),
                        live.status == .pendingFirstMessage, live.showCountdown {
                         expiryExtendBanner(for: live)
@@ -525,7 +525,7 @@ private struct ChatMessageList: View {
                         dateSectionHeader(group.dateLabel)
 
                         ForEach(group.messages) { msg in
-                            BumbleMessageBubble(
+                            ChatMessageBubble(
                                 message: msg,
                                 otherUserName: otherUserName,
                                 otherUserAvatarURL: otherUserAvatarURL,
@@ -545,7 +545,7 @@ private struct ChatMessageList: View {
                     }
 
                     if chatVM.isOtherTyping {
-                        BumbleTypingIndicator(
+                        ChatTypingIndicator(
                             otherUserName: otherUserName,
                             avatarURL: otherUserAvatarURL
                         )
@@ -742,11 +742,11 @@ private struct ChatMessageList: View {
     }
 }
 
-// MARK: - Bumble-style Message Bubble
+// MARK: - Message Bubble
 // Sent: rose color, right-aligned, no avatar.
 // Received: gray surfaceMedium, left-aligned, 32pt avatar beside it.
 
-private struct BumbleMessageBubble: View {
+private struct ChatMessageBubble: View {
     let message: Message
     let otherUserName: String
     let otherUserAvatarURL: String?
@@ -1096,9 +1096,9 @@ private struct ReceivedBubbleShape: Shape {
     }
 }
 
-// MARK: - Bumble Typing Indicator (dots bubble + avatar on left)
+// MARK: - Typing Indicator (dots bubble + avatar on left)
 
-private struct BumbleTypingIndicator: View {
+private struct ChatTypingIndicator: View {
     let otherUserName: String
     let avatarURL: String?
     @Environment(\.adaptiveColors) private var colors

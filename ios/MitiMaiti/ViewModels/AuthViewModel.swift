@@ -79,7 +79,7 @@ class AuthViewModel: ObservableObject {
                 let result = try await api.verifyOTP(phone: e164Phone, code: otpCode)
                 isLoading = false
                 hasCompletedOnboarding = !result.needsOnboarding
-                // Bumble-style: a phone-first signup already has its verified
+                // a phone-first signup already has its verified
                 // phone — straight to onboarding, no link step. Email/Google
                 // can be added later in Settings.
                 showLinkStep = false
@@ -215,7 +215,7 @@ class AuthViewModel: ObservableObject {
                    let name = Self.nameFromIdToken(idToken), !name.isEmpty {
                     UserProfileStore.shared.firstName = name
                 }
-                // Bumble-style: Google OAuth is trusted directly — no email OTP.
+                // Google OAuth is trusted directly — no email OTP.
                 let merged = try await api.linkGoogle(idToken: idToken)
                 linkInProgress = false
                 linkResult = merged ? "merged" : "success"

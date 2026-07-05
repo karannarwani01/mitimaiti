@@ -1201,7 +1201,7 @@ router.post(
 );
 
 // ─── GET /v1/me/verify/challenge ────────────────────────────────────────────────
-// Bumble-style gesture challenge: the server picks a random pose the user must
+// gesture challenge: the server picks a random pose the user must
 // copy in their verification selfie. Stored in Redis for 10 minutes; the selfie
 // submission must reference the same pose. (The face is matched automatically
 // by Rekognition; the pose keeps the selfie LIVE — a photo-of-a-photo won't be

@@ -306,7 +306,7 @@ Fix the auto-advance logic.
 **Design review:**
 ```
 Here's my current discover page code: [paste code]
-Suggest 5 UI improvements to make it look more like Hinge/Bumble.
+Suggest 5 UI improvements to make it look more like leading dating apps.
 Give me the updated code for each change.
 ```
 

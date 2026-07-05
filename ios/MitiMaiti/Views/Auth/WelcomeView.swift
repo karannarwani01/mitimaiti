@@ -2,7 +2,7 @@ import SwiftUI
 import AuthenticationServices
 import CryptoKit
 
-/// Bumble-style landing: full-screen brand moment with the auth methods as
+/// landing: full-screen brand moment with the auth methods as
 /// stacked full-width pills at the bottom — Apple (per platform convention),
 /// phone number, Google — plus the legal line. No marketing scroll; signup
 /// and sign-in are the same buttons.
@@ -48,7 +48,7 @@ struct WelcomeView: View {
 
                 Spacer()
 
-                // ── Auth methods (stacked pills, Bumble-style) ──
+                // ── Auth methods (stacked pills, standard) ──
                 VStack(spacing: 12) {
                     // Apple first — platform convention on iOS
                     SignInWithAppleButton(

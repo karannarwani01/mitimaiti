@@ -94,7 +94,7 @@ class ProfileViewModel : ViewModel() {
         }
     }
 
-    // ── Selfie verification (Bumble-style pose challenge) ──
+    // ── Selfie verification (pose challenge) ──
     val isVerifying = MutableStateFlow(false)
     val verifyMessage = MutableStateFlow<String?>(null)
     /** The pose the server asked the user to copy; non-null = show the

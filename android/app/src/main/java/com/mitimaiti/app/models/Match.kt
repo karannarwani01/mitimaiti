@@ -44,7 +44,7 @@ data class Match(
     val firstMsgByMe: Boolean = false,
     val firstMsgLocked: Boolean = false,
     val firstMsgAt: Long? = null,
-    /** Each match can be extended by 24h exactly once (Bumble-style). */
+    /** Each match can be extended by 24h exactly once. */
     val extendedOnce: Boolean = false
 ) {
     val isExpired: Boolean

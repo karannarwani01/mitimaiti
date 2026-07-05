@@ -35,10 +35,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * Bumble-style landing: full-screen brand moment with the auth methods as
+ * landing: full-screen brand moment with the auth methods as
  * stacked full-width pills at the bottom — phone number (primary) and Google —
  * plus the legal line. No marketing scroll; signup and sign-in are the same
- * buttons. MitiMaiti branding on Bumble's structure.
+ * buttons. MitiMaiti branding throughout.
  */
 @Composable
 fun WelcomeScreen(
@@ -134,7 +134,7 @@ fun WelcomeScreen(
 
         Spacer(Modifier.weight(1f))
 
-        // ── Auth methods (stacked pills, Bumble-style) ──
+        // ── Auth methods (stacked pills, standard) ──
         androidx.compose.animation.AnimatedVisibility(
             visible = isVisible,
             enter = fadeIn() + slideInVertically { 60 }

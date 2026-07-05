@@ -304,7 +304,7 @@ fun ChatScreen(
     Scaffold(
         containerColor = colors.background,
         topBar = {
-            // ── Bumble-style header ──
+            // ── header ──
             TopAppBar(
                 title = {
                     Row(
@@ -447,7 +447,7 @@ fun ChatScreen(
                 // ── Match announcement ──
                 MatchAnnouncementCapsule(match = match)
 
-                // ── First-message deadline + one-time 24h extend (Bumble-style) ──
+                // ── First-message deadline + one-time 24h extend ──
                 val bannerMatch = chatMatch ?: match
                 if (bannerMatch.status == MatchStatus.PENDING_FIRST_MESSAGE && bannerMatch.showCountdown) {
                     ExpiryExtendBanner(
@@ -486,7 +486,7 @@ fun ChatScreen(
                     groupedMessages.forEach { (dateLabel, dateMessages) ->
                         item(key = "date_$dateLabel") { DateHeader(label = dateLabel) }
                         items(dateMessages, key = { it.id }) { message ->
-                            BumbleMessageBubble(
+                            ChatMessageBubble(
                                 message = message,
                                 otherUserPhoto = otherUser.primaryPhoto?.urlThumb ?: otherUser.primaryPhoto?.url ?: "",
                                 onImageClick = { url -> viewerImageUrl = url },
@@ -870,12 +870,12 @@ private fun IceBreakerSection(
 }
 
 // ───────────────────────────────────────────
-// Bumble-style Message Bubble with Profile Photo
+// Message Bubble with Profile Photo
 // ───────────────────────────────────────────
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun BumbleMessageBubble(
+private fun ChatMessageBubble(
     message: Message,
     otherUserPhoto: String,
     onImageClick: (String) -> Unit = {},
@@ -1230,7 +1230,7 @@ private fun MatchAnnouncementCapsule(match: Match) {
 }
 
 // ───────────────────────────────────────────
-// First-message deadline banner + one-time 24h extend (Bumble-style)
+// First-message deadline banner + one-time 24h extend
 // ───────────────────────────────────────────
 
 @Composable

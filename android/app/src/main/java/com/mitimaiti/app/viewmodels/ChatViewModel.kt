@@ -49,7 +49,7 @@ class ChatViewModel : ViewModel() {
     private val _isExtending = MutableStateFlow(false)
     val isExtending: StateFlow<Boolean> = _isExtending.asStateFlow()
 
-    /** One-time 24h extension of the first-message deadline (Bumble-style). */
+    /** One-time 24h extension of the first-message deadline. */
     fun extendMatch() {
         val m = _match.value ?: return
         if (m.extendedOnce || _isExtending.value) return

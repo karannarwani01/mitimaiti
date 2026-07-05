@@ -24,7 +24,7 @@ class ChatViewModel: ObservableObject {
     @Published var error: String?
     @Published var isExtending = false
 
-    /// One-time 24h extension of the first-message deadline (Bumble-style).
+    /// One-time 24h extension of the first-message deadline.
     func extendMatch() {
         guard let m = match, m.extendedOnce != true, !isExtending else { return }
         isExtending = true

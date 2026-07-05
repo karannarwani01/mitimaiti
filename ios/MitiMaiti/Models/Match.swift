@@ -118,7 +118,7 @@ struct Match: Identifiable, Codable, Hashable {
     var firstMsgByMe: Bool?
     var firstMsgLocked: Bool
     var firstMsgAt: Date?
-    /// Each match can be extended by 24h exactly once (Bumble-style).
+    /// Each match can be extended by 24h exactly once.
     /// Optional so older/partial payloads decode cleanly (treated as false).
     var extendedOnce: Bool?
 

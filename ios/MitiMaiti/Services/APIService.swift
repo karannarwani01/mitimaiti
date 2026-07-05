@@ -123,7 +123,7 @@ actor APIService {
     }
 
     struct LinkGoogleResult: Decodable { let merged: Bool }
-    /// Attach the user's Google email to the current account (Bumble-style:
+    /// Attach the user's Google email to the current account (standard:
     /// OAuth proves ownership, no extra email OTP). Returns true if the account
     /// auto-merged into an existing profile (caller should re-authenticate).
     func linkGoogle(idToken: String) async throws -> Bool {
@@ -341,7 +341,7 @@ actor APIService {
         let instruction: String
     }
 
-    /// Bumble-style gesture challenge: fetch the random pose the user must
+    /// gesture challenge: fetch the random pose the user must
     /// copy in the verification selfie. Valid for 10 minutes.
     func fetchVerifyChallenge() async throws -> VerifyChallenge {
         return try await authedRequest(.get, "/me/verify/challenge")

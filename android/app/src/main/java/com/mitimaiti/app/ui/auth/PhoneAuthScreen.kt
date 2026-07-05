@@ -400,7 +400,7 @@ fun PhoneAuthScreen(viewModel: AuthViewModel, onOTPSent: () -> Unit, onEmailSele
                 }
             }
 
-            // Bumble-style: this screen is phone-only. Google lives on the
+            // this screen is phone-only. Google lives on the
             // Welcome screen; email in Settings → Sign-in methods.
             Spacer(modifier = Modifier.height(32.dp))
         }

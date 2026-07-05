@@ -39,7 +39,7 @@ class ProfileViewModel: ObservableObject {
         }
     }
 
-    // ── Selfie verification (Bumble-style pose challenge) ──
+    // ── Selfie verification (pose challenge) ──
     @Published var isVerifying = false
     @Published var verifyMessage: String?
     /// The pose the server asked the user to copy; non-nil = show the

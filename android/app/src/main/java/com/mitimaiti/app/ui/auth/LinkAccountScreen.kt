@@ -25,12 +25,12 @@ import com.mitimaiti.app.ui.theme.LocalAdaptiveColors
 import com.mitimaiti.app.viewmodels.AuthViewModel
 
 /**
- * Bumble-style "Can we get your number?" — shown after a Google/Apple/email
+ * "Can we get your number?" — shown after a Google/Apple/email
  * signup so every account ends up anchored to a verified phone. Uses the
  * link/phone/start + verify SMS OTP flow.
  *
  * Flip PHONE_STEP_SKIPPABLE to false once Twilio is upgraded from trial —
- * then the step becomes mandatory, matching Bumble exactly.
+ * then the step becomes mandatory, making the step mandatory.
  */
 private const val PHONE_STEP_SKIPPABLE = true
 
