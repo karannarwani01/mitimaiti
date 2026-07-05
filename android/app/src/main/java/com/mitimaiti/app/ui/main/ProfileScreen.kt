@@ -66,7 +66,17 @@ fun ProfileScreen(
     // versions crashed on restore inside the tab AnimatedContent.
     val isVerifying by viewModel.isVerifying.collectAsState()
     val verifyMessage by viewModel.verifyMessage.collectAsState()
-    val activity = context as? com.mitimaiti.app.MainActivity
+    // LocalContext is often a themed ContextWrapper, not the Activity directly —
+    // walk the base-context chain so the cast doesn't silently return null (which
+    // made "Take selfie" do nothing).
+    val activity = remember(context) {
+        var c: android.content.Context? = context
+        while (c is android.content.ContextWrapper) {
+            if (c is com.mitimaiti.app.MainActivity) break
+            c = c.baseContext
+        }
+        c as? com.mitimaiti.app.MainActivity
+    }
 
     fun launchSelfieCamera() {
         val act = activity ?: return
