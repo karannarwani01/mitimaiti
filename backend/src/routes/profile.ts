@@ -272,43 +272,53 @@ interface CompletenessData {
 }
 
 function calculateCompleteness(data: CompletenessData): number {
+  // Only count fields the user can ACTUALLY fill through onboarding + Edit
+  // Profile, so a diligent user reaches 100%. The old list counted fields
+  // with no UI (state, mother_tongue, joint_family_preference,
+  // cultural_activities, traditional_attire, pet_preference) — making 100%
+  // unreachable and the bar "stuck" ~79% — while ignoring fields users do
+  // fill (education, occupation, religion, smoking, drinking, exercise,
+  // want_kids, settling, languages).
   const fields: Array<{ table: keyof CompletenessData; field: string }> = [
-    // 8 basics
+    // Identity (onboarding)
     { table: 'basics', field: 'display_name' },
     { table: 'basics', field: 'date_of_birth' },
     { table: 'basics', field: 'gender' },
+    { table: 'basics', field: 'city' },
     { table: 'basics', field: 'bio' },
     { table: 'basics', field: 'height_cm' },
-    { table: 'basics', field: 'city' },
-    { table: 'basics', field: 'state' },
-    { table: 'basics', field: 'country' },
-    // 5 sindhi
-    { table: 'sindhi', field: 'mother_tongue' },
-    { table: 'sindhi', field: 'sindhi_dialect' },
+    // Basics (Edit Profile)
+    { table: 'basics', field: 'education' },
+    { table: 'basics', field: 'occupation' },
+    { table: 'basics', field: 'religion' },
+    // Lifestyle
+    { table: 'basics', field: 'smoking' },
+    { table: 'basics', field: 'drinking' },
+    { table: 'basics', field: 'exercise' },
+    { table: 'basics', field: 'want_kids' },
+    { table: 'basics', field: 'settling' },
+    // Sindhi identity
     { table: 'sindhi', field: 'sindhi_fluency' },
-    { table: 'sindhi', field: 'community_sub_group' },
+    { table: 'sindhi', field: 'sindhi_dialect' },
     { table: 'sindhi', field: 'gotra' },
-    // 7 chatti
-    { table: 'chatti', field: 'family_values' },
-    { table: 'chatti', field: 'joint_family_preference' },
-    { table: 'chatti', field: 'festivals_celebrated' },
-    { table: 'chatti', field: 'food_preference' },
-    { table: 'chatti', field: 'cuisine_preferences' },
-    { table: 'chatti', field: 'cultural_activities' },
-    { table: 'chatti', field: 'traditional_attire' },
-    // 3 culture (from sindhi_profiles table)
+    { table: 'sindhi', field: 'community_sub_group' },
+    { table: 'sindhi', field: 'generation' },
     { table: 'sindhi', field: 'family_origin_city' },
     { table: 'sindhi', field: 'family_origin_country' },
-    { table: 'sindhi', field: 'generation' },
-    // 5 personality
+    // Cultural
+    { table: 'chatti', field: 'family_values' },
+    { table: 'chatti', field: 'food_preference' },
+    { table: 'chatti', field: 'festivals_celebrated' },
+    { table: 'chatti', field: 'cuisine_preferences' },
+    // Personality
     { table: 'personality', field: 'interests' },
     { table: 'personality', field: 'music_preferences' },
     { table: 'personality', field: 'movie_genres' },
     { table: 'personality', field: 'travel_style' },
-    { table: 'personality', field: 'pet_preference' },
+    { table: 'personality', field: 'languages' },
   ];
 
-  const total = fields.length; // 28
+  const total = fields.length; // 30, all UI-fillable
   let filled = 0;
 
   for (const { table, field } of fields) {
