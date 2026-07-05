@@ -400,47 +400,15 @@ fun PhoneAuthScreen(viewModel: AuthViewModel, onOTPSent: () -> Unit, onEmailSele
                 }
             }
 
-            // Divider: "or continue with"
-            Spacer(modifier = Modifier.height(20.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Divider(modifier = Modifier.weight(1f), color = colors.border)
-                Text(
-                    "or continue with",
-                    fontSize = 13.sp,
-                    color = colors.textSecondary,
-                    fontWeight = FontWeight.Medium
-                )
-                Divider(modifier = Modifier.weight(1f), color = colors.border)
-            }
-
-            // Social sign-in — Bumble-style: phone is the primary method, Google
-            // the only alternative. Email lives in Settings → Sign-in methods.
-            Spacer(modifier = Modifier.height(20.dp))
-            SocialSignInButton(
-                label = "Continue with Google",
-                modifier = Modifier.fillMaxWidth(),
-                backgroundColor = colors.surfaceMedium,
-                borderColor = colors.border,
-                textColor = colors.textPrimary,
-                onClick = {
-                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                    onGoogleSignIn()
-                }
-            ) {
-                GoogleIcon(modifier = Modifier.size(20.dp))
-            }
-
+            // Bumble-style: this screen is phone-only. Google lives on the
+            // Welcome screen; email in Settings → Sign-in methods.
             Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }
 
 @Composable
-private fun SocialSignInButton(
+internal fun SocialSignInButton(
     label: String,
     modifier: Modifier = Modifier,
     backgroundColor: Color,
@@ -482,7 +450,7 @@ private fun SocialSignInButton(
 
 // Multicolor Google "G" logo drawn with Canvas
 @Composable
-private fun GoogleIcon(modifier: Modifier = Modifier) {
+internal fun GoogleIcon(modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
         val s = size.width / 24f
         // Blue arc (right side)

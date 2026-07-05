@@ -1,300 +1,200 @@
 package com.mitimaiti.app.ui.auth
 
-import androidx.compose.animation.*
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import com.mitimaiti.app.R
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.credentials.CredentialManager
+import androidx.credentials.CustomCredential
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.GetCredentialException
+import androidx.credentials.exceptions.NoCredentialException
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import com.mitimaiti.app.BuildConfig
+import com.mitimaiti.app.R
 import com.mitimaiti.app.ui.theme.AppColors
-import com.mitimaiti.app.ui.theme.AppTheme
-import com.mitimaiti.app.ui.theme.LocalAdaptiveColors
+import com.mitimaiti.app.viewmodels.AuthViewModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
+/**
+ * Bumble-style landing: full-screen brand moment with the auth methods as
+ * stacked full-width pills at the bottom — phone number (primary) and Google —
+ * plus the legal line. No marketing scroll; signup and sign-in are the same
+ * buttons. MitiMaiti branding on Bumble's structure.
+ */
 @Composable
 fun WelcomeScreen(
-    onGetStarted: () -> Unit,
+    viewModel: AuthViewModel,
+    onPhone: () -> Unit,
+    onAuthenticated: () -> Unit,
     onGuidelines: () -> Unit = {},
     onPrivacy: () -> Unit = {},
     onTerms: () -> Unit = {}
 ) {
-    val colors = LocalAdaptiveColors.current
+    val colors = com.mitimaiti.app.ui.theme.LocalAdaptiveColors.current
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    val isLoading by viewModel.isLoading.collectAsState()
+    val error by viewModel.error.collectAsState()
+    val isAuthenticated by viewModel.isAuthenticated.collectAsState()
+    var localError by remember { mutableStateOf<String?>(null) }
+
     var isVisible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { delay(300); isVisible = true }
+
+    // Google sign-in completes right here on the landing screen.
+    LaunchedEffect(isAuthenticated) { if (isAuthenticated) onAuthenticated() }
+
+    val onGoogleSignIn: () -> Unit = {
+        localError = null
+        if (BuildConfig.GOOGLE_WEB_CLIENT_ID.isBlank()) {
+            localError = "Google sign-in isn't configured on this build."
+        } else scope.launch {
+            val cm = CredentialManager.create(context)
+            val option = GetGoogleIdOption.Builder()
+                .setServerClientId(BuildConfig.GOOGLE_WEB_CLIENT_ID)
+                .setFilterByAuthorizedAccounts(false)
+                .setAutoSelectEnabled(false)
+                .build()
+            val request = GetCredentialRequest.Builder().addCredentialOption(option).build()
+            try {
+                val res = cm.getCredential(context, request)
+                val cred = res.credential
+                if (cred is CustomCredential && cred.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
+                    viewModel.signInWithGoogle(GoogleIdTokenCredential.createFrom(cred.data).idToken)
+                } else localError = "Unexpected credential type from Google."
+            } catch (e: GetCredentialCancellationException) {
+                // user dismissed — silent
+            } catch (e: NoCredentialException) {
+                localError = "No Google account on this device. Add one in Settings."
+            } catch (e: GetCredentialException) {
+                localError = e.localizedMessage ?: "Google sign-in failed. Please try again."
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.backgroundGradient)
-            .verticalScroll(rememberScrollState())
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .padding(horizontal = 28.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // ── Hero Section ──
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(AppColors.Rose.copy(alpha = 0.08f), Color.Transparent)
-                    )
-                )
-                .statusBarsPadding()
-                .padding(horizontal = 32.dp, vertical = 48.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            androidx.compose.animation.AnimatedVisibility(visible = isVisible, enter = fadeIn() + slideInVertically { -40 }) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Image(
-                        painter = painterResource(id = R.drawable.logo_mark),
-                        contentDescription = "MitiMaiti",
-                        modifier = Modifier.size(104.dp)
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        "MitiMaiti",
-                        fontSize = 52.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = AppColors.Rose
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        "Where Sindhi Hearts Connect",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = AppColors.Gold
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        "Find meaningful connections rooted in Sindhi culture, values, and traditions",
-                        fontSize = 16.sp,
-                        color = colors.textSecondary,
-                        textAlign = TextAlign.Center,
-                        lineHeight = 24.sp
-                    )
-                    Spacer(modifier = Modifier.height(32.dp))
+        Spacer(Modifier.weight(1f))
 
-                    // CTA buttons
-                    Button(
-                        onClick = onGetStarted,
-                        modifier = Modifier.fillMaxWidth().height(56.dp),
-                        shape = RoundedCornerShape(AppTheme.radiusLg),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Rose)
-                    ) {
-                        Text("Get Started", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedButton(
-                        onClick = onGetStarted,
-                        modifier = Modifier.fillMaxWidth().height(56.dp),
-                        shape = RoundedCornerShape(AppTheme.radiusLg),
-                        border = androidx.compose.foundation.BorderStroke(1.5.dp, AppColors.Rose)
-                    ) {
-                        Text("Already have an account? Sign in", fontSize = 15.sp, color = AppColors.Rose)
-                    }
-                }
-            }
-        }
-
-        // ── How It Works Section ──
-        androidx.compose.animation.AnimatedVisibility(visible = isVisible, enter = fadeIn() + slideInVertically { 60 }) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(colors.surfaceMedium)
-                    .padding(horizontal = 24.dp, vertical = 32.dp)
-            ) {
-                Text(
-                    "How It Works",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = colors.textPrimary,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-
-                StepCard(1, "Create Your Profile", "Share your story, photos, and what makes you uniquely Sindhi")
-                Spacer(modifier = Modifier.height(12.dp))
-                StepCard(2, "Discover Matches", "Our cultural scoring helps you find truly compatible connections")
-                Spacer(modifier = Modifier.height(12.dp))
-                StepCard(3, "Connect & Chat", "Start meaningful conversations with respect-first messaging")
-            }
-        }
-
-        // ── Features Section ──
-        androidx.compose.animation.AnimatedVisibility(visible = isVisible, enter = fadeIn() + slideInVertically { 80 }) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 32.dp)
-            ) {
-                Text(
-                    "Why MitiMaiti?",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = colors.textPrimary,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    "Built by the community, for the community",
-                    fontSize = 14.sp,
-                    color = colors.textSecondary,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // 2-column grid of features
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    FeatureCard(Icons.Default.AutoAwesome, "Cultural Compatibility", "Scored on language, values, and traditions", Modifier.weight(1f))
-                    FeatureCard(Icons.Default.FamilyRestroom, "Family Mode", "Let family help find your match", Modifier.weight(1f))
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    FeatureCard(Icons.Default.VerifiedUser, "Verified Profiles", "Photo verification for trust", Modifier.weight(1f))
-                    FeatureCard(Icons.Default.Public, "Global Network", "Sindhi singles worldwide", Modifier.weight(1f))
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    FeatureCard(Icons.Default.Favorite, "Kundli Matching", "Traditional compatibility scoring", Modifier.weight(1f))
-                    FeatureCard(Icons.Default.Forum, "Respectful Chat", "24-hour reply window", Modifier.weight(1f))
-                }
-            }
-        }
-
-        // ── Bottom CTA Section ──
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Brush.verticalGradient(listOf(AppColors.Rose, AppColors.RoseDark)))
-                .padding(horizontal = 32.dp, vertical = 40.dp),
-            contentAlignment = Alignment.Center
+        // ── Brand moment ──
+        androidx.compose.animation.AnimatedVisibility(
+            visible = isVisible,
+            enter = fadeIn() + slideInVertically { -40 }
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Image(
+                    painter = painterResource(id = R.drawable.logo_mark),
+                    contentDescription = "MitiMaiti",
+                    modifier = Modifier.size(112.dp)
+                )
+                Spacer(Modifier.height(20.dp))
                 Text(
-                    "Ready to find your person?",
-                    fontSize = 24.sp,
+                    "MitiMaiti",
+                    fontSize = 48.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    textAlign = TextAlign.Center
+                    color = AppColors.Rose
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(Modifier.height(8.dp))
                 Text(
-                    "Join thousands of Sindhi singles already on MitiMaiti",
-                    fontSize = 15.sp,
-                    color = Color.White.copy(alpha = 0.8f),
+                    "Where Sindhi Hearts Connect",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = AppColors.Gold,
                     textAlign = TextAlign.Center
                 )
-                Spacer(modifier = Modifier.height(24.dp))
+            }
+        }
+
+        Spacer(Modifier.weight(1f))
+
+        // ── Auth methods (stacked pills, Bumble-style) ──
+        androidx.compose.animation.AnimatedVisibility(
+            visible = isVisible,
+            enter = fadeIn() + slideInVertically { 60 }
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Button(
-                    onClick = onGetStarted,
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    shape = RoundedCornerShape(AppTheme.radiusLg),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.White)
+                    onClick = onPhone,
+                    enabled = !isLoading,
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = RoundedCornerShape(28.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Rose)
                 ) {
-                    Text("Get Started", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Rose)
+                    Icon(Icons.Default.Phone, null, modifier = Modifier.size(20.dp), tint = Color.White)
+                    Spacer(Modifier.width(10.dp))
+                    Text("Use cell phone number", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
                 }
-            }
-        }
+                Spacer(Modifier.height(12.dp))
+                SocialSignInButton(
+                    label = "Continue with Google",
+                    modifier = Modifier.fillMaxWidth(),
+                    backgroundColor = colors.surfaceMedium,
+                    borderColor = colors.border,
+                    textColor = colors.textPrimary,
+                    onClick = onGoogleSignIn
+                ) {
+                    GoogleIcon(modifier = Modifier.size(20.dp))
+                }
 
-        // ── Footer ──
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(colors.cardDark)
-                .padding(horizontal = 24.dp, vertical = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text("MitiMaiti", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = AppColors.Rose)
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                TextButton(onClick = onTerms) { Text("Terms", fontSize = 13.sp, color = colors.textMuted) }
-                TextButton(onClick = onPrivacy) { Text("Privacy", fontSize = 13.sp, color = colors.textMuted) }
-                TextButton(onClick = onGuidelines) { Text("Guidelines", fontSize = 13.sp, color = colors.textMuted) }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                "\u00A9 2026 MitiMaiti. All rights reserved.",
-                fontSize = 12.sp,
-                color = colors.textMuted
-            )
-        }
-    }
-}
+                if (isLoading) {
+                    Spacer(Modifier.height(14.dp))
+                    CircularProgressIndicator(color = AppColors.Rose, modifier = Modifier.size(24.dp))
+                }
+                (localError ?: error)?.let {
+                    Spacer(Modifier.height(10.dp))
+                    Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp, textAlign = TextAlign.Center)
+                }
 
-@Composable
-private fun StepCard(number: Int, title: String, description: String) {
-    val colors = LocalAdaptiveColors.current
-    Surface(
-        shape = RoundedCornerShape(AppTheme.radiusMd),
-        color = colors.surface
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(Brush.linearGradient(listOf(AppColors.Rose, AppColors.RoseLight))),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("$number", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                // ── Legal ──
+                Spacer(Modifier.height(18.dp))
+                Text(
+                    "By signing up, you agree to our Terms. See how we use your data in our Privacy Policy.",
+                    fontSize = 11.sp,
+                    color = colors.textMuted,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 15.sp
+                )
+                Spacer(Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = onTerms, contentPadding = PaddingValues(4.dp)) {
+                        Text("Terms", fontSize = 12.sp, color = colors.textMuted)
+                    }
+                    TextButton(onClick = onPrivacy, contentPadding = PaddingValues(4.dp)) {
+                        Text("Privacy", fontSize = 12.sp, color = colors.textMuted)
+                    }
+                    TextButton(onClick = onGuidelines, contentPadding = PaddingValues(4.dp)) {
+                        Text("Guidelines", fontSize = 12.sp, color = colors.textMuted)
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
             }
-            Spacer(modifier = Modifier.width(14.dp))
-            Column {
-                Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = colors.textPrimary)
-                Text(description, fontSize = 13.sp, color = colors.textSecondary, lineHeight = 18.sp)
-            }
-        }
-    }
-}
-
-@Composable
-private fun FeatureCard(icon: ImageVector, title: String, description: String, modifier: Modifier = Modifier) {
-    val colors = LocalAdaptiveColors.current
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(AppTheme.radiusMd),
-        color = colors.surface
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(AppColors.Rose.copy(alpha = 0.1f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(icon, null, tint = AppColors.Rose, modifier = Modifier.size(22.dp))
-            }
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.textPrimary, textAlign = TextAlign.Center)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(description, fontSize = 12.sp, color = colors.textSecondary, textAlign = TextAlign.Center, lineHeight = 16.sp)
         }
     }
 }

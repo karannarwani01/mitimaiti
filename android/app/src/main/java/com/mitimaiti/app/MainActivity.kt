@@ -142,7 +142,18 @@ class MainActivity : ComponentActivity() {
                         }
                         composable(Screen.Welcome.route) {
                             WelcomeScreen(
-                                onGetStarted = { navController.navigate(Screen.PhoneAuth.route) },
+                                viewModel = authViewModel,
+                                onPhone = { navController.navigate(Screen.PhoneAuth.route) },
+                                onAuthenticated = {
+                                    // Google sign-in from the landing screen:
+                                    // same Bumble routing as the OTP screen.
+                                    val dest = when {
+                                        authViewModel.hasCompletedOnboarding.value -> Screen.Main.route
+                                        authViewModel.currentUser.value?.phone.isNullOrBlank() -> Screen.LinkAccount.route
+                                        else -> Screen.Onboarding.route
+                                    }
+                                    navController.navigate(dest) { popUpTo(Screen.Welcome.route) { inclusive = true } }
+                                },
                                 onGuidelines = { navController.navigate(Screen.Guidelines.route) },
                                 onPrivacy = { navController.navigate(Screen.Privacy.route) },
                                 onTerms = { navController.navigate(Screen.Terms.route) }

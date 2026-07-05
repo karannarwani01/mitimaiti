@@ -11,7 +11,6 @@ struct PhoneAuthView: View {
     @State private var showCountryPicker = false
     @State private var navigateToOTP = false
     @State private var animateIn = false
-    @State private var currentAppleNonce: String?
     @FocusState private var phoneFieldFocused: Bool
 
     // MARK: - Country Code
@@ -147,12 +146,6 @@ struct PhoneAuthView: View {
             // Continue button
             continueButton
 
-            // Divider
-            orDivider
-
-            // Social sign-in
-            socialButtons
-
             // Legal
             legalText
         }
@@ -286,98 +279,6 @@ struct PhoneAuthView: View {
         .opacity(authVM.phone.count < 7 ? 0.5 : 1)
     }
 
-    // MARK: - Or Divider
-
-    private var orDivider: some View {
-        HStack(spacing: 12) {
-            Rectangle()
-                .fill(colors.border)
-                .frame(height: 1)
-            Text(localization.t("common.or"))
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(colors.textMuted)
-            Rectangle()
-                .fill(colors.border)
-                .frame(height: 1)
-        }
-    }
-
-    // MARK: - Social Buttons
-
-    private var socialButtons: some View {
-        HStack(spacing: 10) {
-            // Google
-            Button {
-                Task {
-                    do {
-                        let idToken = try await GoogleSignInService.signIn()
-                        authVM.signInWithGoogle(idToken: idToken)
-                    } catch GoogleSignInError.canceled {
-                        // user dismissed — silent
-                    } catch {
-                        authVM.setGoogleSignInError(error.localizedDescription)
-                    }
-                }
-            } label: {
-                HStack(spacing: 8) {
-                    GoogleLogoShape()
-                        .frame(width: 18, height: 18)
-                    Text("Google")
-                        .font(.system(size: 14, weight: .semibold))
-                }
-                .foregroundColor(colors.textPrimary)
-                .frame(maxWidth: .infinity)
-                .frame(height: 48)
-                .background(colors.surfaceMedium)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(colors.border, lineWidth: 1)
-                )
-            }
-
-            // Apple
-            SignInWithAppleButton(
-                onRequest: { request in
-                    let nonce = randomNonce()
-                    currentAppleNonce = nonce
-                    request.requestedScopes = [.fullName, .email]
-                    request.nonce = sha256(nonce)
-                },
-                onCompletion: { result in
-                    switch result {
-                    case .success(let auth):
-                        guard
-                            let credential = auth.credential as? ASAuthorizationAppleIDCredential,
-                            let tokenData = credential.identityToken,
-                            let token = String(data: tokenData, encoding: .utf8)
-                        else {
-                            authVM.setAppleSignInError("Apple sign-in failed: missing token")
-                            return
-                        }
-                        authVM.signInWithApple(
-                            idToken: token,
-                            nonce: currentAppleNonce,
-                            givenName: credential.fullName?.givenName,
-                            familyName: credential.fullName?.familyName
-                        )
-                    case .failure(let err):
-                        let nsErr = err as NSError
-                        if nsErr.code != ASAuthorizationError.canceled.rawValue {
-                            authVM.setAppleSignInError(nsErr.localizedDescription)
-                        }
-                    }
-                }
-            )
-            .signInWithAppleButtonStyle(.black)
-            .frame(maxWidth: .infinity)
-            .frame(height: 48)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            // Bumble-style: phone is the primary method; Google/Apple are the
-            // only alternatives. Email lives in Settings → Sign-in methods.
-        }
-    }
-
     // MARK: - Legal
 
     private var legalText: some View {
@@ -387,33 +288,6 @@ struct PhoneAuthView: View {
             .multilineTextAlignment(.center)
     }
 
-    // MARK: - Apple Sign-In nonce helpers
-
-    private func randomNonce(length: Int = 32) -> String {
-        let charset: [Character] = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
-        var result = ""
-        var remaining = length
-        while remaining > 0 {
-            var randoms = [UInt8](repeating: 0, count: 16)
-            let status = SecRandomCopyBytes(kSecRandomDefault, randoms.count, &randoms)
-            guard status == errSecSuccess else {
-                fatalError("SecRandomCopyBytes failed: OSStatus \(status)")
-            }
-            for r in randoms where remaining > 0 {
-                if r < charset.count {
-                    result.append(charset[Int(r)])
-                    remaining -= 1
-                }
-            }
-        }
-        return result
-    }
-
-    private func sha256(_ input: String) -> String {
-        SHA256.hash(data: Data(input.utf8))
-            .map { String(format: "%02x", $0) }
-            .joined()
-    }
 }
 
 // MARK: - Google Logo (multicolor G drawn with paths)
