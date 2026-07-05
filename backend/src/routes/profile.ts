@@ -1335,9 +1335,14 @@ router.post(
         'PHOTO_FETCH_FAILED'
       );
     }
-    const primaryPhotoBuffer = Buffer.from(
-      await photoResponse.arrayBuffer()
-    );
+    // Rekognition only accepts JPEG/PNG and the photo pipeline stores WebP —
+    // normalize BOTH images to JPEG, not just the selfie.
+    const primaryPhotoBuffer = await sharp(
+      Buffer.from(await photoResponse.arrayBuffer())
+    )
+      .rotate()
+      .jpeg({ quality: 90 })
+      .toBuffer();
 
     // Normalize the selfie (strip EXIF, convert to JPEG for Rekognition)
     const selfieBuffer = await sharp(selfieFile.buffer)
