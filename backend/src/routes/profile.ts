@@ -415,46 +415,25 @@ async function upsertProfileTable(
   userId: string,
   fields: Record<string, any>
 ): Promise<Record<string, any>> {
-  // These tables use user_id as PRIMARY KEY (no separate id column),
-  // so we must check existence via user_id, not id.
-  const { data: existing } = await supabase
+  // These tables use user_id as PRIMARY KEY. Use a single ATOMIC upsert
+  // (INSERT ... ON CONFLICT DO UPDATE) — the previous check-then-insert
+  // raced two concurrent PATCH /me calls (double-tapped onboarding submit):
+  // both saw "no row", both INSERTed, the loser got a duplicate-key 500 and
+  // onboarding only succeeded on a manual retry.
+  const { data, error } = await supabase
     .from(table)
-    .select('user_id')
-    .eq('user_id', userId)
-    .maybeSingle();
+    .upsert({ user_id: userId, ...fields }, { onConflict: 'user_id' })
+    .select()
+    .single();
 
-  if (existing) {
-    const { data, error } = await supabase
-      .from(table)
-      .update(fields)
-      .eq('user_id', userId)
-      .select()
-      .single();
-
-    if (error) {
-      throw new AppError(
-        500,
-        `Failed to update ${table}: ${error.message}`,
-        'UPDATE_FAILED'
-      );
-    }
-    return data!;
-  } else {
-    const { data, error } = await supabase
-      .from(table)
-      .insert({ user_id: userId, ...fields })
-      .select()
-      .single();
-
-    if (error) {
-      throw new AppError(
-        500,
-        `Failed to create ${table}: ${error.message}`,
-        'INSERT_FAILED'
-      );
-    }
-    return data!;
+  if (error) {
+    throw new AppError(
+      500,
+      `Failed to save ${table}: ${error.message}`,
+      'UPSERT_FAILED'
+    );
   }
+  return data!;
 }
 
 // ─── Helper: Fetch all profile data for completeness ────────────────────────────
