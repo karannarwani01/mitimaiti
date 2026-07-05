@@ -200,6 +200,13 @@ class AuthViewModel: ObservableObject {
         Task {
             do {
                 let idToken = try await GoogleSignInService.signIn()
+                // Prefill the onboarding name from the ID token when we don't
+                // have one yet (phone-OTP signup linking Google before
+                // onboarding). Never overwrites an existing name.
+                if UserProfileStore.shared.firstName.isEmpty,
+                   let name = Self.nameFromIdToken(idToken), !name.isEmpty {
+                    UserProfileStore.shared.firstName = name
+                }
                 try await api.linkGoogle(idToken: idToken)
                 linkInProgress = false
                 linkResult = "success"

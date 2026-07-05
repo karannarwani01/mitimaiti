@@ -30,6 +30,18 @@ class OnboardingViewModel : ViewModel() {
         viewModelScope.launch {
             firstName.collect { UserPrefs.setFirstName(it) }
         }
+        // No local name (e.g. phone-OTP signup) — the server may still know one
+        // (backfilled from a Google/Apple link). Fetch and prefill, but never
+        // clobber anything the user has started typing.
+        if (firstName.value.isBlank()) {
+            viewModelScope.launch {
+                APIService.fetchProfile().onSuccess { u ->
+                    if (firstName.value.isBlank() && u.displayName.isNotBlank()) {
+                        firstName.value = u.displayName
+                    }
+                }
+            }
+        }
     }
     val birthDay = MutableStateFlow(""); val birthMonth = MutableStateFlow(""); val birthYear = MutableStateFlow("")
     val selectedGender = MutableStateFlow<Gender?>(null)

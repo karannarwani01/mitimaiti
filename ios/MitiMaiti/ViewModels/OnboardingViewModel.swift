@@ -27,6 +27,19 @@ class OnboardingViewModel: ObservableObject {
     private var uploadedImageHashes: Set<Int> = []
     private let api = APIService.shared
 
+    init() {
+        // No local name (e.g. phone-OTP signup) — the server may still know one
+        // (backfilled from a Google/Apple link). Fetch and prefill, but never
+        // clobber anything the user has started typing.
+        if firstName.isEmpty {
+            Task { [weak self] in
+                guard let user = try? await APIService.shared.fetchProfile() else { return }
+                guard let self, self.firstName.isEmpty, !user.displayName.isEmpty else { return }
+                self.firstName = user.displayName
+            }
+        }
+    }
+
     var age: Int {
         let components = DateComponents(year: birthYear, month: birthMonth, day: birthDay)
         guard let dob = Calendar.current.date(from: components) else { return 0 }

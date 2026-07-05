@@ -800,6 +800,13 @@ router.post(
       const updates: Record<string, any> = {
         last_active: new Date().toISOString(),
       };
+      // Backfill the name for accounts created without one (phone-OTP signup,
+      // then Google sign-in) so the onboarding name step arrives prefilled.
+      const googleName = payload.name || payload.given_name || null;
+      if (!existingUser.first_name && googleName) {
+        updates.first_name = googleName;
+        existingUser.first_name = googleName;
+      }
       if (existingUser.deletion_requested) {
         updates.deletion_requested = false;
         updates.deletion_scheduled_for = null;
@@ -972,6 +979,12 @@ router.post(
       const updates: Record<string, any> = {
         last_active: new Date().toISOString(),
       };
+      // Apple only shares fullName on the very first authorization; if this
+      // account still has no name (phone-OTP signup first), backfill it.
+      if (!existingUser.first_name && fullName) {
+        updates.first_name = fullName;
+        existingUser.first_name = fullName;
+      }
       if (existingUser.deletion_requested) {
         updates.deletion_requested = false;
         updates.deletion_scheduled_for = null;
@@ -1447,6 +1460,19 @@ router.post(
     const email = payload.email.toLowerCase();
     // Google OAuth proves ownership → auto-merge is safe.
     const { merged } = await attachEmailToUser(user.authId, user.id, email, 'LINK_GOOGLE_FAILED', true);
+
+    // Backfill the name for accounts that don't have one yet (phone-OTP signup
+    // linking Google before onboarding) so the name step arrives prefilled.
+    // Skipped on merge — the surviving profile keeps its own name.
+    const googleName = payload.name || payload.given_name || null;
+    if (!merged && googleName) {
+      await supabase
+        .from('users')
+        .update({ first_name: googleName })
+        .eq('id', user.id)
+        .is('first_name', null);
+    }
+
     res.json({ success: true, data: { email, provider: 'google', merged } });
   })
 );

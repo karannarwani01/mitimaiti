@@ -763,7 +763,9 @@ object APIService {
             id = data["id"] as? String ?: "",
             phone = data["phone"] as? String ?: "",
             email = data["email"] as? String,
-            displayName = data["display_name"] as? String ?: "",
+            // Pre-onboarding accounts have no display_name yet — fall back to
+            // first_name (seeded from Google/Apple) so the name can prefill.
+            displayName = data["display_name"] as? String ?: data["first_name"] as? String ?: "",
             dateOfBirth = (data["date_of_birth"] as? String)?.let { try { LocalDate.parse(it) } catch (e: Exception) { null } },
             gender = (data["gender"] as? String)?.let { g -> Gender.entries.firstOrNull { it.name.equals(g, true) } },
             bio = data["bio"] as? String ?: "",

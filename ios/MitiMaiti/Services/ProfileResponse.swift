@@ -20,6 +20,7 @@ struct ProfileResponse: Decodable {
     struct UserRow: Decodable {
         let id: String
         let phone: String?
+        let firstName: String?
         let isVerified: Bool?
         let profileCompleteness: Int?
         let needsOnboarding: Bool?
@@ -100,7 +101,9 @@ struct ProfileResponse: Decodable {
         User(
             id: user.id,
             phone: user.phone ?? "",
-            displayName: basics?.displayName ?? "",
+            // Pre-onboarding accounts have no display_name yet — fall back to
+            // first_name (seeded from Google/Apple) so the name can prefill.
+            displayName: basics?.displayName ?? user.firstName ?? "",
             dateOfBirth: basics?.dateOfBirth,
             gender: basics?.gender,
             bio: basics?.bio,

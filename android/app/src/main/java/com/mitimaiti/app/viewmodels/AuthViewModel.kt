@@ -104,6 +104,14 @@ class AuthViewModel : ViewModel() {
     fun resetLinkEmailOtp() { _linkEmailOtpSent.value = false; _pendingLinkEmail.value = "" }
 
     fun linkGoogle(idToken: String) {
+        // Prefill the onboarding name from the Google ID token when we don't
+        // have one yet (phone-OTP signup linking Google before onboarding).
+        // Never overwrites a name the user already has.
+        if (com.mitimaiti.app.services.UserPrefs.firstName.value.isBlank()) {
+            nameFromIdToken(idToken)?.takeIf { it.isNotBlank() }?.let {
+                com.mitimaiti.app.services.UserPrefs.setFirstName(it)
+            }
+        }
         viewModelScope.launch {
             _linkInProgress.value = true
             APIService.linkGoogle(idToken)
