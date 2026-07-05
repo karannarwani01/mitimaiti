@@ -106,6 +106,21 @@ struct ProfileView: View {
                     showUploadedPhotosPicker = false
                 }
             }
+            // Bumble-style pose challenge — "copy this pose", then the camera.
+            .alert(
+                "Copy this pose",
+                isPresented: Binding(
+                    get: { profileVM.verifyChallenge != nil && !showVerifyCamera },
+                    set: { if !$0 && !showVerifyCamera { profileVM.verifyChallenge = nil } }
+                )
+            ) {
+                Button("Take selfie") { showVerifyCamera = true }
+                Button("Cancel", role: .cancel) { profileVM.verifyChallenge = nil }
+            } message: {
+                if let pose = profileVM.verifyChallenge {
+                    Text("\(pose.emoji) \(pose.name)\n\(pose.instruction). We'll compare the selfie to your profile photos — it's never saved.")
+                }
+            }
             // Selfie verification camera + result alert
             .sheet(isPresented: $showVerifyCamera) {
                 CameraGalleryPicker(sourceType: .camera) { url in
@@ -238,7 +253,7 @@ struct ProfileView: View {
             Spacer()
 
             Button {
-                showVerifyCamera = true
+                profileVM.startVerifyChallenge()
             } label: {
                 if profileVM.isVerifying {
                     ProgressView()

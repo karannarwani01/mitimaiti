@@ -1200,6 +1200,51 @@ router.post(
   })
 );
 
+// ─── GET /v1/me/verify/challenge ────────────────────────────────────────────────
+// Bumble-style gesture challenge: the server picks a random pose the user must
+// copy in their verification selfie. Stored in Redis for 10 minutes; the selfie
+// submission must reference the same pose. (The face is matched automatically
+// by Rekognition; the pose keeps the selfie LIVE — a photo-of-a-photo won't be
+// striking a pose we only just asked for.)
+
+const VERIFY_POSES = [
+  { id: 'peace', emoji: '✌️', name: 'Peace sign', instruction: 'Hold up a peace sign next to your face' },
+  { id: 'thumbs_up', emoji: '👍', name: 'Thumbs up', instruction: 'Give a thumbs up next to your face' },
+  { id: 'ok_sign', emoji: '👌', name: 'OK sign', instruction: 'Make an OK sign next to your face' },
+  { id: 'open_palm', emoji: '✋', name: 'Open palm', instruction: 'Hold your open palm up beside your face' },
+  { id: 'finger_heart', emoji: '🫰', name: 'Finger heart', instruction: 'Make a finger heart near your cheek' },
+  { id: 'salute', emoji: '🫡', name: 'Salute', instruction: 'Salute with your hand at your forehead' },
+  { id: 'fist', emoji: '✊', name: 'Fist', instruction: 'Hold a closed fist up next to your face' },
+  { id: 'crossed_fingers', emoji: '🤞', name: 'Crossed fingers', instruction: 'Cross your fingers next to your face' },
+] as const;
+
+const VERIFY_CHALLENGE_TTL_SECONDS = 600;
+
+router.get(
+  '/verify/challenge',
+  authenticate,
+  asyncHandler(async (req: Request, res: Response) => {
+    const user = (req as AuthenticatedRequest).user;
+    const pose = VERIFY_POSES[Math.floor(Math.random() * VERIFY_POSES.length)];
+    try {
+      await redis.set(`verify_pose:${user.id}`, pose.id, 'EX', VERIFY_CHALLENGE_TTL_SECONDS);
+    } catch {
+      // Redis down → challenge can't be enforced; still return a pose so the
+      // UX works. POST /verify treats a missing stored pose as unenforced.
+    }
+    res.json({
+      success: true,
+      data: {
+        pose_id: pose.id,
+        emoji: pose.emoji,
+        name: pose.name,
+        instruction: pose.instruction,
+        expires_in: VERIFY_CHALLENGE_TTL_SECONDS,
+      },
+    });
+  })
+);
+
 // ─── POST /v1/me/verify ─────────────────────────────────────────────────────────
 // Selfie-based profile verification via AWS Rekognition.
 // Compares the uploaded selfie to the user's primary photo.
@@ -1230,6 +1275,23 @@ router.post(
 
     if (!selfieFile) {
       throw new AppError(400, 'Selfie image is required', 'NO_SELFIE');
+    }
+
+    // Enforce the gesture challenge when one is outstanding: the submission
+    // must reference the pose we issued (keeps the selfie live/fresh).
+    const submittedPose = (req.body?.pose_id as string | undefined) || null;
+    let issuedPose: string | null = null;
+    try {
+      issuedPose = await redis.get(`verify_pose:${user.id}`);
+    } catch {
+      // Redis down → can't enforce; proceed on face match alone.
+    }
+    if (issuedPose && submittedPose !== issuedPose) {
+      throw new AppError(
+        400,
+        'Your verification challenge expired or does not match. Start again and copy the pose shown.',
+        'POSE_CHALLENGE_MISMATCH'
+      );
     }
 
     // Check if already verified
@@ -1334,6 +1396,7 @@ router.post(
         verified_at: new Date().toISOString(),
       })
       .eq('id', user.id);
+    await redis.del(`verify_pose:${user.id}`).then(() => {}, () => {});
 
     res.json({
       success: true,

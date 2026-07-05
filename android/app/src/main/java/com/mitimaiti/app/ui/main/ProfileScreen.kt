@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -90,11 +91,46 @@ fun ProfileScreen(
         else Toast.makeText(context, "Camera permission is needed to take a verification selfie", Toast.LENGTH_SHORT).show()
     }
 
+    // Bumble-style: verification starts with a pose challenge, then the camera.
     fun startVerification() {
+        viewModel.startVerifyChallenge()
+    }
+
+    fun openCameraForChallenge() {
         val granted = ContextCompat.checkSelfPermission(
             context, Manifest.permission.CAMERA
         ) == PackageManager.PERMISSION_GRANTED
         if (granted) launchSelfieCamera() else selfiePermissionLauncher.launch(Manifest.permission.CAMERA)
+    }
+
+    // Pose challenge dialog — "copy this pose" (Bumble's gesture verification)
+    val challenge by viewModel.verifyChallenge.collectAsState()
+    challenge?.let { pose ->
+        AlertDialog(
+            onDismissRequest = { if (!isVerifying) viewModel.dismissVerifyChallenge() },
+            title = { Text("Copy this pose") },
+            text = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                    Text(pose.emoji, fontSize = 72.sp)
+                    Spacer(Modifier.height(8.dp))
+                    Text(pose.name, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "${pose.instruction}. We'll compare the selfie to your profile photos — it's never saved.",
+                        fontSize = 13.sp, color = colors.textSecondary, textAlign = TextAlign.Center
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { openCameraForChallenge() },
+                    enabled = !isVerifying
+                ) { Text(if (isVerifying) "Checking…" else "Take selfie", color = AppColors.Rose) }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissVerifyChallenge() }, enabled = !isVerifying) { Text("Cancel") }
+            }
+        )
     }
 
     // Verification result dialog

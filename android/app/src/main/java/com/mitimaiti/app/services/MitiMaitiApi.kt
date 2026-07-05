@@ -81,9 +81,15 @@ interface MitiMaitiApi {
     @PATCH("me/settings")
     suspend fun updateSettings(@Body body: Map<String, Any>): Response<Map<String, Any>>
 
+    @GET("me/verify/challenge")
+    suspend fun verifyChallenge(): Response<Map<String, Any>>
+
     @Multipart
     @POST("me/verify")
-    suspend fun verifySelfie(@Part selfie: MultipartBody.Part): Response<Map<String, Any>>
+    suspend fun verifySelfie(
+        @Part selfie: MultipartBody.Part,
+        @Part("pose_id") poseId: okhttp3.RequestBody
+    ): Response<Map<String, Any>>
 
     @Multipart
     @POST("me/voice-intro")

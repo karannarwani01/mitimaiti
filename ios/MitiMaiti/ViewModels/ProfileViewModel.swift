@@ -39,18 +39,36 @@ class ProfileViewModel: ObservableObject {
         }
     }
 
-    // ── Selfie verification ──
+    // ── Selfie verification (Bumble-style pose challenge) ──
     @Published var isVerifying = false
     @Published var verifyMessage: String?
+    /// The pose the server asked the user to copy; non-nil = show the
+    /// challenge with a "Take selfie" button.
+    @Published var verifyChallenge: APIService.VerifyChallenge?
 
-    /// Upload a selfie for face verification against the primary photo.
-    func verifySelfie(imageData: Data) {
+    /// Step 1: fetch the random pose the user must copy.
+    func startVerifyChallenge() {
         isVerifying = true
         Task {
             do {
-                let result = try await api.verifySelfie(imageData: imageData)
+                verifyChallenge = try await api.fetchVerifyChallenge()
+            } catch {
+                verifyMessage = "Couldn't start verification. Please try again."
+            }
+            isVerifying = false
+        }
+    }
+
+    /// Step 2: upload the pose selfie for face verification.
+    func verifySelfie(imageData: Data) {
+        guard let pose = verifyChallenge else { return }
+        isVerifying = true
+        Task {
+            do {
+                let result = try await api.verifySelfie(imageData: imageData, poseId: pose.poseId)
                 if result.verified {
                     user.isVerified = true
+                    verifyChallenge = nil
                     verifyMessage = "You're verified! Your profile now shows the blue badge."
                 } else {
                     verifyMessage = result.message

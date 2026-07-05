@@ -338,22 +338,45 @@ object APIService {
 
     data class VerifyResult(val verified: Boolean, val similarity: Int?, val message: String?)
 
-    /** Selfie verification: the backend compares the selfie to the primary
-     *  photo via AWS Rekognition. The selfie is never stored server-side.
-     *  Max 3 attempts/day (429 after that). */
-    suspend fun verifySelfie(bytes: ByteArray): Result<VerifyResult> {
+    data class VerifyChallenge(val poseId: String, val emoji: String, val name: String, val instruction: String)
+
+    /** Bumble-style gesture challenge: fetch the random pose the user must copy
+     *  in the verification selfie. Valid for 10 minutes. */
+    suspend fun fetchVerifyChallenge(): Result<VerifyChallenge> {
+        return try {
+            val r = api.verifyChallenge()
+            if (!r.isSuccessful) return Result.failure(APIError.ServerError)
+            val data = r.body()?.get("data") as? Map<*, *> ?: return Result.failure(APIError.ServerError)
+            Result.success(VerifyChallenge(
+                poseId = data["pose_id"] as? String ?: return Result.failure(APIError.ServerError),
+                emoji = data["emoji"] as? String ?: "✌️",
+                name = data["name"] as? String ?: "Pose",
+                instruction = data["instruction"] as? String ?: "Copy the pose shown"
+            ))
+        } catch (e: Exception) { Result.failure(APIError.NetworkError) }
+    }
+
+    /** Selfie verification: the backend checks the selfie copies the issued
+     *  pose and compares the face to the primary photo via AWS Rekognition.
+     *  The selfie is never stored server-side. Max 3 attempts/day (429 after). */
+    suspend fun verifySelfie(bytes: ByteArray, poseId: String): Result<VerifyResult> {
         return try {
             val body = bytes.toRequestBody("image/jpeg".toMediaTypeOrNull())
             val part = MultipartBody.Part.createFormData("selfie", "selfie.jpg", body)
-            val response = api.verifySelfie(part)
+            val posePart = poseId.toRequestBody("text/plain".toMediaTypeOrNull())
+            val response = api.verifySelfie(part, posePart)
             if (response.isSuccessful) {
-                // Success payload: { is_verified: true, similarity }. A failed
-                // match also returns 200, but without is_verified.
+                // Success: { success: true, data: { isVerified, similarity } }.
+                // A failed match is ALSO 200: { success: false, error, data: { similarity } }.
                 val b = response.body()
-                val verified = b?.get("is_verified") as? Boolean ?: false
+                val data = b?.get("data") as? Map<*, *>
+                val verified = (data?.get("isVerified") as? Boolean)
+                    ?: (data?.get("is_verified") as? Boolean)
+                    ?: false
+                val similarity = (data?.get("similarity") as? Number)?.toInt()
                 Result.success(VerifyResult(
                     verified = verified,
-                    similarity = (b?.get("similarity") as? Number)?.toInt(),
+                    similarity = similarity,
                     message = if (verified) null
                     else "The selfie didn't match your photo closely enough. Try better lighting and a clearer angle."
                 ))
@@ -364,6 +387,7 @@ object APIService {
                     "NO_PRIMARY_PHOTO" -> "Add a profile photo before verifying."
                     "ALREADY_VERIFIED" -> "Your profile is already verified!"
                     "FACE_NOT_DETECTED" -> "Couldn't detect a face. Use a clear, well-lit selfie."
+                    "POSE_CHALLENGE_MISMATCH" -> "That challenge expired. Start again and copy the new pose."
                     "VERIFICATION_UNAVAILABLE" -> "Selfie verification is coming soon — hang tight!"
                     else -> "Verification failed. Please try again."
                 }))

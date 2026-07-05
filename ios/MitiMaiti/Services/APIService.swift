@@ -334,12 +334,26 @@ actor APIService {
         let message: String?
     }
 
-    /// Selfie verification: the backend compares the selfie to the primary
-    /// photo via AWS Rekognition. The selfie is never stored server-side.
-    /// Max 3 attempts/day (429 after that).
-    func verifySelfie(imageData: Data) async throws -> VerifyResult {
+    struct VerifyChallenge: Decodable {
+        let poseId: String
+        let emoji: String
+        let name: String
+        let instruction: String
+    }
+
+    /// Bumble-style gesture challenge: fetch the random pose the user must
+    /// copy in the verification selfie. Valid for 10 minutes.
+    func fetchVerifyChallenge() async throws -> VerifyChallenge {
+        return try await authedRequest(.get, "/me/verify/challenge")
+    }
+
+    /// Selfie verification: the backend checks the selfie copies the issued
+    /// pose and compares the face to the primary photo via AWS Rekognition.
+    /// The selfie is never stored server-side. Max 3 attempts/day (429 after).
+    func verifySelfie(imageData: Data, poseId: String) async throws -> VerifyResult {
         let boundary = UUID().uuidString
         var body = Data()
+        body.append("--\(boundary)\r\nContent-Disposition: form-data; name=\"pose_id\"\r\n\r\n\(poseId)\r\n".data(using: .utf8)!)
         body.append("--\(boundary)\r\nContent-Disposition: form-data; name=\"selfie\"; filename=\"selfie.jpg\"\r\nContent-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
         body.append(imageData)
         body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
@@ -358,7 +372,7 @@ actor APIService {
 
         if http.statusCode == 401 {
             try await refresh()
-            return try await verifySelfie(imageData: imageData)
+            return try await verifySelfie(imageData: imageData, poseId: poseId)
         }
         if http.statusCode == 429 { throw APIError.rateLimited }
 

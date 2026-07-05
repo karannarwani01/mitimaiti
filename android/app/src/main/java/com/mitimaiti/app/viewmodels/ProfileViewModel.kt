@@ -94,17 +94,35 @@ class ProfileViewModel : ViewModel() {
         }
     }
 
-    // ── Selfie verification ──
+    // ── Selfie verification (Bumble-style pose challenge) ──
     val isVerifying = MutableStateFlow(false)
     val verifyMessage = MutableStateFlow<String?>(null)
+    /** The pose the server asked the user to copy; non-null = show the
+     *  challenge dialog with a "Take selfie" button. */
+    val verifyChallenge = MutableStateFlow<com.mitimaiti.app.services.APIService.VerifyChallenge?>(null)
 
-    /** Upload a selfie for face verification against the primary photo. */
-    fun verifySelfie(bytes: ByteArray) {
+    /** Step 1: fetch the random pose the user must copy. */
+    fun startVerifyChallenge() {
         viewModelScope.launch {
             isVerifying.value = true
-            APIService.verifySelfie(bytes).onSuccess { result ->
+            APIService.fetchVerifyChallenge()
+                .onSuccess { verifyChallenge.value = it }
+                .onFailure { verifyMessage.value = "Couldn't start verification. Please try again." }
+            isVerifying.value = false
+        }
+    }
+
+    fun dismissVerifyChallenge() { verifyChallenge.value = null }
+
+    /** Step 2: upload the pose selfie for face verification. */
+    fun verifySelfie(bytes: ByteArray) {
+        val pose = verifyChallenge.value ?: return
+        viewModelScope.launch {
+            isVerifying.value = true
+            APIService.verifySelfie(bytes, pose.poseId).onSuccess { result ->
                 if (result.verified) {
                     _user.value = _user.value?.copy(isVerified = true)
+                    verifyChallenge.value = null
                     verifyMessage.value = "You're verified! Your profile now shows the blue badge."
                 } else {
                     verifyMessage.value = result.message
