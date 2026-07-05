@@ -313,16 +313,17 @@ struct EditProfileView: View {
     private var basicsWorkFields: some View {
         VStack(spacing: AppTheme.spacingSM) {
             editField(label: "Education", icon: "graduationcap.fill") {
-                AppTextField(placeholder: "e.g. B.Tech, IIT", text: $editEducation, icon: "graduationcap")
+                SearchableSelectField(value: $editEducation, options: BasicsOptions.education, searchHint: "Search education…")
             }
             editField(label: "Occupation", icon: "briefcase.fill") {
-                AppTextField(placeholder: "Job title", text: $editOccupation, icon: "briefcase")
+                SearchableSelectField(value: $editOccupation, options: BasicsOptions.occupation, searchHint: "Search occupation…")
             }
+            // Company stays free-text — company names are unbounded.
             editField(label: "Company", icon: "building.2.fill") {
                 AppTextField(placeholder: "Company name", text: $editCompany, icon: "building.2")
             }
             editField(label: "Religion", icon: "sparkles") {
-                AppTextField(placeholder: "e.g. Hindu", text: $editReligion, icon: "sparkles")
+                SearchableSelectField(value: $editReligion, options: BasicsOptions.religion, searchHint: "Search religion…")
             }
         }
     }
@@ -395,7 +396,8 @@ struct EditProfileView: View {
                     value: $editGotra,
                     options: GotraOptions.list,
                     placeholder: "Tap to choose",
-                    searchHint: "Search gotra…"
+                    searchHint: "Search gotra…",
+                    title: "Select Gotra"
                 )
             }
             editField(label: "Generation", icon: "clock.arrow.circlepath") {

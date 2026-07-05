@@ -9,6 +9,7 @@ struct SearchableSelectField: View {
     let options: [String]
     var placeholder: String = "Tap to choose"
     var searchHint: String = "Search…"
+    var title: String = "Select"
 
     @Environment(\.adaptiveColors) private var colors
     @State private var showSheet = false
@@ -18,9 +19,6 @@ struct SearchableSelectField: View {
             showSheet = true
         } label: {
             HStack(spacing: 12) {
-                Image(systemName: "leaf")
-                    .foregroundColor(colors.textMuted)
-                    .frame(width: 20)
                 Text(value.isEmpty ? placeholder : value)
                     .foregroundColor(value.isEmpty ? colors.textMuted : colors.textPrimary)
                 Spacer()
@@ -45,6 +43,7 @@ struct SearchableSelectField: View {
                 value: $value,
                 options: options,
                 searchHint: searchHint,
+                title: title,
                 isPresented: $showSheet
             )
         }
@@ -55,6 +54,7 @@ private struct SearchableSelectSheet: View {
     @Binding var value: String
     let options: [String]
     let searchHint: String
+    let title: String
     @Binding var isPresented: Bool
 
     @Environment(\.adaptiveColors) private var colors
@@ -104,7 +104,7 @@ private struct SearchableSelectSheet: View {
                 .listStyle(.plain)
             }
             .background(colors.background.ignoresSafeArea())
-            .navigationTitle("Select Gotra")
+            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

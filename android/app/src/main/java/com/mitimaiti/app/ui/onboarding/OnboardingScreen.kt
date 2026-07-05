@@ -227,15 +227,19 @@ fun OnboardingScreen(onComplete: () -> Unit, onNavigateToEditProfile: () -> Unit
                             onCountryChange = { viewModel.selectedCountry.value = it }
                         )
                         OnboardingStep.READY -> {
-                            val profileCompleteness = remember(firstName, selectedGender, selectedIntent, selectedShowMe, selectedCity, selectedPhotos) {
-                                var s = 0.0
-                                if (firstName.isNotBlank()) s += 0.20
-                                if (selectedGender != null) s += 0.15
-                                if (selectedIntent != null) s += 0.15
-                                if (selectedShowMe != null) s += 0.10
-                                if (selectedCity.isNotBlank()) s += 0.15
-                                if (selectedPhotos.isNotEmpty()) s += 0.25
-                                (s.coerceIn(0.0, 1.0) * 100).toInt()
+                            // Honest completeness against the SERVER's 28-field basis
+                            // (see calculateCompleteness in backend profile.ts), so this
+                            // matches what the Profile screen shows. Onboarding fills only
+                            // display_name, date_of_birth, gender, city → ~14%. Previously
+                            // this used a private 6-field formula that always read 100%.
+                            val profileCompleteness = remember(firstName, age, selectedGender, selectedCity) {
+                                val filled = listOf(
+                                    firstName.isNotBlank(),
+                                    age != null,
+                                    selectedGender != null,
+                                    selectedCity.isNotBlank()
+                                ).count { it }
+                                (filled * 100) / 28
                             }
                             ReadyStep(
                                 name = firstName,
@@ -271,12 +275,29 @@ fun OnboardingScreen(onComplete: () -> Unit, onNavigateToEditProfile: () -> Unit
                     disabledContainerColor = AppColors.Rose.copy(alpha = 0.4f)
                 )
             ) {
-                Text(
-                    if (currentStep == OnboardingStep.READY) "\u2728 Go to Discover" else "Continue",
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White
-                )
+                if (isSubmitting) {
+                    // The final step uploads photos + saves the profile, which
+                    // takes a moment \u2014 show progress instead of a dead button.
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        "Setting up your profile\u2026",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White
+                    )
+                } else {
+                    Text(
+                        if (currentStep == OnboardingStep.READY) "\u2728 Go to Discover" else "Continue",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))

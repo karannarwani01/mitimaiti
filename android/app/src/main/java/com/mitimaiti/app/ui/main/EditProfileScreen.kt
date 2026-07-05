@@ -77,6 +77,27 @@ private val TRAVEL_STYLES = listOf(
     "Adventure", "Luxury", "Backpacking", "Cultural", "Beach", "Road Trips"
 )
 
+// Directory options for the searchable Basics pickers. All allow a typed
+// custom value, so these lists never block a real entry.
+private val EDUCATION_OPTIONS = listOf(
+    "High School", "Diploma", "Trade / Vocational", "Bachelor's Degree",
+    "Master's Degree", "MBA", "PhD / Doctorate", "Professional Degree",
+    "Some College", "Other"
+)
+
+private val RELIGION_OPTIONS = listOf(
+    "Hindu", "Sikh", "Jain", "Muslim", "Christian", "Buddhist", "Parsi",
+    "Spiritual", "Agnostic", "Atheist", "Prefer not to say", "Other"
+)
+
+private val OCCUPATION_OPTIONS = listOf(
+    "Business Owner", "Entrepreneur", "Doctor", "Engineer", "Software Developer",
+    "Teacher", "Professor", "Lawyer", "Chartered Accountant", "Consultant",
+    "Banker", "Finance Professional", "Designer", "Architect", "Marketing",
+    "Sales", "Pharmacist", "Nurse", "Dentist", "Real Estate", "Trader",
+    "Government Service", "Homemaker", "Student", "Retired", "Other"
+)
+
 private val SMOKING_OPTIONS = listOf("Never", "Socially", "Regularly")
 private val DRINKING_OPTIONS = listOf("Never", "Socially", "Regularly")
 private val EXERCISE_OPTIONS = listOf("Daily", "Often", "Sometimes", "Never")
@@ -650,18 +671,23 @@ fun EditProfileScreen(
                 expanded = basicsExpanded,
                 onToggle = { basicsExpanded = !basicsExpanded }
             ) {
-                EditField(
+                SearchableSelectField(
                     label = "Education",
                     value = education,
-                    onValueChange = { viewModel.editEducation.value = it },
-                    icon = Icons.Default.School
+                    options = EDUCATION_OPTIONS,
+                    onSelect = { viewModel.editEducation.value = it },
+                    icon = Icons.Default.School,
+                    searchHint = "Search education…"
                 )
-                EditField(
+                SearchableSelectField(
                     label = "Occupation",
                     value = occupation,
-                    onValueChange = { viewModel.editOccupation.value = it },
-                    icon = Icons.Default.Work
+                    options = OCCUPATION_OPTIONS,
+                    onSelect = { viewModel.editOccupation.value = it },
+                    icon = Icons.Default.Work,
+                    searchHint = "Search occupation…"
                 )
+                // Company stays free-text — company names are unbounded.
                 EditField(
                     label = "Company",
                     value = company,
@@ -711,11 +737,13 @@ fun EditProfileScreen(
                     }
                 }
 
-                EditField(
+                SearchableSelectField(
                     label = "Religion",
                     value = religion,
-                    onValueChange = { viewModel.editReligion.value = it },
-                    icon = Icons.Default.TempleBuddhist
+                    options = RELIGION_OPTIONS,
+                    onSelect = { viewModel.editReligion.value = it },
+                    icon = Icons.Default.TempleBuddhist,
+                    searchHint = "Search religion…"
                 )
             }
 
