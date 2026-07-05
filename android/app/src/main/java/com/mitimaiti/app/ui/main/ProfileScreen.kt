@@ -58,7 +58,6 @@ fun ProfileScreen(
     val user by viewModel.user.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val repoPhotos by PhotoRepository.photos.collectAsState()
-    val completeness by viewModel.completenessFlow.collectAsState()
     var showPhotoPicker by remember { mutableStateOf(false) }
 
     // ── Selfie verification camera flow ──
@@ -310,36 +309,42 @@ fun ProfileScreen(
 
         // Profile Completeness card — with the unfilled-fields checklist built
         // in. The whole card taps through to Edit Profile.
-        val missing = remember(profile) {
-            buildList {
-                if (profile.bio.isBlank()) add("Bio")
-                if (profile.heightCm == null) add("Height")
-                if (profile.education.isNullOrBlank()) add("Education")
-                if (profile.occupation.isNullOrBlank()) add("Occupation")
-                if (profile.religion.isNullOrBlank()) add("Religion")
-                if (profile.smoking.isNullOrBlank()) add("Smoking")
-                if (profile.drinking.isNullOrBlank()) add("Drinking")
-                if (profile.exercise.isNullOrBlank()) add("Exercise")
-                if (profile.wantKids.isNullOrBlank()) add("Want kids")
-                if (profile.settlingTimeline.isNullOrBlank()) add("Settling timeline")
-                if (profile.sindhiFluency == null) add("Sindhi fluency")
-                if (profile.sindhiDialect.isNullOrBlank()) add("Sindhi dialect")
-                if (profile.generation.isNullOrBlank()) add("Generation")
-                if (profile.gotra.isNullOrBlank()) add("Gotra")
-                if (profile.communitySubGroup.isNullOrBlank()) add("Community")
-                if (profile.familyOriginCity.isNullOrBlank()) add("Family origin city")
-                if (profile.familyValues == null) add("Family values")
-                if (profile.foodPreference == null) add("Food preference")
-                if (profile.festivalsCelebrated.isEmpty()) add("Festivals")
-                if (profile.interests.isEmpty()) add("Interests")
-                if (profile.languages.isEmpty()) add("Languages")
-                if (profile.musicPreferences.isEmpty()) add("Music")
-                if (profile.movieGenres.isEmpty()) add("Movie genres")
-                if (profile.travelStyle.isNullOrBlank()) add("Travel style")
-                if (profile.prompts.isEmpty()) add("Profile prompts")
-                if (profile.voiceIntroUrl.isNullOrBlank()) add("Voice intro")
-            }
+        // The list of profile questions and whether each is answered. The
+        // completeness % below is derived DIRECTLY from this — answered ÷ total
+        // — so the number and the "unfilled" chips are always consistent
+        // (completeness reflects exactly what's still unanswered).
+        val profileQuestions = remember(profile) {
+            listOf(
+                "Bio" to profile.bio.isNotBlank(),
+                "Height" to (profile.heightCm != null),
+                "Education" to !profile.education.isNullOrBlank(),
+                "Occupation" to !profile.occupation.isNullOrBlank(),
+                "Religion" to !profile.religion.isNullOrBlank(),
+                "Smoking" to !profile.smoking.isNullOrBlank(),
+                "Drinking" to !profile.drinking.isNullOrBlank(),
+                "Exercise" to !profile.exercise.isNullOrBlank(),
+                "Want kids" to !profile.wantKids.isNullOrBlank(),
+                "Settling timeline" to !profile.settlingTimeline.isNullOrBlank(),
+                "Sindhi fluency" to (profile.sindhiFluency != null),
+                "Sindhi dialect" to !profile.sindhiDialect.isNullOrBlank(),
+                "Generation" to !profile.generation.isNullOrBlank(),
+                "Gotra" to !profile.gotra.isNullOrBlank(),
+                "Community" to !profile.communitySubGroup.isNullOrBlank(),
+                "Family origin city" to !profile.familyOriginCity.isNullOrBlank(),
+                "Family values" to (profile.familyValues != null),
+                "Food preference" to (profile.foodPreference != null),
+                "Festivals" to profile.festivalsCelebrated.isNotEmpty(),
+                "Interests" to profile.interests.isNotEmpty(),
+                "Languages" to profile.languages.isNotEmpty(),
+                "Music" to profile.musicPreferences.isNotEmpty(),
+                "Movie genres" to profile.movieGenres.isNotEmpty(),
+                "Travel style" to !profile.travelStyle.isNullOrBlank(),
+                "Profile prompts" to profile.prompts.isNotEmpty(),
+                "Voice intro" to !profile.voiceIntroUrl.isNullOrBlank(),
+            )
         }
+        val missing = profileQuestions.filter { !it.second }.map { it.first }
+        val completeness = ((profileQuestions.size - missing.size) * 100) / profileQuestions.size
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
@@ -363,7 +368,7 @@ fun ProfileScreen(
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            "${profile.profileCompleteness}%",
+                            "${completeness}%",
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             color = AppColors.Rose
@@ -378,7 +383,7 @@ fun ProfileScreen(
                 }
                 Spacer(modifier = Modifier.height(10.dp))
                 LinearProgressIndicator(
-                    progress = { profile.profileCompleteness / 100f },
+                    progress = { completeness / 100f },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(8.dp)

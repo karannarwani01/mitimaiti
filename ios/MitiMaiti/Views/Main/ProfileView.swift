@@ -535,38 +535,52 @@ struct ProfileView: View {
     // MARK: - Finish Your Profile (missing fields)
 
     /// Every profile field the user hasn't filled yet — drives the checklist
-    /// card so nothing gets forgotten.
-    private var missingFields: [String] {
+    /// card so nothing gets forgotten. The completeness % is derived DIRECTLY
+    /// from this same list (answered ÷ total) so the number and the unfilled
+    /// chips are always consistent — and it recomputes automatically whenever
+    /// the profile changes (e.g. right after a save).
+    private var profileQuestions: [(label: String, answered: Bool)] {
         let u = profileVM.user
-        func s(_ v: String?) -> Bool { (v ?? "").trimmingCharacters(in: .whitespaces).isEmpty }
-        var m: [String] = []
-        if s(u.bio) { m.append("Bio") }
-        if u.heightCm == nil { m.append("Height") }
-        if s(u.education) { m.append("Education") }
-        if s(u.occupation) { m.append("Occupation") }
-        if s(u.religion) { m.append("Religion") }
-        if s(u.smoking) { m.append("Smoking") }
-        if s(u.drinking) { m.append("Drinking") }
-        if s(u.exercise) { m.append("Exercise") }
-        if s(u.wantKids) { m.append("Want kids") }
-        if s(u.settlingTimeline) { m.append("Settling timeline") }
-        if u.sindhiFluency == nil { m.append("Sindhi fluency") }
-        if s(u.sindhiDialect) { m.append("Sindhi dialect") }
-        if s(u.generation) { m.append("Generation") }
-        if s(u.gotra) { m.append("Gotra") }
-        if s(u.communitySubGroup) { m.append("Community") }
-        if s(u.familyOriginCity) { m.append("Family origin city") }
-        if u.familyValues == nil { m.append("Family values") }
-        if u.foodPreference == nil { m.append("Food preference") }
-        if (u.festivalsCelebrated ?? []).isEmpty { m.append("Festivals") }
-        if u.interests.isEmpty { m.append("Interests") }
-        if (u.languages ?? []).isEmpty { m.append("Languages") }
-        if (u.musicPreferences ?? []).isEmpty { m.append("Music") }
-        if (u.movieGenres ?? []).isEmpty { m.append("Movie genres") }
-        if s(u.travelStyle) { m.append("Travel style") }
-        if u.prompts.isEmpty { m.append("Profile prompts") }
-        if s(u.voiceIntroUrl) { m.append("Voice intro") }
-        return m
+        func has(_ v: String?) -> Bool { !((v ?? "").trimmingCharacters(in: .whitespaces).isEmpty) }
+        return [
+            ("Bio", has(u.bio)),
+            ("Height", u.heightCm != nil),
+            ("Education", has(u.education)),
+            ("Occupation", has(u.occupation)),
+            ("Religion", has(u.religion)),
+            ("Smoking", has(u.smoking)),
+            ("Drinking", has(u.drinking)),
+            ("Exercise", has(u.exercise)),
+            ("Want kids", has(u.wantKids)),
+            ("Settling timeline", has(u.settlingTimeline)),
+            ("Sindhi fluency", u.sindhiFluency != nil),
+            ("Sindhi dialect", has(u.sindhiDialect)),
+            ("Generation", has(u.generation)),
+            ("Gotra", has(u.gotra)),
+            ("Community", has(u.communitySubGroup)),
+            ("Family origin city", has(u.familyOriginCity)),
+            ("Family values", u.familyValues != nil),
+            ("Food preference", u.foodPreference != nil),
+            ("Festivals", !(u.festivalsCelebrated ?? []).isEmpty),
+            ("Interests", !u.interests.isEmpty),
+            ("Languages", !(u.languages ?? []).isEmpty),
+            ("Music", !(u.musicPreferences ?? []).isEmpty),
+            ("Movie genres", !(u.movieGenres ?? []).isEmpty),
+            ("Travel style", has(u.travelStyle)),
+            ("Profile prompts", !u.prompts.isEmpty),
+            ("Voice intro", has(u.voiceIntroUrl)),
+        ]
+    }
+
+    private var missingFields: [String] {
+        profileQuestions.filter { !$0.answered }.map { $0.label }
+    }
+
+    /// Completeness derived from the questions above — always matches the chips.
+    private var derivedCompleteness: Int {
+        let total = profileQuestions.count
+        guard total > 0 else { return 0 }
+        return ((total - missingFields.count) * 100) / total
     }
 
     // MARK: - Profile Completeness Card (with unfilled-fields checklist)
@@ -586,7 +600,7 @@ struct ProfileView: View {
 
                         Spacer()
 
-                        Text("\(profileVM.user.profileCompleteness)%")
+                        Text("\(derivedCompleteness)%")
                             .font(.system(size: 15, weight: .bold))
                             .foregroundColor(AppTheme.rose)
 
@@ -650,7 +664,7 @@ struct ProfileView: View {
     }
 
     private var completenessProgress: Double {
-        Double(profileVM.user.profileCompleteness) / 100.0
+        Double(derivedCompleteness) / 100.0
     }
 
     // MARK: - Bio Section
