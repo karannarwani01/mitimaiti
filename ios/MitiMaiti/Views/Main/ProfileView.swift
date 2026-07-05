@@ -28,10 +28,6 @@ struct ProfileView: View {
                         .sectionFadeIn(appeared: appeared, delay: 0.05)
                     completenessCard
                         .sectionFadeIn(appeared: appeared, delay: 0.1)
-                    if !missingFields.isEmpty {
-                        finishProfileCard
-                            .sectionFadeIn(appeared: appeared, delay: 0.11)
-                    }
                     if !profileVM.user.isVerified && profileVM.user.selfieVerificationAvailable {
                         getVerifiedCard
                             .sectionFadeIn(appeared: appeared, delay: 0.12)
@@ -573,53 +569,7 @@ struct ProfileView: View {
         return m
     }
 
-    private var finishProfileCard: some View {
-        Button { showEditProfile = true } label: {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Text("Finish your profile")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(colors.textPrimary)
-                    Spacer()
-                    Text("\(missingFields.count) left")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(AppTheme.rose)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(AppTheme.rose)
-                }
-                FlowLayout(spacing: 8) {
-                    ForEach(missingFields, id: \.self) { field in
-                        HStack(spacing: 4) {
-                            Image(systemName: "plus")
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundColor(AppTheme.rose)
-                            Text(field)
-                                .font(.system(size: 13))
-                                .foregroundColor(colors.textPrimary)
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(
-                            Capsule()
-                                .fill(AppTheme.rose.opacity(0.08))
-                                .overlay(Capsule().stroke(AppTheme.rose.opacity(0.25), lineWidth: 1))
-                        )
-                    }
-                }
-            }
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: AppTheme.radiusMD)
-                    .fill(colors.cardDark)
-                    .shadow(color: colors.cardShadowColor, radius: 4, x: 0, y: 2)
-            )
-        }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: - Profile Completeness Card
+    // MARK: - Profile Completeness Card (with unfilled-fields checklist)
 
     private var completenessCard: some View {
         Button { showEditProfile = true } label: {
@@ -639,6 +589,12 @@ struct ProfileView: View {
                         Text("\(profileVM.computedCompleteness)%")
                             .font(.system(size: 15, weight: .bold))
                             .foregroundColor(AppTheme.rose)
+
+                        if !missingFields.isEmpty {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(AppTheme.rose)
+                        }
                     }
 
                     // Progress bar
@@ -656,9 +612,36 @@ struct ProfileView: View {
                     }
                     .frame(height: 8)
 
-                    Text(localization.t("profile.completeForMatches"))
-                        .font(.system(size: 12))
-                        .foregroundColor(colors.textSecondary)
+                    if missingFields.isEmpty {
+                        Text("Your profile is complete 🎉")
+                            .font(.system(size: 12))
+                            .foregroundColor(colors.textSecondary)
+                    } else {
+                        Text("\(missingFields.count) to add for better matches — tap to complete")
+                            .font(.system(size: 12))
+                            .foregroundColor(colors.textSecondary)
+
+                        FlowLayout(spacing: 8) {
+                            ForEach(missingFields, id: \.self) { field in
+                                HStack(spacing: 4) {
+                                    Image(systemName: "plus")
+                                        .font(.system(size: 10, weight: .semibold))
+                                        .foregroundColor(AppTheme.rose)
+                                    Text(field)
+                                        .font(.system(size: 13))
+                                        .foregroundColor(colors.textPrimary)
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(
+                                    Capsule()
+                                        .fill(AppTheme.rose.opacity(0.08))
+                                        .overlay(Capsule().stroke(AppTheme.rose.opacity(0.25), lineWidth: 1))
+                                )
+                            }
+                        }
+                        .padding(.top, 2)
+                    }
                 }
                 .padding(AppTheme.spacingMD)
             }

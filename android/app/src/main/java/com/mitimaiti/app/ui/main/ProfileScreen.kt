@@ -308,58 +308,8 @@ fun ProfileScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Profile Completeness card
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            shape = RoundedCornerShape(AppTheme.radiusMd),
-            color = colors.surface,
-            shadowElevation = 2.dp
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "Profile Completeness",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = colors.textPrimary
-                    )
-                    Text(
-                        "${completeness}%",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = AppColors.Rose
-                    )
-                }
-                Spacer(modifier = Modifier.height(10.dp))
-                LinearProgressIndicator(
-                    progress = { completeness / 100f },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(8.dp)
-                        .clip(RoundedCornerShape(4.dp)),
-                    color = AppColors.Rose,
-                    trackColor = colors.border,
-                    drawStopIndicator = {}
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    "Complete your profile to get better matches",
-                    fontSize = 12.sp,
-                    color = colors.textMuted
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // What's left to fill — lists every empty field; each row jumps to
-        // Edit Profile so nothing gets forgotten.
+        // Profile Completeness card — with the unfilled-fields checklist built
+        // in. The whole card taps through to Edit Profile.
         val missing = remember(profile) {
             buildList {
                 if (profile.bio.isBlank()) add("Bio")
@@ -390,43 +340,67 @@ fun ProfileScreen(
                 if (profile.voiceIntroUrl.isNullOrBlank()) add("Voice intro")
             }
         }
-        if (missing.isNotEmpty()) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .clickable(onClick = onEditProfile),
-                shape = RoundedCornerShape(AppTheme.radiusMd),
-                color = colors.surface,
-                shadowElevation = 2.dp
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .then(if (missing.isNotEmpty()) Modifier.clickable(onClick = onEditProfile) else Modifier),
+            shape = RoundedCornerShape(AppTheme.radiusMd),
+            color = colors.surface,
+            shadowElevation = 2.dp
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Profile Completeness",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.textPrimary
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            "Finish your profile",
+                            "${completeness}%",
                             fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = colors.textPrimary
+                            fontWeight = FontWeight.Bold,
+                            color = AppColors.Rose
                         )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                "${missing.size} left",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = AppColors.Rose
-                            )
+                        if (missing.isNotEmpty()) {
                             Icon(
                                 Icons.Default.ChevronRight, "Go to Edit Profile",
                                 tint = AppColors.Rose, modifier = Modifier.size(22.dp)
                             )
                         }
                     }
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                LinearProgressIndicator(
+                    progress = { completeness / 100f },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp)),
+                    color = AppColors.Rose,
+                    trackColor = colors.border,
+                    drawStopIndicator = {}
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                if (missing.isEmpty()) {
+                    Text(
+                        "Your profile is complete 🎉",
+                        fontSize = 12.sp,
+                        color = colors.textMuted
+                    )
+                } else {
+                    Text(
+                        "${missing.size} to add for better matches — tap to complete",
+                        fontSize = 12.sp,
+                        color = colors.textMuted
+                    )
                     Spacer(modifier = Modifier.height(10.dp))
-                    // Chips for each unfilled field
                     androidx.compose.foundation.layout.FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -450,8 +424,9 @@ fun ProfileScreen(
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(12.dp))
         }
+
+        Spacer(modifier = Modifier.height(12.dp))
 
         // Get Verified card (photo verification)
         if (!profile.isVerified && profile.selfieVerificationAvailable) {
