@@ -887,6 +887,7 @@ object APIService {
             smoking = data["smoking"] as? String,
             drinking = data["drinking"] as? String,
             exercise = data["exercise"] as? String,
+            gotra = data["gotra"] as? String,
             motherTongue = data["mother_tongue"] as? String,
             sindhiDialect = data["sindhi_dialect"] as? String,
             communitySubGroup = data["community_sub_group"] as? String,
