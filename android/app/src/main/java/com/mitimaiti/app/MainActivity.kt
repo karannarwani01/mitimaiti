@@ -41,6 +41,38 @@ class MainActivity : ComponentActivity() {
         val pendingChatMatchId = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
     }
 
+    // ── Verification selfie camera, registered at the ACTIVITY level ──
+    // The camera can push the app out of memory (esp. on a Fold); the OS then
+    // kills the process while the camera is foreground. Compose-scoped
+    // `rememberLauncherForActivityResult` inside the AnimatedContent-wrapped
+    // ProfileScreen crashed on restore with a ClassCastException in
+    // ActivityResultRegistry. Activity-level launchers register with stable
+    // keys during construction, before state restore, so they survive it.
+    private var selfieResult: ((Boolean) -> Unit)? = null
+    private val selfieCameraLauncher =
+        registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.TakePicture()) { success ->
+            val cb = selfieResult; selfieResult = null; cb?.invoke(success)
+        }
+
+    private var cameraPermResult: ((Boolean) -> Unit)? = null
+    private val cameraPermissionLauncher =
+        registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { granted ->
+            val cb = cameraPermResult; cameraPermResult = null; cb?.invoke(granted)
+        }
+
+    /** Take a photo into [uri]; [onResult] gets true on success. If the process
+     *  was killed while the camera was open, the callback is simply lost on
+     *  return (user retries) — but the app no longer crashes. */
+    fun launchSelfieCamera(uri: android.net.Uri, onResult: (Boolean) -> Unit) {
+        selfieResult = onResult
+        selfieCameraLauncher.launch(uri)
+    }
+
+    fun requestCameraPermission(onResult: (Boolean) -> Unit) {
+        cameraPermResult = onResult
+        cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+    }
+
     private fun consumeNotificationIntent(intent: android.content.Intent?) {
         intent?.getStringExtra(
             com.mitimaiti.app.services.MitiMaitiMessagingService.EXTRA_MATCH_ID

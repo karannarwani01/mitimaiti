@@ -61,33 +61,23 @@ fun ProfileScreen(
     var showPhotoPicker by remember { mutableStateOf(false) }
 
     // ── Selfie verification camera flow ──
+    // Launchers live on MainActivity (not rememberLauncherForActivityResult
+    // here) so they survive the camera killing the process — the Compose-scoped
+    // versions crashed on restore inside the tab AnimatedContent.
     val isVerifying by viewModel.isVerifying.collectAsState()
     val verifyMessage by viewModel.verifyMessage.collectAsState()
-    val pendingSelfieUri = remember { mutableStateOf<Uri?>(null) }
-
-    val selfieLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicture()
-    ) { success: Boolean ->
-        val uri = pendingSelfieUri.value
-        pendingSelfieUri.value = null
-        if (!success || uri == null) return@rememberLauncherForActivityResult
-        val bytes = ImageCompression.compressForUpload(context, uri)
-        if (bytes != null) viewModel.verifySelfie(bytes)
-        else Toast.makeText(context, "Couldn't read the selfie. Please try again.", Toast.LENGTH_SHORT).show()
-    }
+    val activity = context as? com.mitimaiti.app.MainActivity
 
     fun launchSelfieCamera() {
+        val act = activity ?: return
         val photoFile = java.io.File(context.cacheDir, "verify_selfie_${System.currentTimeMillis()}.jpg")
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", photoFile)
-        pendingSelfieUri.value = uri
-        selfieLauncher.launch(uri)
-    }
-
-    val selfiePermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) launchSelfieCamera()
-        else Toast.makeText(context, "Camera permission is needed to take a verification selfie", Toast.LENGTH_SHORT).show()
+        act.launchSelfieCamera(uri) { success ->
+            if (!success) return@launchSelfieCamera
+            val bytes = ImageCompression.compressForUpload(context, uri)
+            if (bytes != null) viewModel.verifySelfie(bytes)
+            else Toast.makeText(context, "Couldn't read the selfie. Please try again.", Toast.LENGTH_SHORT).show()
+        }
     }
 
     // verification starts with a pose challenge, then the camera.
@@ -99,7 +89,11 @@ fun ProfileScreen(
         val granted = ContextCompat.checkSelfPermission(
             context, Manifest.permission.CAMERA
         ) == PackageManager.PERMISSION_GRANTED
-        if (granted) launchSelfieCamera() else selfiePermissionLauncher.launch(Manifest.permission.CAMERA)
+        if (granted) launchSelfieCamera()
+        else activity?.requestCameraPermission { g ->
+            if (g) launchSelfieCamera()
+            else Toast.makeText(context, "Camera permission is needed to take a verification selfie", Toast.LENGTH_SHORT).show()
+        }
     }
 
     // Pose challenge dialog — "copy this pose" 
