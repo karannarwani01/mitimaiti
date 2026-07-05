@@ -48,8 +48,18 @@ object APIService {
     suspend fun sendOTP(phone: String): Result<Boolean> {
         return try {
             val response = api.sendOTP(mapOf("phone" to phone))
-            if (response.isSuccessful) Result.success(true)
-            else Result.failure(APIError.NetworkError)
+            when {
+                response.isSuccessful -> Result.success(true)
+                // Twilio test mode: only approved numbers can receive SMS —
+                // surface the server's honest explanation instead of a generic error.
+                errorCodeOf(response) == "OTP_NUMBER_UNVERIFIED" -> Result.failure(
+                    APIError.MessageRejected("This number can't receive codes while the app is in test mode. Use an approved test number, or continue with Google.")
+                )
+                response.code() == 429 -> Result.failure(
+                    APIError.MessageRejected("Too many attempts. Please wait a minute and try again.")
+                )
+                else -> Result.failure(APIError.NetworkError)
+            }
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
 

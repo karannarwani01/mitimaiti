@@ -172,7 +172,9 @@ class AuthViewModel : ViewModel() {
         if (_phone.value.length < 10) { _error.value = "Please enter a valid phone number"; return }
         viewModelScope.launch {
             _isLoading.value = true; _error.value = null
-            APIService.sendOTP(_phone.value).onSuccess { _otpSent.value = true; _resendCount.value++; startResendTimer() }.onFailure { _error.value = "Failed to send OTP. Please try again." }
+            APIService.sendOTP(_phone.value).onSuccess { _otpSent.value = true; _resendCount.value++; startResendTimer() }.onFailure {
+                _error.value = (it as? APIError.MessageRejected)?.reason ?: "Failed to send OTP. Please try again."
+            }
             _isLoading.value = false
         }
     }

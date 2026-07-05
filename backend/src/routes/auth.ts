@@ -117,6 +117,15 @@ router.post(
           'OTP_RATE_LIMITED'
         );
       }
+      // Twilio trial (error 21608): SMS only delivers to numbers verified in
+      // the Twilio console. Tell testers the truth instead of a generic 500.
+      if (error.message.includes('unverified') || error.message.includes('21608')) {
+        throw new AppError(
+          400,
+          'This number can’t receive codes while the app is in test mode. Use an approved test number, or sign in with Google.',
+          'OTP_NUMBER_UNVERIFIED'
+        );
+      }
       throw new AppError(
         500,
         'Failed to send verification code. Please try again.',
@@ -1628,6 +1637,14 @@ router.post(
     if (error) {
       if (error.message.includes('rate') || error.status === 429) {
         throw new AppError(429, 'Too many OTP requests. Please wait before trying again.', 'OTP_RATE_LIMITED');
+      }
+      // Twilio trial (error 21608): SMS only delivers to verified numbers.
+      if (error.message.includes('unverified') || error.message.includes('21608')) {
+        throw new AppError(
+          400,
+          'This number can’t receive codes while the app is in test mode. Use an approved test number for now.',
+          'OTP_NUMBER_UNVERIFIED'
+        );
       }
       throw new AppError(500, error.message || 'Could not send the code', 'OTP_SEND_FAILED');
     }
