@@ -45,7 +45,7 @@ import com.mitimaiti.app.ui.theme.AppTheme
 import com.mitimaiti.app.ui.theme.LocalAdaptiveColors
 import com.mitimaiti.app.viewmodels.ProfileViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun ProfileScreen(
     viewModel: ProfileViewModel,
@@ -357,6 +357,101 @@ fun ProfileScreen(
         }
 
         Spacer(modifier = Modifier.height(12.dp))
+
+        // What's left to fill — lists every empty field; each row jumps to
+        // Edit Profile so nothing gets forgotten.
+        val missing = remember(profile) {
+            buildList {
+                if (profile.bio.isBlank()) add("Bio")
+                if (profile.heightCm == null) add("Height")
+                if (profile.education.isNullOrBlank()) add("Education")
+                if (profile.occupation.isNullOrBlank()) add("Occupation")
+                if (profile.religion.isNullOrBlank()) add("Religion")
+                if (profile.smoking.isNullOrBlank()) add("Smoking")
+                if (profile.drinking.isNullOrBlank()) add("Drinking")
+                if (profile.exercise.isNullOrBlank()) add("Exercise")
+                if (profile.wantKids.isNullOrBlank()) add("Want kids")
+                if (profile.settlingTimeline.isNullOrBlank()) add("Settling timeline")
+                if (profile.sindhiFluency == null) add("Sindhi fluency")
+                if (profile.sindhiDialect.isNullOrBlank()) add("Sindhi dialect")
+                if (profile.generation.isNullOrBlank()) add("Generation")
+                if (profile.gotra.isNullOrBlank()) add("Gotra")
+                if (profile.communitySubGroup.isNullOrBlank()) add("Community")
+                if (profile.familyOriginCity.isNullOrBlank()) add("Family origin city")
+                if (profile.familyValues == null) add("Family values")
+                if (profile.foodPreference == null) add("Food preference")
+                if (profile.festivalsCelebrated.isEmpty()) add("Festivals")
+                if (profile.interests.isEmpty()) add("Interests")
+                if (profile.languages.isEmpty()) add("Languages")
+                if (profile.musicPreferences.isEmpty()) add("Music")
+                if (profile.movieGenres.isEmpty()) add("Movie genres")
+                if (profile.travelStyle.isNullOrBlank()) add("Travel style")
+                if (profile.prompts.isEmpty()) add("Profile prompts")
+                if (profile.voiceIntroUrl.isNullOrBlank()) add("Voice intro")
+            }
+        }
+        if (missing.isNotEmpty()) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .clickable(onClick = onEditProfile),
+                shape = RoundedCornerShape(AppTheme.radiusMd),
+                color = colors.surface,
+                shadowElevation = 2.dp
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Finish your profile",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.textPrimary
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "${missing.size} left",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = AppColors.Rose
+                            )
+                            Icon(
+                                Icons.Default.ChevronRight, "Go to Edit Profile",
+                                tint = AppColors.Rose, modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    // Chips for each unfilled field
+                    androidx.compose.foundation.layout.FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        missing.forEach { field ->
+                            Surface(
+                                shape = RoundedCornerShape(AppTheme.radiusFull),
+                                color = AppColors.Rose.copy(alpha = 0.08f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, AppColors.Rose.copy(alpha = 0.25f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Add, null, tint = AppColors.Rose, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(field, fontSize = 13.sp, color = colors.textPrimary)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+        }
 
         // Get Verified card (photo verification)
         if (!profile.isVerified && profile.selfieVerificationAvailable) {

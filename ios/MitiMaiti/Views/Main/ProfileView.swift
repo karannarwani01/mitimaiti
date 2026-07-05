@@ -28,6 +28,10 @@ struct ProfileView: View {
                         .sectionFadeIn(appeared: appeared, delay: 0.05)
                     completenessCard
                         .sectionFadeIn(appeared: appeared, delay: 0.1)
+                    if !missingFields.isEmpty {
+                        finishProfileCard
+                            .sectionFadeIn(appeared: appeared, delay: 0.11)
+                    }
                     if !profileVM.user.isVerified && profileVM.user.selfieVerificationAvailable {
                         getVerifiedCard
                             .sectionFadeIn(appeared: appeared, delay: 0.12)
@@ -530,6 +534,89 @@ struct ProfileView: View {
                 .foregroundColor(colors.textSecondary)
             }
         }
+    }
+
+    // MARK: - Finish Your Profile (missing fields)
+
+    /// Every profile field the user hasn't filled yet — drives the checklist
+    /// card so nothing gets forgotten.
+    private var missingFields: [String] {
+        let u = profileVM.user
+        func s(_ v: String?) -> Bool { (v ?? "").trimmingCharacters(in: .whitespaces).isEmpty }
+        var m: [String] = []
+        if s(u.bio) { m.append("Bio") }
+        if u.heightCm == nil { m.append("Height") }
+        if s(u.education) { m.append("Education") }
+        if s(u.occupation) { m.append("Occupation") }
+        if s(u.religion) { m.append("Religion") }
+        if s(u.smoking) { m.append("Smoking") }
+        if s(u.drinking) { m.append("Drinking") }
+        if s(u.exercise) { m.append("Exercise") }
+        if s(u.wantKids) { m.append("Want kids") }
+        if s(u.settlingTimeline) { m.append("Settling timeline") }
+        if u.sindhiFluency == nil { m.append("Sindhi fluency") }
+        if s(u.sindhiDialect) { m.append("Sindhi dialect") }
+        if s(u.generation) { m.append("Generation") }
+        if s(u.gotra) { m.append("Gotra") }
+        if s(u.communitySubGroup) { m.append("Community") }
+        if s(u.familyOriginCity) { m.append("Family origin city") }
+        if u.familyValues == nil { m.append("Family values") }
+        if u.foodPreference == nil { m.append("Food preference") }
+        if (u.festivalsCelebrated ?? []).isEmpty { m.append("Festivals") }
+        if u.interests.isEmpty { m.append("Interests") }
+        if (u.languages ?? []).isEmpty { m.append("Languages") }
+        if (u.musicPreferences ?? []).isEmpty { m.append("Music") }
+        if (u.movieGenres ?? []).isEmpty { m.append("Movie genres") }
+        if s(u.travelStyle) { m.append("Travel style") }
+        if u.prompts.isEmpty { m.append("Profile prompts") }
+        if s(u.voiceIntroUrl) { m.append("Voice intro") }
+        return m
+    }
+
+    private var finishProfileCard: some View {
+        Button { showEditProfile = true } label: {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("Finish your profile")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(colors.textPrimary)
+                    Spacer()
+                    Text("\(missingFields.count) left")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(AppTheme.rose)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(AppTheme.rose)
+                }
+                FlowLayout(spacing: 8) {
+                    ForEach(missingFields, id: \.self) { field in
+                        HStack(spacing: 4) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(AppTheme.rose)
+                            Text(field)
+                                .font(.system(size: 13))
+                                .foregroundColor(colors.textPrimary)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule()
+                                .fill(AppTheme.rose.opacity(0.08))
+                                .overlay(Capsule().stroke(AppTheme.rose.opacity(0.25), lineWidth: 1))
+                        )
+                    }
+                }
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: AppTheme.radiusMD)
+                    .fill(colors.cardDark)
+                    .shadow(color: colors.cardShadowColor, radius: 4, x: 0, y: 2)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Profile Completeness Card
