@@ -103,14 +103,6 @@ class ProfileViewModel: ObservableObject {
 
     private let api = APIService.shared
 
-    var profileStats: [(String, String, String)] {
-        [
-            ("eye.fill", "47", "Views"),
-            ("heart.fill", "12", "Likes"),
-            ("person.2.fill", "5", "Matches")
-        ]
-    }
-
     /// Computed profile completeness — reflects what's actually filled on the
     /// ProfileViewModel + the user's stored photos/prompts, rather than a
     /// static value on the User model. Recomputes whenever any @Published

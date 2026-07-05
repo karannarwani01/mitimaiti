@@ -429,41 +429,6 @@ fun ProfileScreen(
             Spacer(modifier = Modifier.height(12.dp))
         }
 
-        // Stats row — three separate cards with circular icon badges (matches web design)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            StatCard(
-                icon = Icons.Default.Visibility,
-                value = viewModel.profileStats.views.toString(),
-                label = "Views",
-                accent = AppColors.Rose,
-                modifier = Modifier.weight(1f),
-                colors = colors
-            )
-            StatCard(
-                icon = Icons.Default.FavoriteBorder,
-                value = viewModel.profileStats.likes.toString(),
-                label = "Likes",
-                accent = AppColors.Rose,
-                modifier = Modifier.weight(1f),
-                colors = colors
-            )
-            StatCard(
-                icon = Icons.Default.ChatBubbleOutline,
-                value = viewModel.profileStats.matches.toString(),
-                label = "Matches",
-                accent = Color(0xFF3B82F6), // blue-500 for Matches (matches web)
-                modifier = Modifier.weight(1f),
-                colors = colors
-            )
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
         // Profile sections with field counts
         Surface(
             modifier = Modifier
@@ -625,52 +590,6 @@ private fun DailyQuestionCard(
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun StatCard(
-    icon: ImageVector,
-    value: String,
-    label: String,
-    accent: Color,
-    modifier: Modifier = Modifier,
-    colors: com.mitimaiti.app.ui.theme.AdaptiveColors
-) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(AppTheme.radiusMd),
-        color = colors.surface,
-        shadowElevation = 2.dp
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(CircleShape)
-                    .background(accent.copy(alpha = 0.10f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(icon, null, tint = accent, modifier = Modifier.size(16.dp))
-            }
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                value,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = colors.textPrimary
-            )
-            Text(
-                label,
-                fontSize = 10.sp,
-                color = colors.textMuted
-            )
         }
     }
 }

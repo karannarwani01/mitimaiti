@@ -15,8 +15,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-data class ProfileStats(val views: Int = 0, val likes: Int = 0, val matches: Int = 0)
-
 class ProfileViewModel : ViewModel() {
     private val _user = MutableStateFlow<User?>(null)
     val user: StateFlow<User?> = _user.asStateFlow()
@@ -216,8 +214,6 @@ class ProfileViewModel : ViewModel() {
             }
         }
     }
-
-    val profileStats = ProfileStats(views = 142, likes = 38, matches = 12)
 
     /**
      * Snapshot calculator — used to seed the reactive StateFlow below.
