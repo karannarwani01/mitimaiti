@@ -114,8 +114,14 @@ class AuthViewModel : ViewModel() {
         }
         viewModelScope.launch {
             _linkInProgress.value = true
+            // POLICY: Google proves control of the account, but the email still
+            // gets an OTP before it merges — backend sends the code, the same
+            // linkEmailVerify step finishes the link.
             APIService.linkGoogle(idToken)
-                .onSuccess { _linkResult.value = "success" }
+                .onSuccess { email ->
+                    _pendingLinkEmail.value = email
+                    _linkEmailOtpSent.value = true
+                }
                 .onFailure {
                     _linkResult.value = when (it) {
                         is APIError.LinkConflict -> "That Google account is already linked elsewhere"
@@ -125,6 +131,47 @@ class AuthViewModel : ViewModel() {
             _linkInProgress.value = false
         }
     }
+
+    /** true once the phone OTP has been sent → show the code step. */
+    private val _linkPhoneOtpSent = MutableStateFlow(false)
+    val linkPhoneOtpSent: StateFlow<Boolean> = _linkPhoneOtpSent.asStateFlow()
+    private val _pendingLinkPhone = MutableStateFlow("")
+    val pendingLinkPhone: StateFlow<String> = _pendingLinkPhone.asStateFlow()
+
+    /** Step 1: send an SMS OTP to the phone the user wants to add. */
+    fun linkPhoneStart(rawPhone: String) {
+        val phone = rawPhone.filter { !it.isWhitespace() }
+        if (!phone.matches(Regex("^\\+[1-9]\\d{6,14}$"))) {
+            _linkResult.value = "Enter the number with country code, e.g. +971501234567"
+            return
+        }
+        viewModelScope.launch {
+            _linkInProgress.value = true
+            APIService.linkPhoneStart(phone)
+                .onSuccess { _pendingLinkPhone.value = phone; _linkPhoneOtpSent.value = true }
+                .onFailure { _linkResult.value = "Couldn't send the code. Please try again." }
+            _linkInProgress.value = false
+        }
+    }
+
+    /** Step 2: verify the SMS code → attaches the phone (or auto-merges). */
+    fun linkPhoneVerify(code: String) {
+        viewModelScope.launch {
+            _linkInProgress.value = true
+            APIService.linkPhoneVerify(_pendingLinkPhone.value, code)
+                .onSuccess { merged -> _linkResult.value = if (merged) "merged" else "success" }
+                .onFailure {
+                    _linkResult.value = when (it) {
+                        is APIError.InvalidOtp -> "That code is invalid or expired"
+                        is APIError.LinkConflict -> "That number belongs to another active account"
+                        else -> "Couldn't verify the code. Please try again."
+                    }
+                }
+            _linkInProgress.value = false
+        }
+    }
+
+    fun resetLinkPhoneOtp() { _linkPhoneOtpSent.value = false; _pendingLinkPhone.value = "" }
 
     fun sendOTP() {
         if (_phone.value.length < 10) { _error.value = "Please enter a valid phone number"; return }

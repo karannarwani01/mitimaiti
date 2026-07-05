@@ -160,7 +160,9 @@ class MainActivity : ComponentActivity() {
                             EmailAuthScreen(
                                 viewModel = authViewModel,
                                 onVerified = {
-                                    val dest = if (authViewModel.hasCompletedOnboarding.value) Screen.Main.route else Screen.Onboarding.route
+                                    // Email-first new users get the "secure your
+                                    // mobile number" step before onboarding.
+                                    val dest = if (authViewModel.hasCompletedOnboarding.value) Screen.Main.route else Screen.LinkAccount.route
                                     navController.navigate(dest) { popUpTo(Screen.Welcome.route) { inclusive = true } }
                                 },
                                 onBack = { navController.popBackStack() }

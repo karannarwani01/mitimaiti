@@ -42,6 +42,13 @@ interface MitiMaitiApi {
     @POST("auth/link/email/verify")
     suspend fun linkEmailVerify(@Body body: Map<String, String>): Response<Map<String, Any>>
 
+    // Add a phone with SMS OTP verification (mirror of the email pair).
+    @POST("auth/link/phone/start")
+    suspend fun linkPhoneStart(@Body body: Map<String, String>): Response<Map<String, Any>>
+
+    @POST("auth/link/phone/verify")
+    suspend fun linkPhoneVerify(@Body body: Map<String, String>): Response<Map<String, Any>>
+
     @GET("auth/link/status")
     suspend fun linkStatus(): Response<Map<String, Any>>
 

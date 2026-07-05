@@ -47,10 +47,14 @@ fun SignInMethodsScreen(viewModel: AuthViewModel, onBack: () -> Unit) {
     var status by remember { mutableStateOf<APIService.LinkStatus?>(null) }
     var loading by remember { mutableStateOf(true) }
     var showEmailDialog by remember { mutableStateOf(false) }
+    var showPhoneDialog by remember { mutableStateOf(false) }
     var emailInput by remember { mutableStateOf("") }
+    var phoneInput by remember { mutableStateOf("") }
     var codeInput by remember { mutableStateOf("") }
     var localError by remember { mutableStateOf<String?>(null) }
     val otpSent by viewModel.linkEmailOtpSent.collectAsState()
+    val pendingEmail by viewModel.pendingLinkEmail.collectAsState()
+    val phoneOtpSent by viewModel.linkPhoneOtpSent.collectAsState()
 
     suspend fun refresh() {
         loading = true
@@ -62,18 +66,26 @@ fun SignInMethodsScreen(viewModel: AuthViewModel, onBack: () -> Unit) {
     LaunchedEffect(result) {
         when (result) {
             "success" -> {
-                showEmailDialog = false; emailInput = ""; codeInput = ""
-                viewModel.resetLinkEmailOtp(); refresh(); viewModel.clearLinkResult()
+                showEmailDialog = false; showPhoneDialog = false
+                emailInput = ""; phoneInput = ""; codeInput = ""
+                viewModel.resetLinkEmailOtp(); viewModel.resetLinkPhoneOtp()
+                refresh(); viewModel.clearLinkResult()
             }
             "merged" -> {
-                // The email belonged to another (empty) account; this one was
+                // The contact belonged to another (empty) account; this one was
                 // absorbed into it. The session is now stale — prompt re-login.
-                showEmailDialog = false; emailInput = ""; codeInput = ""
-                viewModel.resetLinkEmailOtp()
+                showEmailDialog = false; showPhoneDialog = false
+                emailInput = ""; phoneInput = ""; codeInput = ""
+                viewModel.resetLinkEmailOtp(); viewModel.resetLinkPhoneOtp()
                 localError = "We found and merged your other account. Please sign in again."
                 viewModel.clearLinkResult()
             }
         }
+    }
+    // Google link sends the email code server-side → open the dialog at the
+    // code step (policy: even a Google-proven email is OTP-verified).
+    LaunchedEffect(otpSent) {
+        if (otpSent && !showEmailDialog) { codeInput = ""; showEmailDialog = true }
     }
     DisposableEffect(Unit) { onDispose { viewModel.clearLinkResult() } }
 
@@ -134,8 +146,12 @@ fun SignInMethodsScreen(viewModel: AuthViewModel, onBack: () -> Unit) {
             } else {
                 MethodRow(
                     icon = Icons.Default.Phone, label = "Phone",
-                    value = status?.phone?.let { "•••• " + it.takeLast(4) } ?: "—",
-                    linked = status?.phone != null, colors = colors, onAdd = null // phone is the primary method
+                    value = status?.phone?.let { "•••• " + it.takeLast(4) } ?: "Not linked",
+                    linked = status?.phone != null, colors = colors, enabled = !inProgress,
+                    onAdd = {
+                        localError = null; phoneInput = ""; codeInput = ""
+                        viewModel.resetLinkPhoneOtp(); showPhoneDialog = true
+                    }
                 )
                 MethodRow(
                     icon = Icons.Default.Email, label = "Email",
@@ -179,7 +195,7 @@ fun SignInMethodsScreen(viewModel: AuthViewModel, onBack: () -> Unit) {
                             modifier = Modifier.fillMaxWidth()
                         )
                     } else {
-                        Text("Enter the 6-digit code we sent to $emailInput.",
+                        Text("Enter the 6-digit code we sent to ${pendingEmail.ifBlank { emailInput }}.",
                             fontSize = 13.sp, color = colors.textSecondary)
                         Spacer(Modifier.height(12.dp))
                         OutlinedTextField(
@@ -209,6 +225,58 @@ fun SignInMethodsScreen(viewModel: AuthViewModel, onBack: () -> Unit) {
                 }
             },
             dismissButton = { TextButton(onClick = { closeDialog() }, enabled = !inProgress) { Text("Cancel") } }
+        )
+    }
+
+    if (showPhoneDialog) {
+        val closePhoneDialog = { showPhoneDialog = false; codeInput = ""; viewModel.resetLinkPhoneOtp() }
+        AlertDialog(
+            onDismissRequest = { if (!inProgress) closePhoneDialog() },
+            title = { Text(if (phoneOtpSent) "Enter the code" else "Add your mobile number") },
+            text = {
+                Column {
+                    if (!phoneOtpSent) {
+                        Text("Include the country code. We'll text a code to verify it.",
+                            fontSize = 13.sp, color = colors.textSecondary)
+                        Spacer(Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = phoneInput,
+                            onValueChange = { phoneInput = it.filter { c -> c.isDigit() || c == '+' }.take(16) },
+                            singleLine = true, placeholder = { Text("+971501234567") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    } else {
+                        Text("Enter the 6-digit code we texted to $phoneInput.",
+                            fontSize = 13.sp, color = colors.textSecondary)
+                        Spacer(Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = codeInput,
+                            onValueChange = { codeInput = it.filter { c -> c.isDigit() }.take(6) },
+                            singleLine = true, placeholder = { Text("000000") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    (result?.takeIf { it != "success" && it != "merged" })?.let {
+                        Spacer(Modifier.height(8.dp)); Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                    }
+                }
+            },
+            confirmButton = {
+                if (!phoneOtpSent) {
+                    TextButton(onClick = { viewModel.linkPhoneStart(phoneInput) },
+                        enabled = !inProgress && phoneInput.length >= 8) {
+                        Text(if (inProgress) "Sending…" else "Send code", color = AppColors.Rose)
+                    }
+                } else {
+                    TextButton(onClick = { viewModel.linkPhoneVerify(codeInput) },
+                        enabled = !inProgress && codeInput.length >= 4) {
+                        Text(if (inProgress) "Verifying…" else "Verify", color = AppColors.Rose)
+                    }
+                }
+            },
+            dismissButton = { TextButton(onClick = { closePhoneDialog() }, enabled = !inProgress) { Text("Cancel") } }
         )
     }
 }

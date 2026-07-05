@@ -10,7 +10,9 @@ struct SignInMethodsView: View {
     @State private var status: APIService.LinkStatus?
     @State private var loading = true
     @State private var showEmailSheet = false
+    @State private var showPhoneSheet = false
     @State private var emailInput = ""
+    @State private var phoneInput = ""
     @State private var codeInput = ""
 
     private var errorMessage: String? {
@@ -23,8 +25,12 @@ struct SignInMethodsView: View {
             Section(footer: Text("Add more ways to sign in so you always keep this profile.")) {
                 methodRow(
                     icon: "phone.fill", title: "Phone",
-                    value: status?.phone.map { "•••• " + String($0.suffix(4)) } ?? "—",
-                    linked: status?.phone != nil, canAdd: false, action: {}
+                    value: status?.phone.map { "•••• " + String($0.suffix(4)) } ?? "Not linked",
+                    linked: status?.phone != nil, canAdd: true,
+                    action: {
+                        authVM.clearLinkResult(); authVM.resetLinkPhoneOtp()
+                        phoneInput = ""; codeInput = ""; showPhoneSheet = true
+                    }
                 )
                 methodRow(
                     icon: "envelope.fill", title: "Email",
@@ -53,11 +59,18 @@ struct SignInMethodsView: View {
         .task { await refresh() }
         .onChange(of: authVM.linkResult) { newValue in
             if newValue == "success" || newValue == "merged" {
-                showEmailSheet = false; codeInput = ""; authVM.resetLinkEmailOtp()
+                showEmailSheet = false; showPhoneSheet = false; codeInput = ""
+                authVM.resetLinkEmailOtp(); authVM.resetLinkPhoneOtp()
                 Task { await refresh(); authVM.clearLinkResult() }
             }
         }
+        // Google link sends the email code server-side → open the sheet at the
+        // code step (policy: even a Google-proven email is OTP-verified).
+        .onChange(of: authVM.linkEmailOtpSent) { sent in
+            if sent && !showEmailSheet { codeInput = ""; showEmailSheet = true }
+        }
         .sheet(isPresented: $showEmailSheet) { emailSheet }
+        .sheet(isPresented: $showPhoneSheet) { phoneSheet }
     }
 
     @MainActor
@@ -115,7 +128,7 @@ struct SignInMethodsView: View {
                     }
                     .disabled(authVM.linkInProgress || emailInput.isEmpty)
                 } else {
-                    Text("Enter the 6-digit code we sent to \(emailInput).")
+                    Text("Enter the 6-digit code we sent to \(authVM.pendingLinkEmail.isEmpty ? emailInput : authVM.pendingLinkEmail).")
                         .font(.system(size: 14)).foregroundColor(colors.textSecondary)
                     TextField("000000", text: $codeInput)
                         .keyboardType(.numberPad)
@@ -142,6 +155,64 @@ struct SignInMethodsView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { showEmailSheet = false; codeInput = ""; authVM.resetLinkEmailOtp() }.disabled(authVM.linkInProgress)
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+
+    private var phoneSheet: some View {
+        NavigationView {
+            VStack(alignment: .leading, spacing: 16) {
+                if !authVM.linkPhoneOtpSent {
+                    Text("Include the country code. We'll text a code to verify it.")
+                        .font(.system(size: 14)).foregroundColor(colors.textSecondary)
+                    TextField("+971501234567", text: $phoneInput)
+                        .keyboardType(.phonePad)
+                        .onChange(of: phoneInput) { v in
+                            phoneInput = String(v.filter { $0.isNumber || $0 == "+" }.prefix(16))
+                        }
+                        .padding()
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(colors.border, lineWidth: 1))
+                    if let msg = errorMessage {
+                        Text(msg).font(.system(size: 12)).foregroundColor(.red)
+                    }
+                    Button(action: { authVM.linkPhoneStart(phoneInput) }) {
+                        Text(authVM.linkInProgress ? "Sending…" : "Send code")
+                            .font(.system(size: 16, weight: .semibold)).foregroundColor(.white)
+                            .frame(maxWidth: .infinity).frame(height: 52)
+                            .background(phoneInput.count < 8 ? AppTheme.rose.opacity(0.5) : AppTheme.rose)
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+                    .disabled(authVM.linkInProgress || phoneInput.count < 8)
+                } else {
+                    Text("Enter the 6-digit code we texted to \(authVM.pendingLinkPhone.isEmpty ? phoneInput : authVM.pendingLinkPhone).")
+                        .font(.system(size: 14)).foregroundColor(colors.textSecondary)
+                    TextField("000000", text: $codeInput)
+                        .keyboardType(.numberPad)
+                        .onChange(of: codeInput) { v in codeInput = String(v.filter { $0.isNumber }.prefix(6)) }
+                        .padding()
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(colors.border, lineWidth: 1))
+                    if let msg = errorMessage {
+                        Text(msg).font(.system(size: 12)).foregroundColor(.red)
+                    }
+                    Button(action: { authVM.linkPhoneVerify(codeInput) }) {
+                        Text(authVM.linkInProgress ? "Verifying…" : "Verify")
+                            .font(.system(size: 16, weight: .semibold)).foregroundColor(.white)
+                            .frame(maxWidth: .infinity).frame(height: 52)
+                            .background(codeInput.count < 4 ? AppTheme.rose.opacity(0.5) : AppTheme.rose)
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+                    .disabled(authVM.linkInProgress || codeInput.count < 4)
+                }
+                Spacer()
+            }
+            .padding(24)
+            .navigationTitle(authVM.linkPhoneOtpSent ? "Enter the code" : "Add your number")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { showPhoneSheet = false; codeInput = ""; authVM.resetLinkPhoneOtp() }.disabled(authVM.linkInProgress)
                 }
             }
         }

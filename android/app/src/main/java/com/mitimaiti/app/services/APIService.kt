@@ -120,12 +120,45 @@ object APIService {
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
 
-    /** Attach the user's Google email to the current account. */
-    suspend fun linkGoogle(idToken: String): Result<Unit> {
+    /** Start linking the user's Google email: the backend verifies the ID token
+     *  and sends an OTP to that email (policy: every email is OTP-verified before
+     *  it merges). Returns the email the code was sent to — finish with
+     *  linkEmailVerify. */
+    suspend fun linkGoogle(idToken: String): Result<String> {
         return try {
             val r = api.linkGoogle(mapOf("idToken" to idToken))
             when {
-                r.isSuccessful -> Result.success(Unit)
+                r.isSuccessful -> {
+                    val data = r.body()?.get("data") as? Map<*, *>
+                    val email = data?.get("email") as? String
+                    if (email.isNullOrBlank()) Result.failure(APIError.ServerError)
+                    else Result.success(email)
+                }
+                r.code() == 409 -> Result.failure(APIError.LinkConflict)
+                else -> Result.failure(APIError.ServerError)
+            }
+        } catch (e: Exception) { Result.failure(APIError.NetworkError) }
+    }
+
+    /** Send an SMS OTP to a phone the user wants to add to this account. */
+    suspend fun linkPhoneStart(phone: String): Result<Unit> {
+        return try {
+            val r = api.linkPhoneStart(mapOf("phone" to phone))
+            if (r.isSuccessful) Result.success(Unit) else Result.failure(APIError.ServerError)
+        } catch (e: Exception) { Result.failure(APIError.NetworkError) }
+    }
+
+    /** Verify the SMS OTP and attach the phone (or auto-merge into an existing
+     *  account). Returns true if a merge happened (caller should re-authenticate). */
+    suspend fun linkPhoneVerify(phone: String, code: String): Result<Boolean> {
+        return try {
+            val r = api.linkPhoneVerify(mapOf("phone" to phone, "code" to code))
+            when {
+                r.isSuccessful -> {
+                    val data = r.body()?.get("data") as? Map<*, *>
+                    Result.success((data?.get("merged") as? Boolean) ?: false)
+                }
+                r.code() == 401 -> Result.failure(APIError.InvalidOtp)
                 r.code() == 409 -> Result.failure(APIError.LinkConflict)
                 else -> Result.failure(APIError.ServerError)
             }

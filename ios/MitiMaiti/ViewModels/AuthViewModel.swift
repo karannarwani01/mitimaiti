@@ -28,8 +28,11 @@ class AuthViewModel: ObservableObject {
     @Published var resendCooldown = 0
     @Published var resendCount = 0
 
-    // Account linking (post-OTP "add a backup sign-in" step + Settings)
+    // Account linking (post-signup "secure your account" step + Settings)
     @Published var showLinkStep = false
+    /// true → the link step asks for a mobile number (email/Google/Apple-first
+    /// signups); false → it asks for an email (phone-first signups).
+    @Published var linkStepSecuresPhone = false
     @Published var linkInProgress = false
     /// nil = idle, "success" = linked, otherwise a user-facing error message.
     @Published var linkResult: String? = nil
@@ -76,8 +79,9 @@ class AuthViewModel: ObservableObject {
                 let result = try await api.verifyOTP(phone: e164Phone, code: otpCode)
                 isLoading = false
                 hasCompletedOnboarding = !result.needsOnboarding
-                // New phone users get the optional "add a backup sign-in" step first.
+                // New phone users get the optional "secure your email" step first.
                 showLinkStep = result.needsOnboarding
+                linkStepSecuresPhone = false
                 isAuthenticated = true
                 SocketChat.shared.connect(token: result.accessToken)
             } catch {
@@ -124,6 +128,9 @@ class AuthViewModel: ObservableObject {
                 let result = try await api.verifyEmailOTP(email: email, code: otpCode)
                 isLoading = false
                 hasCompletedOnboarding = !result.needsOnboarding
+                // New email-first users get the "secure your mobile number" step.
+                showLinkStep = result.needsOnboarding
+                linkStepSecuresPhone = true
                 isAuthenticated = true
                 SocketChat.shared.connect(token: result.accessToken)
             } catch {
@@ -207,9 +214,13 @@ class AuthViewModel: ObservableObject {
                    let name = Self.nameFromIdToken(idToken), !name.isEmpty {
                     UserProfileStore.shared.firstName = name
                 }
-                try await api.linkGoogle(idToken: idToken)
+                // POLICY: Google proves control of the account, but the email
+                // still gets an OTP before it merges — the backend sends the
+                // code; the shared linkEmailVerify step finishes the link.
+                let email = try await api.linkGoogle(idToken: idToken)
+                pendingLinkEmail = email
+                linkEmailOtpSent = true
                 linkInProgress = false
-                linkResult = "success"
             } catch GoogleSignInError.canceled {
                 linkInProgress = false
             } catch {
@@ -218,6 +229,50 @@ class AuthViewModel: ObservableObject {
             }
         }
     }
+
+    // MARK: - Phone linking (email-first accounts securing a mobile number)
+
+    @Published var linkPhoneOtpSent = false
+    @Published var pendingLinkPhone = ""
+
+    /// Step 1: send an SMS OTP to the phone the user wants to add.
+    func linkPhoneStart(_ rawPhone: String) {
+        let phone = rawPhone.filter { !$0.isWhitespace }
+        guard phone.range(of: #"^\+[1-9]\d{6,14}$"#, options: .regularExpression) != nil else {
+            linkResult = "Enter the number with country code, e.g. +971501234567"; return
+        }
+        linkInProgress = true
+        linkResult = nil
+        Task {
+            do {
+                try await api.linkPhoneStart(phone)
+                pendingLinkPhone = phone
+                linkPhoneOtpSent = true
+                linkInProgress = false
+            } catch {
+                linkInProgress = false
+                linkResult = "Couldn't send the code. Please try again."
+            }
+        }
+    }
+
+    /// Step 2: verify the SMS code → attaches the phone (or auto-merges).
+    func linkPhoneVerify(_ code: String) {
+        linkInProgress = true
+        linkResult = nil
+        Task {
+            do {
+                let merged = try await api.linkPhoneVerify(pendingLinkPhone, code: code)
+                linkInProgress = false
+                linkResult = merged ? "merged" : "success"
+            } catch {
+                linkInProgress = false
+                linkResult = "That code is invalid or expired."
+            }
+        }
+    }
+
+    func resetLinkPhoneOtp() { linkPhoneOtpSent = false; pendingLinkPhone = "" }
 
     func signInWithGoogle(idToken: String) {
         isLoading = true
@@ -239,6 +294,9 @@ class AuthViewModel: ObservableObject {
                     UserProfileStore.shared.firstName = firstName
                 }
                 hasCompletedOnboarding = !result.needsOnboarding
+                // New Google-first users get the "secure your mobile number" step.
+                showLinkStep = result.needsOnboarding
+                linkStepSecuresPhone = true
                 isAuthenticated = true
                 SocketChat.shared.connect(token: result.accessToken)
             } catch {
@@ -338,6 +396,9 @@ class AuthViewModel: ObservableObject {
                     UserProfileStore.shared.firstName = firstName
                 }
                 hasCompletedOnboarding = !result.needsOnboarding
+                // New Apple-first users get the "secure your mobile number" step.
+                showLinkStep = result.needsOnboarding
+                linkStepSecuresPhone = true
                 isAuthenticated = true
                 SocketChat.shared.connect(token: result.accessToken)
             } catch {

@@ -1308,6 +1308,17 @@ const linkEmailVerifySchema = z.object({
 const linkGoogleSchema = z.object({
   idToken: z.string().min(10, 'Missing Google ID token'),
 });
+const linkPhoneSchema = z.object({
+  phone: z
+    .string()
+    .regex(/^\+[1-9]\d{6,14}$/, 'Phone must be in E.164 format (e.g. +919876543210)'),
+});
+const linkPhoneVerifySchema = z.object({
+  phone: z
+    .string()
+    .regex(/^\+[1-9]\d{6,14}$/, 'Phone must be in E.164 format (e.g. +919876543210)'),
+  code: z.string().min(4, 'Enter the code').max(10),
+});
 
 /** True if a profile has no dating data worth preserving (safe to absorb). */
 async function isProfileEmpty(userId: string): Promise<boolean> {
@@ -1337,6 +1348,7 @@ async function absorbEmptyProfileInto(
 
   const { data: la } = await supabaseAuth.auth.admin.getUserById(loserAuthId);
   let phone = la?.user?.phone || '';
+  const loserEmail = (la?.user?.email || '').toLowerCase();
 
   for (const t of [
     'basic_profiles', 'sindhi_profiles', 'chatti_profiles', 'user_settings',
@@ -1352,12 +1364,18 @@ async function absorbEmptyProfileInto(
   }
   await supabaseAuth.auth.admin.deleteUser(loserAuthId).then(() => {}, () => {});
 
-  if (phone && survivorAuthId) {
+  if ((phone || loserEmail) && survivorAuthId) {
     const { data: sa } = await supabaseAuth.auth.admin.getUserById(survivorAuthId);
-    if (!sa?.user?.phone) {
+    if (phone && !sa?.user?.phone) {
       if (!phone.startsWith('+')) phone = '+' + phone;
       await supabaseAuth.auth.admin.updateUserById(survivorAuthId, { phone, phone_confirm: true });
       await supabase.from('users').update({ phone }).eq('id', survivorUserId).then(() => {}, () => {});
+    }
+    // Symmetric direction: an email-first account merging into a phone-owning
+    // profile carries its (verified) email over to the survivor.
+    if (loserEmail && !sa?.user?.email) {
+      await supabaseAuth.auth.admin.updateUserById(survivorAuthId, { email: loserEmail, email_confirm: true });
+      await supabase.from('users').update({ email: loserEmail }).eq('id', survivorUserId).then(() => {}, () => {});
     }
   }
 }
@@ -1458,14 +1476,11 @@ router.post(
     }
 
     const email = payload.email.toLowerCase();
-    // Google OAuth proves ownership → auto-merge is safe.
-    const { merged } = await attachEmailToUser(user.authId, user.id, email, 'LINK_GOOGLE_FAILED', true);
 
     // Backfill the name for accounts that don't have one yet (phone-OTP signup
     // linking Google before onboarding) so the name step arrives prefilled.
-    // Skipped on merge — the surviving profile keeps its own name.
     const googleName = payload.name || payload.given_name || null;
-    if (!merged && googleName) {
+    if (googleName) {
       await supabase
         .from('users')
         .update({ first_name: googleName })
@@ -1473,7 +1488,18 @@ router.post(
         .is('first_name', null);
     }
 
-    res.json({ success: true, data: { email, provider: 'google', merged } });
+    // POLICY: every email is OTP-verified before it attaches/merges — even one
+    // proven by Google OAuth. Send the code; the client completes the link via
+    // POST /link/email/verify (which handles attach + auto-merge).
+    const { error: otpErr } = await supabaseAuth.auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: true },
+    });
+    if (otpErr) {
+      throw new AppError(500, otpErr.message || 'Could not send the code', 'OTP_SEND_FAILED');
+    }
+
+    res.json({ success: true, data: { email, provider: 'google', sent: true } });
   })
 );
 
@@ -1590,6 +1616,98 @@ router.post(
     }
     await supabase.from('users').update({ email }).eq('id', user.id).then(() => {}, () => {});
     res.json({ success: true, data: { email, verified: true, merged: false } });
+  })
+);
+
+// POST /v1/auth/link/phone/start — send an SMS OTP to a phone the caller wants
+// to add to their (email-first) account. Mirror of link/email/start.
+router.post(
+  '/link/phone/start',
+  authenticate,
+  otpSendRateLimit,
+  validate(linkPhoneSchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    const { phone } = req.body;
+    const { error } = await supabaseAuth.auth.signInWithOtp({
+      phone,
+      options: { shouldCreateUser: true },
+    });
+    if (error) {
+      if (error.message.includes('rate') || error.status === 429) {
+        throw new AppError(429, 'Too many OTP requests. Please wait before trying again.', 'OTP_RATE_LIMITED');
+      }
+      throw new AppError(500, error.message || 'Could not send the code', 'OTP_SEND_FAILED');
+    }
+    res.json({ success: true, data: { phone, sent: true } });
+  })
+);
+
+// POST /v1/auth/link/phone/verify — verify the SMS OTP, then attach the phone to
+// the caller's account (or auto-merge if it belongs to another empty profile).
+// Mirror of link/email/verify.
+router.post(
+  '/link/phone/verify',
+  authenticate,
+  otpVerifyRateLimit,
+  validate(linkPhoneVerifySchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    const user = (req as AuthenticatedRequest).user;
+    const { phone } = req.body;
+    const code = (req.body.code as string).trim();
+
+    const { data: v, error } = await supabaseAuth.auth.verifyOtp({
+      phone,
+      token: code,
+      type: 'sms',
+    });
+    if (error || !v?.user) {
+      throw new AppError(401, 'That code is invalid or expired', 'OTP_INVALID');
+    }
+
+    // The phone's authoritative owner is this auth user (from the OTP).
+    const phoneAuthId = v.user.id;
+    const { data: prof } = await supabase
+      .from('users')
+      .select('id')
+      .eq('auth_id', phoneAuthId)
+      .maybeSingle();
+
+    // Already this account's phone — nothing to do.
+    if (prof && prof.id === user.id) {
+      res.json({ success: true, data: { phone, verified: true, merged: false } });
+      return;
+    }
+
+    // The phone belongs to ANOTHER real account. Ownership is proven (OTP), so
+    // merge when the current profile is empty; never silently merge two active
+    // accounts.
+    if (prof) {
+      if (await isProfileEmpty(user.id)) {
+        await absorbEmptyProfileInto(user.id, user.authId, prof.id);
+        res.json({ success: true, data: { phone, verified: true, merged: true } });
+        return;
+      }
+      throw new AppError(
+        409,
+        'That phone number belongs to another active account. Contact support to merge them.',
+        'MERGE_CONFLICT'
+      );
+    }
+
+    // No profile → Supabase's throwaway shadow user. Delete it so the number is
+    // free, then attach the phone to the caller.
+    if (phoneAuthId !== user.authId) {
+      await supabaseAuth.auth.admin.deleteUser(phoneAuthId).then(() => {}, () => {});
+    }
+    const { error: upErr } = await supabaseAuth.auth.admin.updateUserById(user.authId, {
+      phone,
+      phone_confirm: true,
+    });
+    if (upErr) {
+      throw new AppError(500, upErr.message || 'Failed to link phone', 'LINK_PHONE_FAILED');
+    }
+    await supabase.from('users').update({ phone }).eq('id', user.id).then(() => {}, () => {});
+    res.json({ success: true, data: { phone, verified: true, merged: false } });
   })
 );
 
