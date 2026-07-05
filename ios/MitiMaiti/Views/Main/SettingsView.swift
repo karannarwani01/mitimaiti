@@ -307,14 +307,6 @@ struct SettingsView: View {
                 )
             )
             ToggleRow(
-                title: localization.t("settings.familyUpdates"),
-                icon: "person.3.fill",
-                isOn: Binding(
-                    get: { vm.notifyFamily },
-                    set: { vm.notifyFamily = $0 }
-                )
-            )
-            ToggleRow(
                 title: localization.t("settings.expiry"),
                 icon: "clock.fill",
                 isOn: Binding(
@@ -409,12 +401,6 @@ struct SettingsView: View {
                 EditProfileView()
             } label: {
                 settingsRow(icon: "pencil", title: localization.t("settings.editProfile"), color: AppTheme.rose)
-            }
-
-            NavigationLink {
-                FamilyView()
-            } label: {
-                settingsRow(icon: "person.3.fill", title: localization.t("settings.familyMode"), color: AppTheme.rose)
             }
 
             NavigationLink {

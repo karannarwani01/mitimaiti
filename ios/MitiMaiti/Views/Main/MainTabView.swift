@@ -6,7 +6,6 @@ struct MainTabView: View {
     @StateObject private var feedVM = FeedViewModel()
     @StateObject private var inboxVM = InboxViewModel()
     @StateObject private var profileVM = ProfileViewModel()
-    @StateObject private var familyVM = FamilyViewModel()
     @ObservedObject private var notificationManager = NotificationManager.shared
 
     var body: some View {
@@ -35,13 +34,6 @@ struct MainTabView: View {
                 }
                 .tag(2)
                 .badge(matchBadgeCount)
-
-            FamilyView()
-                .tabItem {
-                    Label("Family", systemImage: "person.3.fill")
-                }
-                .tag(3)
-                .badge(familyBadgeCount)
 
             ProfileView()
                 .environmentObject(profileVM)
@@ -139,9 +131,5 @@ struct MainTabView: View {
         let unread = inboxVM.unreadMessages
         let notifMatches = notificationManager.unreadCount(for: [.match, .message, .expiry, .icebreaker])
         return max(unread, notifMatches)
-    }
-
-    private var familyBadgeCount: Int {
-        notificationManager.unreadCount(for: [.family, .familySuggestion])
     }
 }

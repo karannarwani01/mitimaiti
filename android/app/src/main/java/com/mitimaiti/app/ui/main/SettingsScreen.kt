@@ -117,7 +117,6 @@ fun SettingsScreen(
     val notifyMatches by viewModel.notifyMatches.collectAsState()
     val notifyMessages by viewModel.notifyMessages.collectAsState()
     val notifyLikes by viewModel.notifyLikes.collectAsState()
-    val notifyFamily by viewModel.notifyFamily.collectAsState()
     val notifyExpiry by viewModel.notifyExpiry.collectAsState()
     val notifySafety by viewModel.notifySafety.collectAsState()
     val notifyDailyPrompts by viewModel.notifyDailyPrompts.collectAsState()
@@ -331,10 +330,6 @@ fun SettingsScreen(
                         viewModel.notifyLikes.value = it
                     }
                     HorizontalDivider(color = colors.borderSubtle)
-                    SettingsToggle("Family", "Family suggestions & activity", notifyFamily) {
-                        viewModel.notifyFamily.value = it
-                    }
-                    HorizontalDivider(color = colors.borderSubtle)
                     SettingsToggle("Expiry", "Match & message expiry reminders", notifyExpiry) {
                         viewModel.notifyExpiry.value = it
                     }
@@ -428,23 +423,6 @@ fun SettingsScreen(
                             Icon(Icons.Default.Edit, null, tint = AppColors.Rose, modifier = Modifier.size(20.dp))
                             Spacer(modifier = Modifier.width(12.dp))
                             Text("Edit Profile", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = colors.textPrimary)
-                            Spacer(modifier = Modifier.weight(1f))
-                            Icon(Icons.Default.ChevronRight, null, tint = colors.textMuted, modifier = Modifier.size(18.dp))
-                        }
-                    }
-                    HorizontalDivider(color = colors.borderSubtle)
-                    // Family Mode
-                    TextButton(
-                        onClick = { viewModel.showToast("Navigate to Family Mode") },
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.FamilyRestroom, null, tint = AppColors.Gold, modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text("Family Mode", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = colors.textPrimary)
                             Spacer(modifier = Modifier.weight(1f))
                             Icon(Icons.Default.ChevronRight, null, tint = colors.textMuted, modifier = Modifier.size(18.dp))
                         }

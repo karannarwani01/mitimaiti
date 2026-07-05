@@ -68,14 +68,6 @@ class SettingsViewModel: ObservableObject {
             objectWillChange.send()
         }
     }
-    var notifyFamily: Bool {
-        get { NotificationManager.shared.settings.family }
-        set {
-            NotificationManager.shared.settings.family = newValue
-            NotificationManager.shared.saveSettings()
-            objectWillChange.send()
-        }
-    }
     var notifyExpiry: Bool {
         get { NotificationManager.shared.settings.expiry }
         set {

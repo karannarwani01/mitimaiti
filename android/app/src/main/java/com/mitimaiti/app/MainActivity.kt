@@ -127,7 +127,6 @@ class MainActivity : ComponentActivity() {
                 val feedViewModel: FeedViewModel = viewModel()
                 val inboxViewModel: InboxViewModel = viewModel()
                 val profileViewModel: ProfileViewModel = viewModel()
-                val familyViewModel: FamilyViewModel = viewModel()
                 val settingsViewModel: SettingsViewModel = viewModel()
 
                 Surface(modifier = Modifier.fillMaxSize(), color = colors.background) {
@@ -265,7 +264,6 @@ class MainActivity : ComponentActivity() {
                                 feedViewModel = feedViewModel,
                                 inboxViewModel = inboxViewModel,
                                 profileViewModel = profileViewModel,
-                                familyViewModel = familyViewModel,
                                 onNavigateToChat = { matchId -> navController.navigate(Screen.Chat.createRoute(matchId)) },
                                 onNavigateToEditProfile = { navController.navigate(Screen.EditProfile.route) },
                                 onNavigateToSettings = { navController.navigate(Screen.Settings.route) },

@@ -355,7 +355,17 @@ object APIService {
     suspend fun fetchVerifyChallenge(): Result<VerifyChallenge> {
         return try {
             val r = api.verifyChallenge()
-            if (!r.isSuccessful) return Result.failure(APIError.ServerError)
+            if (!r.isSuccessful) {
+                // The server pre-checks the main photo BEFORE issuing a pose —
+                // surface its guidance instead of a generic failure.
+                return Result.failure(when (errorCodeOf(r)) {
+                    "NO_FACE_IN_PRIMARY" -> APIError.MessageRejected(
+                        "Your main photo doesn't clearly show your face. Set a clear, front-facing photo as your main photo, then verify."
+                    )
+                    "NO_PRIMARY_PHOTO" -> APIError.MessageRejected("Add a profile photo before verifying your profile.")
+                    else -> APIError.ServerError
+                })
+            }
             // ResponseUnwrapInterceptor already stripped the { success, data }
             // envelope, so the pose fields are at the TOP level of the body —
             // reading .get("data") here returned null → "Couldn't start

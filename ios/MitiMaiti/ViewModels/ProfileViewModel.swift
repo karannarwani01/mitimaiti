@@ -52,6 +52,10 @@ class ProfileViewModel: ObservableObject {
         Task {
             do {
                 verifyChallenge = try await api.fetchVerifyChallenge()
+            } catch APIError.serverError(let msg) {
+                // Surface the server's guidance (e.g. "Your main photo doesn't
+                // clearly show your face…") instead of a generic failure.
+                verifyMessage = msg
             } catch {
                 verifyMessage = "Couldn't start verification. Please try again."
             }

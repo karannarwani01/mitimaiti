@@ -8,13 +8,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.FavoriteBorder
-import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.*
@@ -36,7 +34,6 @@ import com.mitimaiti.app.ui.components.NotificationPanel
 import com.mitimaiti.app.ui.theme.AppColors
 import com.mitimaiti.app.ui.theme.LocalAdaptiveColors
 import com.mitimaiti.app.utils.AppNotificationManager
-import com.mitimaiti.app.viewmodels.FamilyViewModel
 import com.mitimaiti.app.viewmodels.FeedViewModel
 import com.mitimaiti.app.viewmodels.InboxViewModel
 import com.mitimaiti.app.viewmodels.ProfileViewModel
@@ -49,7 +46,6 @@ enum class MainTab(
     DISCOVER("Discover", Icons.Filled.Explore, Icons.Outlined.Explore),
     LIKED_YOU("Liked You", Icons.Filled.Favorite, Icons.Outlined.FavoriteBorder),
     MATCHES("Matches", Icons.Filled.ChatBubble, Icons.Outlined.ChatBubbleOutline),
-    FAMILY("Family", Icons.Filled.Groups, Icons.Outlined.Groups),
     PROFILE("Profile", Icons.Filled.Person, Icons.Outlined.Person)
 }
 
@@ -59,7 +55,6 @@ fun MainTabScreen(
     feedViewModel: FeedViewModel,
     inboxViewModel: InboxViewModel,
     profileViewModel: ProfileViewModel,
-    familyViewModel: FamilyViewModel,
     onNavigateToChat: (String) -> Unit,
     onNavigateToEditProfile: () -> Unit,
     onNavigateToSettings: () -> Unit,
@@ -80,7 +75,6 @@ fun MainTabScreen(
         feedViewModel.loadFeed()
         inboxViewModel.loadInbox()
         profileViewModel.loadProfile()
-        familyViewModel.loadFamily()
     }
 
     Scaffold(
@@ -110,13 +104,9 @@ fun MainTabScreen(
                         ),
                         label = "tabBounce"
                     )
-                    val familyBadgeCount = AppNotificationManager.shared.unreadCountForTypes(
-                        listOf(com.mitimaiti.app.utils.NotificationType.FAMILY, com.mitimaiti.app.utils.NotificationType.FAMILY_SUGGESTION)
-                    )
                     val badgeCount = when (tab) {
                         MainTab.LIKED_YOU -> totalLikes
                         MainTab.MATCHES -> unreadMessages
-                        MainTab.FAMILY -> familyBadgeCount
                         else -> 0
                     }
                     NavigationBarItem(
@@ -199,7 +189,6 @@ fun MainTabScreen(
                         viewModel = inboxViewModel,
                         onNavigateToChat = onNavigateToChat
                     )
-                    MainTab.FAMILY -> FamilyScreen(viewModel = familyViewModel)
                     MainTab.PROFILE -> ProfileScreen(
                         viewModel = profileViewModel,
                         onEditProfile = onNavigateToEditProfile,

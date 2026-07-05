@@ -7,7 +7,6 @@ struct ProfileView: View {
     @Environment(\.adaptiveColors) private var colors
     @State private var showEditProfile = false
     @State private var showSettings = false
-    @State private var showFamily = false
     @State private var appeared = false
 
     // MARK: - Avatar photo-change state
@@ -46,8 +45,6 @@ struct ProfileView: View {
                         .sectionFadeIn(appeared: appeared, delay: 0.35)
                     interestsSection
                         .sectionFadeIn(appeared: appeared, delay: 0.4)
-                    actionButtons
-                        .sectionFadeIn(appeared: appeared, delay: 0.45)
                     Spacer().frame(height: 100)
                 }
                 .padding(.horizontal, AppTheme.spacingMD)
@@ -67,9 +64,6 @@ struct ProfileView: View {
             }
             .navigationDestination(isPresented: $showSettings) {
                 SettingsView()
-            }
-            .navigationDestination(isPresented: $showFamily) {
-                FamilyView()
             }
             .onAppear {
                 profileVM.loadProfile()
@@ -931,16 +925,6 @@ struct ProfileView: View {
                 }
             }
             .padding(AppTheme.spacingMD)
-        }
-    }
-
-    // MARK: - Action Buttons
-
-    private var actionButtons: some View {
-        VStack(spacing: AppTheme.spacingSM) {
-            SecondaryButton(title: localization.t("family.familyMode"), icon: "person.3.fill") {
-                showFamily = true
-            }
         }
     }
 

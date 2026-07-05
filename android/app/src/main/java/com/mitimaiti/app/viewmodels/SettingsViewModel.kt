@@ -23,7 +23,7 @@ class SettingsViewModel : ViewModel() {
     val educationFilter = MutableStateFlow<String?>(null); val smokingFilter = MutableStateFlow<String?>(null)
     val drinkingFilter = MutableStateFlow<String?>(null); val familyPlansFilter = MutableStateFlow<String?>(null)
     val notifyMatches = MutableStateFlow(true); val notifyMessages = MutableStateFlow(true)
-    val notifyLikes = MutableStateFlow(true); val notifyFamily = MutableStateFlow(true)
+    val notifyLikes = MutableStateFlow(true)
     val notifyExpiry = MutableStateFlow(true); val notifySafety = MutableStateFlow(true)
     val notifyDailyPrompts = MutableStateFlow(true); val notifyNewFeatures = MutableStateFlow(true)
     val theme = MutableStateFlow(AppThemeMode.SYSTEM)

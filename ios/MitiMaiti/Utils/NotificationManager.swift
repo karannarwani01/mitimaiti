@@ -41,7 +41,7 @@ enum NotificationType: String, Codable, CaseIterable {
         case .match: return 2       // Matches tab (chat)
         case .like: return 1        // Liked You / Inbox tab
         case .message: return 2     // Matches tab (chat)
-        case .family, .familySuggestion: return 3 // Family tab
+        case .family, .familySuggestion: return nil // Family module removed
         case .expiry: return 2      // Matches tab
         case .profileView: return 4 // Profile tab
         case .icebreaker: return 2  // Matches tab (chat)
@@ -481,10 +481,8 @@ class NotificationManager: ObservableObject {
             AppNotification(id: "seed-1", type: .match, title: "New Match!", body: "You and Priya matched! Say hi before the timer runs out.", createdAt: Date().addingTimeInterval(-300)),
             AppNotification(id: "seed-2", type: .like, title: "Someone liked you", body: "Arjun liked your profile. Check Liked You to see!", createdAt: Date().addingTimeInterval(-1800)),
             AppNotification(id: "seed-3", type: .message, title: "New message from Meera", body: "\"I just made the best dal pakwan of my life!\"", createdAt: Date().addingTimeInterval(-3600)),
-            AppNotification(id: "seed-4", type: .familySuggestion, title: "Mom suggested Rohit from Pune", body: "Check Family Mode to review the suggestion.", createdAt: Date().addingTimeInterval(-7200), isRead: true),
             AppNotification(id: "seed-5", type: .expiry, title: "Match with Roshni expires in 4h", body: "Send a message before it's too late!", createdAt: Date().addingTimeInterval(-10800), isRead: true),
             AppNotification(id: "seed-6", type: .like, title: "Anika liked your photo", body: "You have a new admirer! Take a look.", createdAt: Date().addingTimeInterval(-14400)),
-            AppNotification(id: "seed-7", type: .family, title: "Family update", body: "Maa joined Family Mode", createdAt: Date().addingTimeInterval(-86400), isRead: true),
             AppNotification(id: "seed-8", type: .system, title: "Weekly summary: 47 views, 12 likes", body: "Your profile had a great week! Keep it up.", createdAt: Date().addingTimeInterval(-86400), isRead: true),
             AppNotification(id: "seed-9", type: .icebreaker, title: "Conversation starter", body: "Try asking about their favorite Sindhi dish!", createdAt: Date().addingTimeInterval(-90000), isRead: true),
             AppNotification(id: "seed-10", type: .feature, title: "New feature: Voice Intros!", body: "Record a short voice intro to stand out from the crowd.", createdAt: Date().addingTimeInterval(-172800), isRead: true),

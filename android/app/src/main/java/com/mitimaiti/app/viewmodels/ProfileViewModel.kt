@@ -105,7 +105,10 @@ class ProfileViewModel : ViewModel() {
             isVerifying.value = true
             APIService.fetchVerifyChallenge()
                 .onSuccess { verifyChallenge.value = it }
-                .onFailure { verifyMessage.value = "Couldn't start verification. Please try again." }
+                .onFailure { err ->
+                    verifyMessage.value = (err as? com.mitimaiti.app.services.APIError.MessageRejected)?.reason
+                        ?: "Couldn't start verification. Please try again."
+                }
             isVerifying.value = false
         }
     }
