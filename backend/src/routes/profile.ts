@@ -120,6 +120,10 @@ const basicsSchema = z
     smoking: z.string().max(50).nullable().optional(),
     drinking: z.string().max(50).nullable().optional(),
     exercise: z.string().max(50).nullable().optional(),
+    // Previously had no schema slot, so they could never be saved. These flow
+    // to basic_profiles via the generic loop (not in USER_TABLE_KEYS).
+    want_kids: z.string().max(50).nullable().optional(),
+    settling: z.string().max(50).nullable().optional(),
   })
   .strict();
 
@@ -132,6 +136,11 @@ const sindhiSchema = z
       .optional(),
     community_sub_group: z.string().max(100).optional(),
     gotra: z.string().max(100).optional(),
+    // Previously had no schema slot. generation is CHECK-constrained in the DB
+    // (migration 014) so a permissive string is safe; the DB enforces the enum.
+    generation: z.string().max(20).nullable().optional(),
+    family_origin_city: z.string().max(100).nullable().optional(),
+    family_origin_country: z.string().max(100).nullable().optional(),
   })
   .strict();
 
@@ -152,6 +161,7 @@ const chattiSchema = z
 const personalitySchema = z
   .object({
     interests: z.array(z.string().max(50)).max(20).optional(),
+    languages: z.array(z.string().max(50)).max(20).optional(),
     music_preferences: z.array(z.string().max(50)).max(15).optional(),
     movie_genres: z.array(z.string().max(50)).max(15).optional(),
     travel_style: z.string().max(100).optional(),

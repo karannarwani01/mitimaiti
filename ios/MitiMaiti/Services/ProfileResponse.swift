@@ -46,7 +46,9 @@ struct ProfileResponse: Decodable {
         let drinking: String?
         let exercise: String?
         let wantKids: String?
-        let settlingTimeline: String?
+        // DB column is `settling` (no underscore) — with convertFromSnakeCase
+        // it decodes as `settling`, mapped onto User.settlingTimeline below.
+        let settling: String?
         let showMe: ShowMe?
     }
 
@@ -138,7 +140,7 @@ struct ProfileResponse: Decodable {
             drinking: basics?.drinking,
             exercise: basics?.exercise,
             wantKids: basics?.wantKids,
-            settlingTimeline: basics?.settlingTimeline,
+            settlingTimeline: basics?.settling,
             motherTongue: sindhi?.motherTongue,
             sindhiDialect: sindhi?.sindhiDialect,
             sindhiFluency: sindhi?.sindhiFluency,

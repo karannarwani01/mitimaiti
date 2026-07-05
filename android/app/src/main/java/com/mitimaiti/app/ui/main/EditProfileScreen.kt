@@ -57,6 +57,12 @@ private val PREDEFINED_MOVIES = listOf(
     "Horror", "Documentary", "Bollywood", "Anime", "Indie", "Fantasy"
 )
 
+private val PREDEFINED_LANGUAGES = listOf(
+    "Sindhi", "Hindi", "English", "Urdu", "Gujarati", "Punjabi",
+    "Marathi", "Tamil", "Telugu", "Kannada", "Bengali", "Spanish",
+    "Arabic", "French", "Kutchi"
+)
+
 private val PREDEFINED_FESTIVALS = listOf(
     "Cheti Chand", "Diwali", "Holi", "Eid", "Christmas", "Navratri",
     "Thadri", "Lohri", "Ganesh Chaturthi", "Raksha Bandhan"
@@ -116,6 +122,7 @@ fun EditProfileScreen(
     val context = LocalContext.current
     val isSaving by viewModel.isSaving.collectAsState()
     val saveSuccess by viewModel.saveSuccess.collectAsState()
+    val error by viewModel.error.collectAsState()
     val user by viewModel.user.collectAsState()
     val scrollState = rememberScrollState()
 
@@ -146,6 +153,7 @@ fun EditProfileScreen(
     val musicPreferences by viewModel.editMusicPreferences.collectAsState()
     val movieGenres by viewModel.editMovieGenres.collectAsState()
     val travelStyle by viewModel.editTravelStyle.collectAsState()
+    val languages by viewModel.editLanguages.collectAsState()
     val prompts by viewModel.editPrompts.collectAsState()
 
     // Photos from shared repository
@@ -184,6 +192,13 @@ fun EditProfileScreen(
             Toast.makeText(context, "Profile saved successfully!", Toast.LENGTH_SHORT).show()
             viewModel.dismissSaveSuccess()
             onBack()
+        }
+    }
+
+    LaunchedEffect(error) {
+        error?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            viewModel.dismissError()
         }
     }
 
@@ -776,11 +791,13 @@ fun EditProfileScreen(
                     selected = generation,
                     onSelect = { viewModel.editGeneration.value = it }
                 )
-                EditField(
+                SearchableSelectField(
                     label = "Gotra",
                     value = gotra,
-                    onValueChange = { viewModel.editGotra.value = it },
-                    icon = Icons.Default.AccountTree
+                    options = com.mitimaiti.app.data.GotraOptions.list,
+                    onSelect = { viewModel.editGotra.value = it },
+                    icon = Icons.Default.AccountTree,
+                    searchHint = "Search gotra…"
                 )
                 EditField(
                     label = "Family Origin City",
@@ -895,6 +912,17 @@ fun EditProfileScreen(
                         val current = movieGenres.toMutableList()
                         if (current.contains(item)) current.remove(item) else current.add(item)
                         viewModel.editMovieGenres.value = current.toList()
+                    }
+                )
+                // Languages (multi-select)
+                MultiSelectChipField(
+                    label = "Languages",
+                    options = PREDEFINED_LANGUAGES,
+                    selected = languages,
+                    onToggle = { item ->
+                        val current = languages.toMutableList()
+                        if (current.contains(item)) current.remove(item) else current.add(item)
+                        viewModel.editLanguages.value = current.toList()
                     }
                 )
                 // Travel Style
@@ -1134,6 +1162,116 @@ private fun editFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedLabelColor = AppColors.Rose,
     unfocusedLabelColor = LocalAdaptiveColors.current.textMuted
 )
+
+/**
+ * A read-only field that opens a searchable directory dialog: a search bar
+ * plus a scrollable list of [options]. Always allows a custom value via
+ * "Use \"<query>\"", so an incomplete directory never blocks a real entry.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SearchableSelectField(
+    label: String,
+    value: String,
+    options: List<String>,
+    onSelect: (String) -> Unit,
+    icon: ImageVector,
+    searchHint: String = "Search…"
+) {
+    val colors = LocalAdaptiveColors.current
+    var showDialog by remember { mutableStateOf(false) }
+
+    OutlinedTextField(
+        value = value,
+        onValueChange = {},
+        readOnly = true,
+        enabled = false,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clickable { showDialog = true },
+        label = { Text(label) },
+        placeholder = { Text("Tap to choose", color = colors.textMuted) },
+        leadingIcon = { Icon(icon, label, tint = AppColors.Rose, modifier = Modifier.size(20.dp)) },
+        trailingIcon = { Icon(Icons.Default.ArrowDropDown, null, tint = colors.textMuted) },
+        shape = RoundedCornerShape(AppTheme.radiusMd),
+        colors = OutlinedTextFieldDefaults.colors(
+            disabledBorderColor = colors.border,
+            disabledTextColor = colors.textPrimary,
+            disabledLabelColor = colors.textMuted,
+            disabledLeadingIconColor = AppColors.Rose,
+            disabledTrailingIconColor = colors.textMuted,
+            disabledPlaceholderColor = colors.textMuted
+        ),
+        singleLine = true
+    )
+
+    if (showDialog) {
+        var query by remember { mutableStateOf("") }
+        val filtered = remember(query) {
+            if (query.isBlank()) options
+            else options.filter { it.contains(query.trim(), ignoreCase = true) }
+        }
+        val exactMatch = options.any { it.equals(query.trim(), ignoreCase = true) }
+
+        AlertDialog(
+            onDismissRequest = { showDialog = false },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showDialog = false }) { Text("Cancel") }
+            },
+            title = { Text("Select $label") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text(searchHint, color = colors.textMuted) },
+                        leadingIcon = { Icon(Icons.Default.Search, null, tint = colors.textMuted, modifier = Modifier.size(18.dp)) },
+                        shape = RoundedCornerShape(AppTheme.radiusMd),
+                        colors = editFieldColors(),
+                        singleLine = true
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    androidx.compose.foundation.lazy.LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 320.dp)
+                    ) {
+                        // Custom "Use typed value" row when the query isn't an exact option
+                        if (query.isNotBlank() && !exactMatch) {
+                            item {
+                                ListItem(
+                                    headlineContent = { Text("Use \"${query.trim()}\"", fontWeight = FontWeight.SemiBold, color = AppColors.Rose) },
+                                    modifier = Modifier.clickable {
+                                        onSelect(query.trim()); showDialog = false
+                                    },
+                                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                                )
+                                HorizontalDivider(color = colors.border.copy(alpha = 0.4f))
+                            }
+                        }
+                        items(filtered.size) { i ->
+                            val opt = filtered[i]
+                            ListItem(
+                                headlineContent = { Text(opt, color = colors.textPrimary) },
+                                trailingContent = if (opt.equals(value, ignoreCase = true)) {
+                                    { Icon(Icons.Default.Check, null, tint = AppColors.Rose, modifier = Modifier.size(18.dp)) }
+                                } else null,
+                                modifier = Modifier.clickable { onSelect(opt); showDialog = false },
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                            )
+                        }
+                        if (filtered.isEmpty() && query.isBlank()) {
+                            item { Text("No options", color = colors.textMuted, modifier = Modifier.padding(12.dp)) }
+                        }
+                    }
+                }
+            }
+        )
+    }
+}
 
 // ─── Voice Intro (Hinge-style, max 30s) ─────────────────────────────────────
 

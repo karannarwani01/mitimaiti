@@ -385,6 +385,8 @@ class ProfileViewModel : ViewModel() {
             if (editSmoking.value.isNotBlank()) basics["smoking"] = editSmoking.value
             if (editDrinking.value.isNotBlank()) basics["drinking"] = editDrinking.value
             if (editExercise.value.isNotBlank()) basics["exercise"] = editExercise.value
+            if (editWantKids.value.isNotBlank()) basics["want_kids"] = editWantKids.value
+            if (editSettlingTimeline.value.isNotBlank()) basics["settling"] = editSettlingTimeline.value
 
             val userFields = mutableMapOf<String, Any>()
             if (editEducation.value.isNotBlank()) userFields["education"] = editEducation.value.trim()
@@ -398,6 +400,9 @@ class ProfileViewModel : ViewModel() {
             if (editCommunitySubGroup.value.isNotBlank()) sindhi["community_sub_group"] = editCommunitySubGroup.value.trim()
             if (editGotra.value.isNotBlank()) sindhi["gotra"] = editGotra.value.trim()
             editFluency.value?.let { sindhi["sindhi_fluency"] = it.name.lowercase() }
+            if (editGeneration.value.isNotBlank()) sindhi["generation"] = editGeneration.value
+            if (editFamilyOriginCity.value.isNotBlank()) sindhi["family_origin_city"] = editFamilyOriginCity.value.trim()
+            if (editFamilyOriginCountry.value.isNotBlank()) sindhi["family_origin_country"] = editFamilyOriginCountry.value.trim()
 
             val chatti = mutableMapOf<String, Any>()
             editFamilyValues.value?.let { chatti["family_values"] = it.name.lowercase() }
@@ -410,6 +415,7 @@ class ProfileViewModel : ViewModel() {
             if (editMusicPreferences.value.isNotEmpty()) personality["music_preferences"] = editMusicPreferences.value
             if (editMovieGenres.value.isNotEmpty()) personality["movie_genres"] = editMovieGenres.value
             if (editTravelStyle.value.isNotBlank()) personality["travel_style"] = editTravelStyle.value.trim()
+            if (editLanguages.value.isNotEmpty()) personality["languages"] = editLanguages.value
             // Always send prompts so removals persist (empty array clears them)
             personality["prompts"] = editPrompts.value.map {
                 mapOf("question" to it.question, "answer" to it.answer)
@@ -463,4 +469,6 @@ class ProfileViewModel : ViewModel() {
     }
 
     fun dismissSaveSuccess() { _saveSuccess.value = false }
+
+    fun dismissError() { _error.value = null }
 }

@@ -872,7 +872,15 @@ object APIService {
             needsOnboarding = data["needs_onboarding"] as? Boolean ?: false,
             // Feed/inbox cards send a computed `age` and no date_of_birth
             ageYears = (data["age"] as? Number)?.toInt(),
-            voiceIntroUrl = data["voice_intro_url"] as? String
+            voiceIntroUrl = data["voice_intro_url"] as? String,
+            // GET /v1/me returns these under their DB column names; previously
+            // never read into the model, so EditProfile always showed them blank.
+            wantKids = data["want_kids"] as? String,
+            settlingTimeline = data["settling"] as? String,
+            generation = data["generation"] as? String,
+            familyOriginCity = data["family_origin_city"] as? String,
+            familyOriginCountry = data["family_origin_country"] as? String,
+            languages = (data["languages"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
         )
     }
 

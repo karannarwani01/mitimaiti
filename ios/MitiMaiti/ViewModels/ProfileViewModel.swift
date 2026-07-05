@@ -228,6 +228,8 @@ class ProfileViewModel: ObservableObject {
         else if !editDrinking.isEmpty { basics["drinking"] = editDrinking }
         if let v = user.exercise, !v.isEmpty { basics["exercise"] = v }
         else if !editExercise.isEmpty { basics["exercise"] = editExercise }
+        if let v = user.wantKids, !v.isEmpty { basics["want_kids"] = v }
+        if let v = user.settlingTimeline, !v.isEmpty { basics["settling"] = v }
 
         var userFields: [String: Any] = [:]
         let edu = editEducation.trimmingCharacters(in: .whitespaces)
@@ -251,6 +253,9 @@ class ProfileViewModel: ObservableObject {
         if let v = user.sindhiDialect, !v.isEmpty { sindhi["sindhi_dialect"] = v }
         if let v = user.communitySubGroup, !v.isEmpty { sindhi["community_sub_group"] = v }
         if let v = user.gotra, !v.isEmpty { sindhi["gotra"] = v }
+        if let v = user.generation, !v.isEmpty { sindhi["generation"] = v }
+        if let v = user.familyOriginCity, !v.isEmpty { sindhi["family_origin_city"] = v }
+        if let v = user.familyOriginCountry, !v.isEmpty { sindhi["family_origin_country"] = v }
         if !sindhi.isEmpty { payload["sindhi"] = sindhi }
 
         var chatti: [String: Any] = [:]
@@ -266,6 +271,7 @@ class ProfileViewModel: ObservableObject {
         if let v = user.musicPreferences, !v.isEmpty { personality["music_preferences"] = v }
         if let v = user.movieGenres, !v.isEmpty { personality["movie_genres"] = v }
         if let v = user.travelStyle, !v.isEmpty { personality["travel_style"] = v }
+        if let v = user.languages, !v.isEmpty { personality["languages"] = v }
         // Always send prompts so removals persist (empty array clears them)
         personality["prompts"] = user.prompts.map { ["question": $0.question, "answer": $0.answer] }
         payload["personality"] = personality

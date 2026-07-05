@@ -145,6 +145,14 @@ struct EditProfileView: View {
         .onChange(of: editPrompts) { _ in flashSaveToast() }
         .onChange(of: editGeneration) { _ in flashSaveToast() }
         .onChange(of: editFamilyOriginCountry) { _ in flashSaveToast() }
+        .onChange(of: profileVM.error) { err in
+            // Surface save failures (e.g. network / validation) so the user
+            // isn't left thinking the edit persisted. Clear after showing.
+            if let err = err, !err.isEmpty {
+                ToastManager.shared.show(err)
+                profileVM.error = nil
+            }
+        }
         .onAppear { populateFromUser() }
     }
 
@@ -383,7 +391,12 @@ struct EditProfileView: View {
                 AppTextField(placeholder: "e.g. Kutchi, Hyderabadi", text: $editDialect, icon: "waveform")
             }
             editField(label: "Gotra", icon: "leaf.fill") {
-                AppTextField(placeholder: "e.g. Advani", text: $editGotra, icon: "leaf")
+                SearchableSelectField(
+                    value: $editGotra,
+                    options: GotraOptions.list,
+                    placeholder: "Tap to choose",
+                    searchHint: "Search gotra…"
+                )
             }
             editField(label: "Generation", icon: "clock.arrow.circlepath") {
                 menuPicker(
