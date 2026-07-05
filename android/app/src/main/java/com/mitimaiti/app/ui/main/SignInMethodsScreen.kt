@@ -82,11 +82,6 @@ fun SignInMethodsScreen(viewModel: AuthViewModel, onBack: () -> Unit) {
             }
         }
     }
-    // Google link sends the email code server-side → open the dialog at the
-    // code step (policy: even a Google-proven email is OTP-verified).
-    LaunchedEffect(otpSent) {
-        if (otpSent && !showEmailDialog) { codeInput = ""; showEmailDialog = true }
-    }
     DisposableEffect(Unit) { onDispose { viewModel.clearLinkResult() } }
 
     val onGoogle: () -> Unit = {

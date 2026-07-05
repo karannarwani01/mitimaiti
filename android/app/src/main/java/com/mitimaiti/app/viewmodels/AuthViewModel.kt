@@ -114,14 +114,9 @@ class AuthViewModel : ViewModel() {
         }
         viewModelScope.launch {
             _linkInProgress.value = true
-            // POLICY: Google proves control of the account, but the email still
-            // gets an OTP before it merges — backend sends the code, the same
-            // linkEmailVerify step finishes the link.
+            // Bumble-style: Google OAuth is trusted directly — no email OTP.
             APIService.linkGoogle(idToken)
-                .onSuccess { email ->
-                    _pendingLinkEmail.value = email
-                    _linkEmailOtpSent.value = true
-                }
+                .onSuccess { merged -> _linkResult.value = if (merged) "merged" else "success" }
                 .onFailure {
                     _linkResult.value = when (it) {
                         is APIError.LinkConflict -> "That Google account is already linked elsewhere"

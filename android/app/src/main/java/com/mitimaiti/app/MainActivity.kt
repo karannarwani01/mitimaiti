@@ -172,9 +172,16 @@ class MainActivity : ComponentActivity() {
                             OTPVerificationScreen(
                                 viewModel = authViewModel,
                                 onVerified = {
-                                    // New users get the optional "add a backup sign-in" step
-                                    // before onboarding; returning users go straight in.
-                                    val dest = if (authViewModel.hasCompletedOnboarding.value) Screen.Main.route else Screen.LinkAccount.route
+                                    // Bumble-style routing: returning users go straight in;
+                                    // new users who already verified a phone (phone-first
+                                    // signup) go to onboarding; new users WITHOUT a phone
+                                    // (Google-first lands here too) get the "Can we get
+                                    // your number?" step first.
+                                    val dest = when {
+                                        authViewModel.hasCompletedOnboarding.value -> Screen.Main.route
+                                        authViewModel.currentUser.value?.phone.isNullOrBlank() -> Screen.LinkAccount.route
+                                        else -> Screen.Onboarding.route
+                                    }
                                     navController.navigate(dest) { popUpTo(Screen.Welcome.route) { inclusive = true } }
                                 },
                                 onBack = { navController.popBackStack() }

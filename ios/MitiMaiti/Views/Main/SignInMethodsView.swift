@@ -64,11 +64,6 @@ struct SignInMethodsView: View {
                 Task { await refresh(); authVM.clearLinkResult() }
             }
         }
-        // Google link sends the email code server-side → open the sheet at the
-        // code step (policy: even a Google-proven email is OTP-verified).
-        .onChange(of: authVM.linkEmailOtpSent) { sent in
-            if sent && !showEmailSheet { codeInput = ""; showEmailSheet = true }
-        }
         .sheet(isPresented: $showEmailSheet) { emailSheet }
         .sheet(isPresented: $showPhoneSheet) { phoneSheet }
     }

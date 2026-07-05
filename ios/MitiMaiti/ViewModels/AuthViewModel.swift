@@ -79,9 +79,10 @@ class AuthViewModel: ObservableObject {
                 let result = try await api.verifyOTP(phone: e164Phone, code: otpCode)
                 isLoading = false
                 hasCompletedOnboarding = !result.needsOnboarding
-                // New phone users get the optional "secure your email" step first.
-                showLinkStep = result.needsOnboarding
-                linkStepSecuresPhone = false
+                // Bumble-style: a phone-first signup already has its verified
+                // phone — straight to onboarding, no link step. Email/Google
+                // can be added later in Settings.
+                showLinkStep = false
                 isAuthenticated = true
                 SocketChat.shared.connect(token: result.accessToken)
             } catch {
@@ -214,13 +215,10 @@ class AuthViewModel: ObservableObject {
                    let name = Self.nameFromIdToken(idToken), !name.isEmpty {
                     UserProfileStore.shared.firstName = name
                 }
-                // POLICY: Google proves control of the account, but the email
-                // still gets an OTP before it merges — the backend sends the
-                // code; the shared linkEmailVerify step finishes the link.
-                let email = try await api.linkGoogle(idToken: idToken)
-                pendingLinkEmail = email
-                linkEmailOtpSent = true
+                // Bumble-style: Google OAuth is trusted directly — no email OTP.
+                let merged = try await api.linkGoogle(idToken: idToken)
                 linkInProgress = false
+                linkResult = merged ? "merged" : "success"
             } catch GoogleSignInError.canceled {
                 linkInProgress = false
             } catch {

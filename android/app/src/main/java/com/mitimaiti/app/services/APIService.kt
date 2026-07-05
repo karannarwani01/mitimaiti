@@ -120,19 +120,16 @@ object APIService {
         } catch (e: Exception) { Result.failure(APIError.NetworkError) }
     }
 
-    /** Start linking the user's Google email: the backend verifies the ID token
-     *  and sends an OTP to that email (policy: every email is OTP-verified before
-     *  it merges). Returns the email the code was sent to — finish with
-     *  linkEmailVerify. */
-    suspend fun linkGoogle(idToken: String): Result<String> {
+    /** Attach the user's Google email to the current account (Bumble-style:
+     *  OAuth proves ownership, no extra email OTP). Returns true if the account
+     *  auto-merged into an existing profile (caller should re-authenticate). */
+    suspend fun linkGoogle(idToken: String): Result<Boolean> {
         return try {
             val r = api.linkGoogle(mapOf("idToken" to idToken))
             when {
                 r.isSuccessful -> {
                     val data = r.body()?.get("data") as? Map<*, *>
-                    val email = data?.get("email") as? String
-                    if (email.isNullOrBlank()) Result.failure(APIError.ServerError)
-                    else Result.success(email)
+                    Result.success((data?.get("merged") as? Boolean) ?: false)
                 }
                 r.code() == 409 -> Result.failure(APIError.LinkConflict)
                 else -> Result.failure(APIError.ServerError)

@@ -417,41 +417,21 @@ fun PhoneAuthScreen(viewModel: AuthViewModel, onOTPSent: () -> Unit, onEmailSele
                 Divider(modifier = Modifier.weight(1f), color = colors.border)
             }
 
-            // Social sign-in buttons
+            // Social sign-in — Bumble-style: phone is the primary method, Google
+            // the only alternative. Email lives in Settings → Sign-in methods.
             Spacer(modifier = Modifier.height(20.dp))
-            Row(
+            SocialSignInButton(
+                label = "Continue with Google",
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                backgroundColor = colors.surfaceMedium,
+                borderColor = colors.border,
+                textColor = colors.textPrimary,
+                onClick = {
+                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                    onGoogleSignIn()
+                }
             ) {
-                // Google button
-                SocialSignInButton(
-                    label = "Google",
-                    modifier = Modifier.weight(1f),
-                    backgroundColor = colors.surfaceMedium,
-                    borderColor = colors.border,
-                    textColor = colors.textPrimary,
-                    onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                        onGoogleSignIn()
-                    }
-                ) {
-                    GoogleIcon(modifier = Modifier.size(20.dp))
-                }
-
-                // Email button
-                SocialSignInButton(
-                    label = "Email",
-                    modifier = Modifier.weight(1f),
-                    backgroundColor = colors.surfaceMedium,
-                    borderColor = colors.border,
-                    textColor = colors.textPrimary,
-                    onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                        onEmailSelected()
-                    }
-                ) {
-                    EmailIcon(modifier = Modifier.size(20.dp), tint = colors.textSecondary)
-                }
+                GoogleIcon(modifier = Modifier.size(20.dp))
             }
 
             Spacer(modifier = Modifier.height(32.dp))

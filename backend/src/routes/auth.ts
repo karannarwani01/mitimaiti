@@ -1476,11 +1476,15 @@ router.post(
     }
 
     const email = payload.email.toLowerCase();
+    // Bumble-style: Google OAuth proves ownership of the email — trust it
+    // directly (no extra email OTP) → attach or auto-merge.
+    const { merged } = await attachEmailToUser(user.authId, user.id, email, 'LINK_GOOGLE_FAILED', true);
 
-    // Backfill the name for accounts that don't have one yet (phone-OTP signup
-    // linking Google before onboarding) so the name step arrives prefilled.
+    // Backfill the name for accounts that don't have one yet so the onboarding
+    // name step arrives prefilled. Skipped on merge — the surviving profile
+    // keeps its own name.
     const googleName = payload.name || payload.given_name || null;
-    if (googleName) {
+    if (!merged && googleName) {
       await supabase
         .from('users')
         .update({ first_name: googleName })
@@ -1488,18 +1492,7 @@ router.post(
         .is('first_name', null);
     }
 
-    // POLICY: every email is OTP-verified before it attaches/merges — even one
-    // proven by Google OAuth. Send the code; the client completes the link via
-    // POST /link/email/verify (which handles attach + auto-merge).
-    const { error: otpErr } = await supabaseAuth.auth.signInWithOtp({
-      email,
-      options: { shouldCreateUser: true },
-    });
-    if (otpErr) {
-      throw new AppError(500, otpErr.message || 'Could not send the code', 'OTP_SEND_FAILED');
-    }
-
-    res.json({ success: true, data: { email, provider: 'google', sent: true } });
+    res.json({ success: true, data: { email, provider: 'google', merged } });
   })
 );
 

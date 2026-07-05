@@ -373,28 +373,8 @@ struct PhoneAuthView: View {
             .frame(maxWidth: .infinity)
             .frame(height: 48)
             .clipShape(RoundedRectangle(cornerRadius: 12))
-
-            // Email
-            NavigationLink {
-                EmailAuthView().environmentObject(authVM)
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "envelope.fill")
-                        .font(.system(size: 16))
-                        .foregroundColor(colors.textSecondary)
-                    Text("Email")
-                        .font(.system(size: 14, weight: .semibold))
-                }
-                .foregroundColor(colors.textPrimary)
-                .frame(maxWidth: .infinity)
-                .frame(height: 48)
-                .background(colors.surfaceMedium)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(colors.border, lineWidth: 1)
-                )
-            }
+            // Bumble-style: phone is the primary method; Google/Apple are the
+            // only alternatives. Email lives in Settings → Sign-in methods.
         }
     }
 

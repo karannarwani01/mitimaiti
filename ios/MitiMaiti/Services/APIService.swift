@@ -122,15 +122,15 @@ actor APIService {
         let _: EmptyData = try await authedRequest(.post, "/auth/link/email", body: Body(email: email))
     }
 
-    struct LinkGoogleStartResult: Decodable { let email: String }
-    /// Start linking the user's Google email: the backend verifies the ID token
-    /// and sends an OTP to that email (policy: every email is OTP-verified
-    /// before it merges). Returns the email — finish with linkEmailVerify.
-    func linkGoogle(idToken: String) async throws -> String {
+    struct LinkGoogleResult: Decodable { let merged: Bool }
+    /// Attach the user's Google email to the current account (Bumble-style:
+    /// OAuth proves ownership, no extra email OTP). Returns true if the account
+    /// auto-merged into an existing profile (caller should re-authenticate).
+    func linkGoogle(idToken: String) async throws -> Bool {
         // Backend expects camelCase `idToken`; bypass the snake-casing encoder.
         let raw = try JSONSerialization.data(withJSONObject: ["idToken": idToken])
-        let r: LinkGoogleStartResult = try await authedRequest(.post, "/auth/link/google", rawBody: raw)
-        return r.email
+        let r: LinkGoogleResult = try await authedRequest(.post, "/auth/link/google", rawBody: raw)
+        return r.merged
     }
 
     // Add a phone with SMS OTP verification (mirror of the email pair).
