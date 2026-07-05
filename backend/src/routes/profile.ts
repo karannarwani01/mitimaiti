@@ -428,6 +428,45 @@ async function compareFaces(
   };
 }
 
+/**
+ * Whether the user's primary photo has a clearly detectable face — checked
+ * BEFORE issuing a verification pose so we can tell the user to fix their main
+ * photo up front instead of failing them after they've taken a selfie.
+ * Fails OPEN (returns { ok: true }) on any Rekognition/fetch error so a
+ * transient issue never blocks a legitimate verification.
+ */
+async function primaryPhotoFaceCheck(
+  userId: string
+): Promise<{ ok: boolean; reason?: 'no_primary' | 'no_face' }> {
+  const { data: primaryPhoto } = await supabase
+    .from('photos')
+    .select('url_original')
+    .eq('user_id', userId)
+    .eq('is_primary', true)
+    .eq('is_video', false)
+    .single();
+  if (!primaryPhoto) return { ok: false, reason: 'no_primary' };
+
+  try {
+    const resp = await fetch(primaryPhoto.url_original);
+    if (!resp.ok) return { ok: true };
+    const buf = await sharp(Buffer.from(await resp.arrayBuffer()))
+      .rotate()
+      .jpeg({ quality: 90 })
+      .toBuffer();
+    const { RekognitionClient, DetectFacesCommand } = await import('@aws-sdk/client-rekognition');
+    const client = new RekognitionClient({ region: AWS_REGION });
+    const det = await client.send(new DetectFacesCommand({ Image: { Bytes: buf } }));
+    const face = det.FaceDetails?.[0];
+    // Need exactly-ish one confidently-detected face (a group photo or a
+    // face-less shot can't be a verification reference).
+    if (!face || (face.Confidence ?? 0) < 90) return { ok: false, reason: 'no_face' };
+    return { ok: true };
+  } catch {
+    return { ok: true };
+  }
+}
+
 // ─── Helper: upsert a profile sub-table ─────────────────────────────────────────
 
 async function upsertProfileTable(
@@ -1224,6 +1263,24 @@ router.get(
   authenticate,
   asyncHandler(async (req: Request, res: Response) => {
     const user = (req as AuthenticatedRequest).user;
+
+    // Pre-flight: make sure the main photo can actually be a face reference, so
+    // the user is told to fix it up front rather than failing after a selfie.
+    // Only when Rekognition is configured; otherwise skip (feature is gated).
+    if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
+      const check = await primaryPhotoFaceCheck(user.id);
+      if (check.reason === 'no_primary') {
+        throw new AppError(400, 'Add a profile photo before verifying your profile.', 'NO_PRIMARY_PHOTO');
+      }
+      if (check.reason === 'no_face') {
+        throw new AppError(
+          400,
+          "Your main photo doesn't clearly show your face. Set a clear, front-facing photo as your main photo, then verify.",
+          'NO_FACE_IN_PRIMARY'
+        );
+      }
+    }
+
     const pose = VERIFY_POSES[Math.floor(Math.random() * VERIFY_POSES.length)];
     try {
       await redis.set(`verify_pose:${user.id}`, pose.id, 'EX', VERIFY_CHALLENGE_TTL_SECONDS);
