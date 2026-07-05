@@ -356,7 +356,11 @@ object APIService {
         return try {
             val r = api.verifyChallenge()
             if (!r.isSuccessful) return Result.failure(APIError.ServerError)
-            val data = r.body()?.get("data") as? Map<*, *> ?: return Result.failure(APIError.ServerError)
+            // ResponseUnwrapInterceptor already stripped the { success, data }
+            // envelope, so the pose fields are at the TOP level of the body —
+            // reading .get("data") here returned null → "Couldn't start
+            // verification" even though the server sent 200.
+            val data = r.body() ?: return Result.failure(APIError.ServerError)
             Result.success(VerifyChallenge(
                 poseId = data["pose_id"] as? String ?: return Result.failure(APIError.ServerError),
                 emoji = data["emoji"] as? String ?: "✌️",
@@ -376,14 +380,14 @@ object APIService {
             val posePart = poseId.toRequestBody("text/plain".toMediaTypeOrNull())
             val response = api.verifySelfie(part, posePart)
             if (response.isSuccessful) {
-                // Success: { success: true, data: { isVerified, similarity } }.
-                // A failed match is ALSO 200: { success: false, error, data: { similarity } }.
+                // ResponseUnwrapInterceptor already stripped the { success, data }
+                // envelope AND snake-cased keys, so isVerified/similarity are at
+                // the TOP level as is_verified/similarity.
                 val b = response.body()
-                val data = b?.get("data") as? Map<*, *>
-                val verified = (data?.get("isVerified") as? Boolean)
-                    ?: (data?.get("is_verified") as? Boolean)
+                val verified = (b?.get("is_verified") as? Boolean)
+                    ?: (b?.get("isVerified") as? Boolean)
                     ?: false
-                val similarity = (data?.get("similarity") as? Number)?.toInt()
+                val similarity = (b?.get("similarity") as? Number)?.toInt()
                 Result.success(VerifyResult(
                     verified = verified,
                     similarity = similarity,
